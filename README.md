@@ -1,5 +1,7 @@
 # DidTheyVote
 Using publicly available voting records to map and determine if your neighbors have voted yet.
+# Disclaimer
+Disclaimer: This is produced as a civic and publicly available service by our community in Hidalgo County, Texas at no charge, including making it open source so others can contribute and replicate as needed in their neighborhoods.
 
 # Started
 Began as a concept on 22-OCT-2024 with assistance from the RGV Cybver Discord. 
