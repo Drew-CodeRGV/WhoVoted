@@ -255,7 +255,7 @@ def process_data(url, output_dir="public/data", max_workers=4):
         with open(Path(output_dir) / "metadata.json", "w") as f:
             json.dump(metadata, f)
 
-        logger.info(f"Processing complete:")
+        logger.info("Processing complete:")
         logger.info(
             f"Successfully geocoded: {len(geojson_data['features'])}/{total_addresses}"
         )
