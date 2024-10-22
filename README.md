@@ -1,10 +1,11 @@
-# DidTheyVote
+# Have Your Neighbors Voted?
 Using publicly available voting records to map and determine if your neighbors have voted yet.
+
 # Disclaimer
 Disclaimer: This is produced as a civic and publicly available service by our community in Hidalgo County, Texas at no charge, including making it open source so others can contribute and replicate as needed in their neighborhoods.
 
 # Started
-Began as a concept on 22-OCT-2024 with assistance from the RGV Cybver Discord. 
+Began as a concept on 22-OCT-2024 with assistance from the RGV Cyber Discord and politiquera.com
 The idea is simple: Grab voter rosters and the address field, then allow those to be mapped. Input your address to see if your neighbors appear on the rolls. 
 
 # Why
