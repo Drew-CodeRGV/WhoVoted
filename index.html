@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neighborhood Voter Map</title>
+    
+    <!-- Leaflet CSS and JS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    
+    <!-- OpenCage Geocoder -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/opencage-api-client/1.0.2/opencage-api.min.js"></script>
+    
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: Arial, sans-serif;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+            flex-direction: column;
+        }
+        
+        .search-container {
+            padding: 20px;
+            background: #f8f9fa;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        
+        .search-box {
+            width: 100%;
+            max-width: 400px;
+            padding: 10px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .search-button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .search-button:hover {
+            background: #0056b3;
+        }
+        
+        #map { 
+            flex-grow: 1;
+            width: 100%;
+        }
+        
+        .info-box {
+            padding: 6px 8px;
+            background: white;
+            background: rgba(255,255,255,0.8);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
+            max-width: 300px;
+        }
+        
+        .legend {
+            line-height: 18px;
+            color: #555;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
+        
+        .marker-cluster {
+            background-color: rgba(0, 123, 255, 0.6);
+            border-radius: 50%;
+            color: white;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="search-container">
+            <input type="text" id="address" class="search-box" placeholder="Enter your address...">
+            <button onclick="searchAddress()" class="search-button">Search</button>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <script>
+        // Initialize the map centered on your area
+        const map = L.map('map').setView([26.2034, -98.2300], 12); // McAllen area
+
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Initialize markers layer group
+        const markers = L.layerGroup().addTo(map);
+        
+        // Load GeoJSON data
+        async function loadMapData() {
+            try {
+                const response = await fetch('data/map_data.json');
+                const data = await response.json();
+                
+                // Add GeoJSON to map
+                L.geoJSON(data, {
+                    pointToLayer: function(feature, latlng) {
+                        return L.circleMarker(latlng, {
+                            radius: 6,
+                            fillColor: "#007bff",
+                            color: "#fff",
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        });
+                    },
+                    onEachFeature: function(feature, layer) {
+                        // Create popup content
+                        let popupContent = `
+                            <div class="info-box">
+                                <strong>Address:</strong> ${feature.properties.address}<br>
+                                <strong>Precinct:</strong> ${feature.properties.precinct}<br>
+                                <strong>Ballot Style:</strong> ${feature.properties.ballot_style}
+                            </div>
+                        `;
+                        layer.bindPopup(popupContent);
+                    }
+                }).addTo(markers);
+                
+            } catch (error) {
+                console.error('Error loading map data:', error);
+                alert('Error loading map data. Please try again later.');
+            }
+        }
+
+        // Function to search address and zoom map
+        async function searchAddress() {
+            const address = document.getElementById('address').value;
+            if (!address) return;
+
+            try {
+                // You'll need to sign up for a free API key at OpenCage
+                const apiKey = 'YOUR_OPENCAGE_API_KEY';
+                const query = encodeURIComponent(address);
+                const response = await fetch(
+                    `https://api.opencagedata.com/geocode/v1/json?q=${query}&key=${apiKey}`
+                );
+                const data = await response.json();
+
+                if (data.results && data.results.length > 0) {
+                    const result = data.results[0];
+                    const lat = result.geometry.lat;
+                    const lng = result.geometry.lng;
+
+                    // Add a marker for the searched address
+                    const searchMarker = L.marker([lat, lng], {
+                        icon: L.divIcon({
+                            className: 'search-marker',
+                            html: '📍',
+                            iconSize: [25, 25],
+                            iconAnchor: [12, 24]
+                        })
+                    }).addTo(map);
+
+                    // Zoom to the location
+                    map.setView([lat, lng], 16);
+
+                    // Show nearby locations within 1km
+                    showNearbyLocations([lat, lng]);
+                } else {
+                    alert('Address not found');
+                }
+            } catch (error) {
+                console.error('Error geocoding address:', error);
+                alert('Error finding address. Please try again.');
+            }
+        }
+
+        // Function to show locations within radius of searched address
+        function showNearbyLocations(center) {
+            const radius = 1000; // 1km radius
+            markers.eachLayer(function(layer) {
+                if (layer.feature) {
+                    const distance = map.distance(
+                        center,
+                        [layer.feature.geometry.coordinates[1], layer.feature.geometry.coordinates[0]]
+                    );
+                    if (distance <= radius) {
+                        layer.setStyle({
+                            fillColor: '#28a745',
+                            radius: 8
+                        });
+                    } else {
+                        layer.setStyle({
+                            fillColor: '#007bff',
+                            radius: 6
+                        });
+                    }
+                }
+            });
+        }
+
+        // Handle enter key in search box
+        document.getElementById('address').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchAddress();
+            }
+        });
+
+        // Load map data when page loads
+        loadMapData();
+    </script>
+</body>
+</html>
