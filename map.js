@@ -42,8 +42,8 @@ function initMap() {
         blur: config.HEATMAP_BLUR,
         maxZoom: config.HEATMAP_MAX_ZOOM,
         max: 1.0,
-        minOpacity: 0.4,
-        maxOpacity: 0.1,  // Adjust this value between 0 and 1 (default is 0.6)
+        minOpacity: 0.1,
+        maxOpacity: 0.6,  // Adjust this value between 0 and 1 (default is 0.6)
     });
 
     map.on('zoomend', updateMapView);
