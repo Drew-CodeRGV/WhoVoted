@@ -55,7 +55,61 @@
             pointer-events: none;
         }
         .search-container {
-            margin-top: 30px; /* Add space below the info strip */
+            position: fixed;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            background: white;
+            padding: 8px 16px;
+            border-radius: 24px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            max-width: 600px;
+            width: 90%;
+        }
+        #search-input {
+            flex: 1;
+            padding: 8px 12px;
+            font-size: 16px;
+            border: none;
+            outline: none;
+            background: transparent;
+            margin-right: 8px;
+            font-family: Arial, sans-serif;
+        }
+        .search-button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        .search-button:hover {
+            background: #357abd;
+        }
+        .geolocation-button {
+            background: none;
+            border: none;
+            padding: 8px;
+            cursor: pointer;
+            color: #5f6368;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 8px;
+        }
+        .geolocation-button:hover {
+            color: #202124;
+        }
+        .geolocation-button svg {
+            width: 20px;
+            height: 20px;
         }
     </style>
     
