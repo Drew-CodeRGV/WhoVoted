@@ -18,7 +18,7 @@ function initMap() {
         showCoverageOnHover: false,
         removeOutsideVisibleBounds: true,
         animate: false,        
-        spiderfyDistanceMultiplier: 0.5,
+        spiderfyDistanceMultiplier: 1.5,
         singleMarkerMode: true,      // Show individual markers when possible
         iconCreateFunction: function(cluster) {
             var childCount = cluster.getChildCount();
@@ -42,7 +42,7 @@ function initMap() {
         blur: config.HEATMAP_BLUR,
         maxZoom: config.HEATMAP_MAX_ZOOM,
         max: 1.0,
-        minOpacity: 0.1,        
+        minOpacity: 10,        
     });
 
     map.on('zoomend', updateMapView);
