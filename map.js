@@ -6,7 +6,7 @@ function initMap() {
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        attribution: '© OpenStreetMap contributors | DL R2'
+        attribution: '© OpenStreetMap contributors | DL R4'
     }).addTo(map);
 
     markerClusterGroup = L.markerClusterGroup({
@@ -41,7 +41,8 @@ function initMap() {
         radius: config.HEATMAP_RADIUS,
         blur: config.HEATMAP_BLUR,
         maxZoom: config.HEATMAP_MAX_ZOOM,
-        maxOpacity: 0.4,  // Adjust this value between 0 and 1 (default is 0.6)
+        minOpacity: 0.4,
+        maxOpacity: 0.1,  // Adjust this value between 0 and 1 (default is 0.6)
              
     });
 
