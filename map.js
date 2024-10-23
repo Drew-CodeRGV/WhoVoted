@@ -9,11 +9,40 @@ function initMap() {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    markerClusterGroup = L.markerClusterGroup();
+    markerClusterGroup = L.markerClusterGroup({
+        disableClusteringAtZoom: 18, // Disable clustering at max zoom
+        spiderfyOnMaxZoom: false,    // Disable spiderifying at max zoom
+        maxClusterRadius: 10,   // Reduce cluster radius (default is 80)
+        chunkedLoading: true,
+        zoomToBoundsOnClick: true,
+        showCoverageOnHover: false,
+        removeOutsideVisibleBounds: true,
+        animate: false,        
+        spiderfyDistanceMultiplier: 1.5,
+        singleMarkerMode: true,      // Show individual markers when possible
+        iconCreateFunction: function(cluster) {
+            var childCount = cluster.getChildCount();
+            var c = ' marker-cluster-';
+            if (childCount < 10) {
+                c += 'small';
+            } else if (childCount < 50) {
+                c += 'medium';
+            } else {
+                c += 'large';
+            }
+            return new L.DivIcon({
+                html: '<div><span>' + childCount + '</span></div>',
+                className: 'marker-cluster' + c,
+                iconSize: new L.Point(40, 40)
+            });
+        }
+    });
     heatmapLayer = L.heatLayer([], {
         radius: config.HEATMAP_RADIUS,
         blur: config.HEATMAP_BLUR,
-        maxZoom: config.HEATMAP_MAX_ZOOM
+        maxZoom: config.HEATMAP_MAX_ZOOM,
+        max: 1.0,
+        minOpacity: 0.3,        
     });
 
     map.on('zoomend', updateMapView);
