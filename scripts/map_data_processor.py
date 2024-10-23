@@ -271,7 +271,7 @@ def process_data(url, api_key, output_dir="public/data", max_workers=4):
 if __name__ == "__main__":
     # Replace with your CSV URL and Google API key
     CSV_URL = "http://localhost:8081/voters_test.csv"
-    GOOGLE_API_KEY = "AIzaSyCcbOBW1VJM8iEEs5T6_FmJo5MH1xdLw6Y"
+    GOOGLE_API_KEY = "AIzaSyDru1WhmiCY8DbY93S74q9sVyD-xbJhVDA"
 
     # Adjust max_workers based on your CPU and memory
     process_data(CSV_URL, GOOGLE_API_KEY, max_workers=4)
