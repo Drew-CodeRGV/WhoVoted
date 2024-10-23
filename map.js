@@ -10,22 +10,22 @@ function initMap() {
     }).addTo(map);
 
     markerClusterGroup = L.markerClusterGroup({
-        disableClusteringAtZoom: 18, // Disable clustering at max zoom
+        disableClusteringAtZoom: 14, // Disable clustering at max zoom
         spiderfyOnMaxZoom: false,    // Disable spiderifying at max zoom
-        maxClusterRadius: 10,   // Reduce cluster radius (default is 80)
+        maxClusterRadius: 20,   // Reduce cluster radius (default is 80)
         chunkedLoading: true,
         zoomToBoundsOnClick: true,
         showCoverageOnHover: false,
         removeOutsideVisibleBounds: true,
         animate: false,        
-        spiderfyDistanceMultiplier: 1.0,
+        spiderfyDistanceMultiplier: 2.0,
         singleMarkerMode: true,      // Show individual markers when possible
         iconCreateFunction: function(cluster) {
             var childCount = cluster.getChildCount();
             var c = ' marker-cluster-';
-            if (childCount < 2) {
+            if (childCount < 5) {
                 c += 'small';
-            } else if (childCount < 50) {
+            } else if (childCount < 25) {
                 c += 'medium';
             } else {
                 c += 'large';
