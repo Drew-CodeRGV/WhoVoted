@@ -41,7 +41,6 @@ function initMap() {
         radius: config.HEATMAP_RADIUS,
         blur: config.HEATMAP_BLUR,
         maxZoom: config.HEATMAP_MAX_ZOOM,
-        max: 1.0,
         maxOpacity: 0.4,  // Adjust this value between 0 and 1 (default is 0.6)
         gradient: {
         0.4: 'blue',
