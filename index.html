@@ -203,9 +203,19 @@
         .pac-container {
             z-index: 1051 !important;
         }
+        
+        .custom-pin-icon {
+            background: none;
+            border: none;
+        }
+
+        .custom-pin-icon svg {
+            width: 40px;
+            height: 40px;
+        }
     </style>
     <!-- Add this line in the <head> section, just before the closing </head> tag -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=GOOGLE_API_KEY&libraries=places"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBsi0hqt44YuszCHWFo0QfDCtUWr8cqCj0&libraries=places"></script>
 </head>
 <body>
     <div class="search-container">
@@ -338,14 +348,22 @@
         function handleSelectedPlace(place) {
             const latlng = [place.geometry.location.lat(), place.geometry.location.lng()];
             
-            // Add a marker for the searched address
+            // Create a custom pin icon using SVG
+            const customPinIcon = L.divIcon({
+                className: 'custom-pin-icon',
+                html: `
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#007bff">
+                        <path d="M12 0C7.31 0 3.5 3.81 3.5 8.5C3.5 14.88 12 24 12 24S20.5 14.88 20.5 8.5C20.5 3.81 16.69 0 12 0ZM12 13C9.79 13 8 11.21 8 9C8 6.79 9.79 5 12 5C14.21 5 16 6.79 16 9C16 11.21 14.21 13 12 13Z"/>
+                    </svg>
+                `,
+                iconSize: [40, 40],
+                iconAnchor: [20, 40],
+                popupAnchor: [0, -40]
+            });
+
+            // Add a marker for the searched address with the custom icon
             const searchMarker = L.marker(latlng, {
-                icon: L.divIcon({
-                    className: 'search-marker',
-                    html: '📍',
-                    iconSize: [25, 25],
-                    iconAnchor: [12, 24]
-                })
+                icon: customPinIcon
             }).addTo(map);
 
             // Zoom to the location
