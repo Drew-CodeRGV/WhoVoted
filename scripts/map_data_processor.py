@@ -3,20 +3,88 @@ import json
 from datetime import datetime
 from pathlib import Path
 import requests
-from geopy.geocoders import Nominatim, ArcGIS, Photon
-from geopy.extra.rate_limiter import RateLimiter
-from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
-import time
-import logging
-import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 import threading
+import logging
+import re
+import time
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+class ThreadSafeCounter:
+    def __init__(self):
+        self.value = 0
+        self.lock = Lock()
+
+    def increment(self):
+        with self.lock:
+            self.value += 1
+            return self.value
+
+
+class GoogleGeocoder:
+    def __init__(self, api_key, max_workers=4):
+        self.api_key = api_key
+        self.max_workers = max_workers
+        self.cache = {}
+        self.cache_lock = Lock()
+        self.request_lock = Lock()
+        self.last_request_time = 0
+        self.min_delay = 0.1  # 100ms between requests to respect rate limits
+
+    def geocode_address(self, address):
+        # Check cache first
+        with self.cache_lock:
+            if address in self.cache:
+                return address, self.cache[address]
+
+        # Rate limiting
+        with self.request_lock:
+            current_time = time.time()
+            time_since_last = current_time - self.last_request_time
+            if time_since_last < self.min_delay:
+                time.sleep(self.min_delay - time_since_last)
+            self.last_request_time = time.time()
+
+        try:
+            base_url = "https://maps.googleapis.com/maps/api/geocode/json"
+            params = {"address": address, "key": self.api_key}
+
+            response = requests.get(base_url, params=params, timeout=10)
+            data = response.json()
+
+            if data["status"] == "OK":
+                result = data["results"][0]
+                location = result["geometry"]["location"]
+
+                location_data = {
+                    "latitude": location["lat"],
+                    "longitude": location["lng"],
+                    "formatted_address": result["formatted_address"],
+                    "place_id": result["place_id"],
+                }
+
+                # Update cache
+                with self.cache_lock:
+                    self.cache[address] = location_data
+
+                return address, location_data
+            else:
+                logger.debug(
+                    f"Geocoding failed with status: {data['status']} for address: {address}"
+                )
+                if "error_message" in data:
+                    logger.debug(f"Error message: {data['error_message']}")
+                return address, None
+
+        except Exception as e:
+            logger.debug(f"Error geocoding address {address}: {str(e)}")
+            return address, None
 
 
 def fetch_csv(url):
@@ -42,104 +110,40 @@ def fetch_csv(url):
         logger.error(f"Error fetching CSV: {str(e)}")
         raise
 
-
-class ThreadSafeCounter:
-    def __init__(self):
-        self.value = 0
-        self.lock = Lock()
-
-    def increment(self):
-        with self.lock:
-            self.value += 1
-            return self.value
-
-
-class MultiGeocoder:
-    def __init__(self, max_workers=4):
-        self.max_workers = max_workers
-        self.cache = {}
-        self.cache_lock = Lock()
-
-        # Initialize geocoders with separate rate limiters for each thread
-        self.geocoder_classes = [
-            (Nominatim, {"user_agent": "county_map_processor"}, 1.5),
-            (ArcGIS, {}, 0.5),
-            (Photon, {}, 0.5),
-        ]
-
-        self.thread_local = threading.local()
-
-    def get_geocoders(self):
-        if not hasattr(self.thread_local, "geocoders"):
-            self.thread_local.geocoders = []
-            for GeocoderClass, kwargs, delay in self.geocoder_classes:
-                geocoder = GeocoderClass(**kwargs)
-                rate_limited = RateLimiter(
-                    geocoder.geocode, min_delay_seconds=delay, max_retries=2
-                )
-                self.thread_local.geocoders.append(
-                    (GeocoderClass.__name__, rate_limited)
-                )
-        return self.thread_local.geocoders
-
-    def geocode_address(self, address):
-        # Check cache first
-        with self.cache_lock:
-            if address in self.cache:
-                return address, self.cache[address]
-
-        for service_name, geocoder in self.get_geocoders():
-            try:
-                location = geocoder(address, timeout=10)
-                if location:
-                    # Update cache
-                    with self.cache_lock:
-                        self.cache[address] = location
-                    logger.debug(
-                        f"Successfully geocoded with {service_name}: {address}"
-                    )
-                    return address, location
-            except Exception as e:
-                logger.debug(f"Error with {service_name} for {address}: {str(e)}")
-                continue
-
-        return address, None
+    # def clean_address(address):
+    #     if pd.isna(address):
+    #         return None
+    #
+    #     address = re.sub(r"[^a-zA-Z0-9\s,.]", " ", address)
+    #
+    #     replacements = {
+    #         r"\bST\b": "STREET",
+    #         r"\bAVE\b": "AVENUE",
+    #         r"\bRD\b": "ROAD",
+    #         r"\bDR\b": "DRIVE",
+    #         r"\bLN\b": "LANE",
+    #         r"\bCT\b": "COURT",
+    #         r"\bAPT\b": "APARTMENT",
+    #         r"\bN\b": "NORTH",
+    #         r"\bS\b": "SOUTH",
+    #         r"\bE\b": "EAST",
+    #         r"\bW\b": "WEST",
+    #         r"\bBLVD\b": "BOULEVARD",
+    #         r"\bCIR\b": "CIRCLE",
+    #     }
+    #
+    # for pattern, replacement in replacements.items():
+    #     address = re.sub(pattern, replacement, address.upper())
+    #
+    # if "TX" not in address.upper():
+    #     address = f"{address}, TEXAS"
+    #
+    # return " ".join(address.split())
 
 
-def clean_address(address):
-    if pd.isna(address):
-        return None
-
-    address = re.sub(r"[^a-zA-Z0-9\s,.]", " ", address)
-
-    replacements = {
-        r"\bST\b": "STREET",
-        r"\bAVE\b": "AVENUE",
-        r"\bRD\b": "ROAD",
-        r"\bDR\b": "DRIVE",
-        r"\bLN\b": "LANE",
-        r"\bCT\b": "COURT",
-        r"\bAPT\b": "APARTMENT",
-        r"\bN\b": "NORTH",
-        r"\bS\b": "SOUTH",
-        r"\bE\b": "EAST",
-        r"\bW\b": "WEST",
-        r"\bBLVD\b": "BOULEVARD",
-        r"\bCIR\b": "CIRCLE",
-    }
-
-    for pattern, replacement in replacements.items():
-        address = re.sub(pattern, replacement, address.upper())
-
-    if "TX" not in address.upper():
-        address = f"{address}, TEXAS"
-
-    return " ".join(address.split())
-
-
-def process_data(url, output_dir="public/data", max_workers=4):
+def process_data(url, api_key, output_dir="public/data", max_workers=4):
     """
-    Fetch and process CSV data with parallel geocoding.
+    Fetch and process CSV data with parallel geocoding using Google's API.
     """
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
@@ -148,9 +152,9 @@ def process_data(url, output_dir="public/data", max_workers=4):
         df = fetch_csv(url)
 
         # Clean addresses
-        logger.info("Cleaning addresses...")
-        df["cleaned_address"] = df["ADDRESS"].apply(clean_address)
-        df = df.dropna(subset=["cleaned_address"])
+        # logger.info("Cleaning addresses...")
+        # df["cleaned_address"] = df["ADDRESS"].apply(clean_address)
+        # df = df.dropna(subset=["cleaned_address"])
 
         # Load existing progress
         progress_file = Path(output_dir) / "progress.json"
@@ -160,7 +164,7 @@ def process_data(url, output_dir="public/data", max_workers=4):
                 processed_addresses = set(json.load(f))
 
         # Initialize geocoder and results
-        geocoder = MultiGeocoder(max_workers=max_workers)
+        geocoder = GoogleGeocoder(api_key, max_workers=max_workers)
         geojson_data = {"type": "FeatureCollection", "features": []}
         failed_addresses = []
 
@@ -173,7 +177,7 @@ def process_data(url, output_dir="public/data", max_workers=4):
             local_failed = []
 
             for _, row in chunk.iterrows():
-                address = row["cleaned_address"]
+                address = row["ADDRESS"]
                 if address in processed_addresses:
                     continue
 
@@ -188,12 +192,17 @@ def process_data(url, output_dir="public/data", max_workers=4):
                         "type": "Feature",
                         "geometry": {
                             "type": "Point",
-                            "coordinates": [location.longitude, location.latitude],
+                            "coordinates": [
+                                location["longitude"],
+                                location["latitude"],
+                            ],
                         },
                         "properties": {
-                            "address": address,
+                            "address": location["formatted_address"],
+                            "original_address": address,
                             "precinct": row["PRECINCT"],
                             "ballot_style": row["BALLOT STYLE"],
+                            "place_id": location["place_id"],
                         },
                     }
                     results.append(feature)
@@ -224,14 +233,7 @@ def process_data(url, output_dir="public/data", max_workers=4):
 
                 # Update progress
                 with open(progress_file, "w") as f:
-                    json.dump(
-                        list(
-                            processed_addresses.union(
-                                set(addr for _, addr in chunk_failed)
-                            )
-                        ),
-                        f,
-                    )
+                    json.dump(list(processed_addresses.union(set(chunk_failed))), f)
 
         # Save final results
         with open(Path(output_dir) / "map_data.json", "w") as f:
@@ -267,8 +269,9 @@ def process_data(url, output_dir="public/data", max_workers=4):
 
 
 if __name__ == "__main__":
-    # Replace with your CSV URL
+    # Replace with your CSV URL and Google API key
     CSV_URL = "https://www.hidalgocounty.us/DocumentCenter/View/68887/EV-Roster-November-5-2024-Cumulative"
+    GOOGLE_API_KEY = "AIzaSyC0sJxE0fpGMzbaEsa4ocjv7kVJFtwlqrE"
 
     # Adjust max_workers based on your CPU and memory
-    process_data(CSV_URL, max_workers=4)
+    process_data(CSV_URL, GOOGLE_API_KEY, max_workers=4)
