@@ -25,6 +25,26 @@
     <link rel="stylesheet" href="styles.css" />
     
     <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        .info-strip {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 5px 10px;
+            font-size: 12px;
+            text-align: center;
+            z-index: 1001;
+            font-family: Arial, sans-serif;
+        }
+        .info-strip a {
+            color: black;
+            text-decoration: underline;
+        }
         .overlay-image {
             position: fixed;
             bottom: 20px;
@@ -32,7 +52,10 @@
             width: 250px;
             opacity: 0.5;
             z-index: 1000;
-            pointer-events: none; /* This makes the overlay not interfere with map interactions */
+            pointer-events: none;
+        }
+        .search-container {
+            margin-top: 30px; /* Add space below the info strip */
         }
     </style>
     
@@ -40,6 +63,9 @@
     <script src="config.js"></script>
 </head>
 <body>
+    <div class="info-strip">
+        Using publicly available voter data obtained from <a href="https://www.hidalgocounty.us/3339/Unofficial-Early-Voting-Totals-Rosters" target="_blank">Hidalgo County Elections Department</a> as of 10/22/2024
+    </div>
     <div class="search-container">
         <input id="search-input" type="text" placeholder="Search for an address">
         <button class="search-button" id="search-button">Search</button>
