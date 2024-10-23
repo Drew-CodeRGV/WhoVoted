@@ -5,12 +5,12 @@ function initMap() {
     map = L.map('map').setView(config.MAP_CENTER, config.MAP_ZOOM);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 20,
-        attribution: '© OpenStreetMap contributors | DL-R6'
+        maxZoom: 18,
+        attribution: '© OpenStreetMap contributors | DL-R8'
     }).addTo(map);
 
     markerClusterGroup = L.markerClusterGroup({
-        disableClusteringAtZoom: 20, // Disable clustering at max zoom
+        disableClusteringAtZoom: 18, // Disable clustering at max zoom
         spiderfyOnMaxZoom: false,    // Disable spiderifying at max zoom
         maxClusterRadius: 5,   // Reduce cluster radius (default is 80)
         chunkedLoading: true,
@@ -23,7 +23,7 @@ function initMap() {
         iconCreateFunction: function(cluster) {
             var childCount = cluster.getChildCount();
             var c = ' marker-cluster-';
-            if (childCount < 10) {
+            if (childCount < 6) {
                 c += 'small';
             } else if (childCount < 50) {
                 c += 'medium';
@@ -44,6 +44,11 @@ function initMap() {
         max: 1.0,
         minOpacity: 0.4,
         maxOpacity: 0.1,  // Adjust this value between 0 and 1 (default is 0.6)
+        gradient: {
+        0.4: 'blue',
+        0.65: 'lime',
+        1: 'red'
+    }
     });
 
     map.on('zoomend', updateMapView);
