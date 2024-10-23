@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Address Search Map</title>
+    <title>Politiquera.Com - Voting & Election Info</title>
     
     <!-- Leaflet CSS and JS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
@@ -21,14 +21,167 @@
     
     <!-- Google Maps API -->
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBsi0hqt44YuszCHWFo0QfDCtUWr8cqCj0&libraries=places,geocoding"></script>
-
     <!-- Custom Styles -->
     <link rel="stylesheet" href="styles.css" />
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        /* Custom positioning for Leaflet zoom controls */
+        .leaflet-control-zoom {
+            position: fixed !important;
+            bottom: 40px !important; /* Space above the info strip */
+            left: 10px !important;
+            top: auto !important;
+        }
+        .header-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 280px;
+            background: linear-gradient(180deg, 
+                rgba(0, 0, 51, 0) 0%,
+                rgba(0, 0, 51, 0) 20%,
+                rgba(0, 0, 51, 0.1) 30%,
+                rgba(0, 0, 51, 0.2) 40%,
+                rgba(0, 0, 51, 0.3) 50%,
+                rgba(0, 0, 51, 0.4) 60%,
+                rgba(0, 0, 51, 0.5) 70%,
+                rgba(0, 0, 51, 0.5) 100%);
+            z-index: 999;
+            transition: all 2s ease;
+        }
+        .fade-out {
+            background: linear-gradient(180deg, 
+                rgba(0, 0, 51, 0) 0%, 
+                rgba(0, 0, 51, 0) 50%, 
+                rgba(0, 0, 51, 0) 60%, 
+                rgba(0, 0, 51, 0) 100%) !important;
+        }
+        .info-strip {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 5px 10px;
+            font-size: 12px;
+            text-align: center;
+            z-index: 1001;
+            font-family: Arial, sans-serif;
+        }
+        .info-strip a {
+            color: black;
+            text-decoration: underline;
+        }
+        .overlay-image {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 25vw;
+            max-width: 300px;
+            min-width: 200px;
+            opacity: 0.85;
+            z-index: 1000;
+            pointer-events: none;
+        }
+        .search-container {
+            position: fixed;
+            top: 105px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            background: white;
+            padding: 8px 16px;
+            border-radius: 24px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            max-width: 600px;
+            width: 90%;
+        }
+        .instruction-text {
+            position: fixed;
+            top: 160px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            text-align: center;
+            z-index: 1000;
+            opacity: 1;
+            transition: opacity 2s ease;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            padding: 20px;
+            max-width: 80%;
+            line-height: 1.4;
+        }
+        .instruction-text.fade-out {
+            opacity: 0;
+        }
+        .arrow-up {
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 8px solid white;
+            margin: 0 auto 8px auto;
+        }
+        #search-input {
+            flex: 1;
+            padding: 8px 12px;
+            font-size: 16px;
+            border: none;
+            outline: none;
+            background: transparent;
+            margin-right: 8px;
+            font-family: Arial, sans-serif;
+        }
+        .search-button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        .search-button:hover {
+            background: #357abd;
+        }
+        .geolocation-button {
+            background: none;
+            border: none;
+            padding: 8px;
+            cursor: pointer;
+            color: #5f6368;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 8px;
+        }
+        .geolocation-button:hover {
+            color: #202124;
+        }
+        .geolocation-button svg {
+            width: 20px;
+            height: 20px;
+        }
+    </style>
     
     <!-- Add this line to load the config file -->
     <script src="config.js"></script>
 </head>
 <body>
+    <div class="header-background"></div>
+    <img src="assets/politiquera.png" alt="Overlay" class="overlay-image">
     <div class="search-container">
         <input id="search-input" type="text" placeholder="Search for an address">
         <button class="search-button" id="search-button">Search</button>
@@ -38,11 +191,26 @@
             </svg>
         </button>
     </div>
+    <div class="instruction-text">
+        <div class="arrow-up"></div>
+        Start here. Look up your neighborhood and see who hasn't voted yet - maybe they need a ride or some info!
+    </div>
     <div id="map"></div>
-
+    <div class="info-strip">
+        Using publicly available voter data obtained from <a href="https://www.hidalgocounty.us/3339/Unofficial-Early-Voting-Totals-Rosters" target="_blank">Hidalgo County Elections Department</a> as of 10/22/2024
+    </div>
+    
     <!-- Load your JavaScript files -->
     <script src="map.js"></script>
     <script src="search.js"></script>
     <script src="data.js"></script>
+    
+    <script>
+        // Add fade out effect after 10 seconds
+        setTimeout(() => {
+            document.querySelector('.header-background').classList.add('fade-out');
+            document.querySelector('.instruction-text').classList.add('fade-out');
+        }, 10000);
+    </script>
 </body>
 </html>
