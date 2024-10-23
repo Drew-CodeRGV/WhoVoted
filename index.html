@@ -29,6 +29,13 @@
             margin: 0;
             padding: 0;
         }
+        /* Custom positioning for Leaflet zoom controls */
+        .leaflet-control-zoom {
+            position: fixed !important;
+            bottom: 40px !important; /* Space above the info strip */
+            left: 10px !important;
+            top: auto !important;
+        }
         .header-background {
             position: fixed;
             top: 0;
@@ -80,7 +87,7 @@
         }
         .search-container {
             position: fixed;
-            top: 105px; /* Increased space from logo */
+            top: 105px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 1000;
