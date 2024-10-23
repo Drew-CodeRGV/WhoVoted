@@ -1,5 +1,4 @@
-const config = {
-    GOOGLE_API_KEY: 'YOUR_ACTUAL_API_KEY_HERE',
+const config = {    
     MAP_CENTER: [26.2034, -98.2300],
     MAP_ZOOM: 12,
     HEATMAP_RADIUS: 20,
