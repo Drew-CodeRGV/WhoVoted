@@ -29,6 +29,19 @@
             margin: 0;
             padding: 0;
         }
+        .header-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 200px;
+            background-color: rgba(0, 0, 51, 0.5); /* Navy blue with 50% transparency */
+            z-index: 999;
+            transition: background-color 2s ease;
+        }
+        .fade-out {
+            background-color: rgba(0, 0, 51, 0) !important;
+        }
         .info-strip {
             position: fixed;
             bottom: 0;
@@ -50,14 +63,15 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            width: 250px;
-            opacity: 0.75; /* 75% opacity */
+            width: 187.5px;
+            opacity: 0.15;
             z-index: 1000;
             pointer-events: none;
+            filter: drop-shadow(0 2px 5px rgba(0,0,0,0.2)); /* Added drop shadow */
         }
         .search-container {
             position: fixed;
-            top: 100px; /* Moved lower to accommodate the image above */
+            top: 100px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 1000;
@@ -69,6 +83,31 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
             max-width: 600px;
             width: 90%;
+        }
+        .instruction-text {
+            position: fixed;
+            top: 160px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            text-align: center;
+            z-index: 1000;
+            opacity: 1;
+            transition: opacity 2s ease;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        }
+        .instruction-text.fade-out {
+            opacity: 0;
+        }
+        .arrow-up {
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 10px solid white;
+            margin: 0 auto 5px auto;
         }
         #search-input {
             flex: 1;
@@ -118,6 +157,7 @@
     <script src="config.js"></script>
 </head>
 <body>
+    <div class="header-background"></div>
     <img src="assets/politiquera.png" alt="Overlay" class="overlay-image">
     <div class="search-container">
         <input id="search-input" type="text" placeholder="Search for an address">
@@ -128,6 +168,10 @@
             </svg>
         </button>
     </div>
+    <div class="instruction-text">
+        <div class="arrow-up"></div>
+        Start here. Look up your neighborhood and see who hasn't voted yet - maybe they need a ride or some info!
+    </div>
     <div id="map"></div>
     <div class="info-strip">
         Using publicly available voter data obtained from <a href="https://www.hidalgocounty.us/3339/Unofficial-Early-Voting-Totals-Rosters" target="_blank">Hidalgo County Elections Department</a> as of 10/22/2024
@@ -137,5 +181,13 @@
     <script src="map.js"></script>
     <script src="search.js"></script>
     <script src="data.js"></script>
+    
+    <script>
+        // Add fade out effect after 10 seconds
+        setTimeout(() => {
+            document.querySelector('.header-background').classList.add('fade-out');
+            document.querySelector('.instruction-text').classList.add('fade-out');
+        }, 10000);
+    </script>
 </body>
 </html>
