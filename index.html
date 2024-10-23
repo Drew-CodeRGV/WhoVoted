@@ -34,13 +34,19 @@
             top: 0;
             left: 0;
             right: 0;
-            height: 240px;
-            background-color: rgba(0, 0, 51, 0.5);
+            height: 280px; /* Increased height */
+            background: linear-gradient(180deg, 
+                rgba(0, 0, 51, 0) 0%, 
+                rgba(0, 0, 51, 0.5) 20%, 
+                rgba(0, 0, 51, 0.5) 100%);
             z-index: 999;
-            transition: background-color 2s ease;
+            transition: all 2s ease;
         }
         .fade-out {
-            background-color: rgba(0, 0, 51, 0) !important;
+            background: linear-gradient(180deg, 
+                rgba(0, 0, 51, 0) 0%, 
+                rgba(0, 0, 51, 0) 20%, 
+                rgba(0, 0, 51, 0) 100%) !important;
         }
         .info-strip {
             position: fixed;
@@ -66,13 +72,13 @@
             width: 25vw;
             max-width: 300px;
             min-width: 200px;
-            opacity: 0.85; /* Changed to 85% opacity (15% transparent) */
+            opacity: 0.85;
             z-index: 1000;
             pointer-events: none;
         }
         .search-container {
             position: fixed;
-            top: 120px;
+            top: 90px; /* Moved up closer to logo */
             left: 50%;
             transform: translateX(-50%);
             z-index: 1000;
@@ -87,18 +93,18 @@
         }
         .instruction-text {
             position: fixed;
-            top: 180px;
+            top: 160px; /* Adjusted position */
             left: 50%;
             transform: translateX(-50%);
             color: white;
             font-family: Arial, sans-serif;
-            font-size: 12px; /* Reduced from 14px */
+            font-size: 12px;
             text-align: center;
             z-index: 1000;
             opacity: 1;
             transition: opacity 2s ease;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
-            padding: 15px;
+            padding: 20px; /* Increased padding */
             max-width: 80%;
             line-height: 1.4;
         }
@@ -108,10 +114,10 @@
         .arrow-up {
             width: 0;
             height: 0;
-            border-left: 8px solid transparent; /* Slightly reduced from 10px */
-            border-right: 8px solid transparent; /* Slightly reduced from 10px */
-            border-bottom: 8px solid white; /* Slightly reduced from 10px */
-            margin: 0 auto 8px auto; /* Slightly reduced from 10px */
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 8px solid white;
+            margin: 0 auto 8px auto;
         }
         #search-input {
             flex: 1;
