@@ -1,8 +1,13 @@
-/* styles.css */
+body { 
+    margin: 0; 
+    padding: 0; 
+    font-family: 'Inter', sans-serif;
+}
+
 .container {
-    position: relative;
-    width: 100%;
+    display: flex;
     height: 100vh;
+    flex-direction: column;
 }
 
 .search-container {
@@ -11,74 +16,195 @@
     left: 50%;
     transform: translateX(-50%);
     z-index: 1000;
-    width: 80%;
-    max-width: 400px;
+    display: flex;
+    align-items: center;
+    background: white;
+    padding: 10px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 #search-input {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid #ccc;
+    width: 300px;
+    padding: 10px 14px;
+    margin-right: 10px;
+    border: 1px solid #ddd;
     border-radius: 4px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     font-size: 16px;
+    height: 44px;
+    box-sizing: border-box;
 }
 
-.suggestions-container {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: white;
-    border: 1px solid #ccc;
-    border-top: none;
-    border-radius: 0 0 4px 4px;
-    max-height: 200px;
-    overflow-y: auto;
-    display: none;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-}
-
-.suggestion-item {
+.search-button, .geolocation-button {
     padding: 10px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
     cursor: pointer;
-    border-bottom: 1px solid #eee;
+    height: 44px;
+    font-size: 16px;
+    transition: background-color 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.suggestion-item:last-child {
-    border-bottom: none;
+.search-button {
+    padding: 10px 24px;
+    margin-right: 10px;
 }
 
-.suggestion-item:hover {
-    background-color: #f5f5f5;
+.geolocation-button {
+    width: 44px;
 }
 
-#map {
-    width: 100%;
-    height: 100%;
+.search-button:hover, .geolocation-button:hover {
+    background: #0056b3;
 }
 
-/* Loading indicator */
-.loading {
+.geolocation-button svg {
+    width: 24px;
+    height: 24px;
+}
+
+.geolocation-button.loading {
     position: relative;
+    color: transparent;
 }
 
-.loading::after {
+.geolocation-button.loading::after {
     content: '';
     position: absolute;
-    right: 10px;
+    width: 16px;
+    height: 16px;
     top: 50%;
-    transform: translateY(-50%);
-    width: 20px;
-    height: 20px;
-    border: 2px solid #ccc;
-    border-top-color: #666;
+    left: 50%;
+    margin-top: -8px;
+    margin-left: -8px;
     border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+    border: 2px solid #ffffff;
+    border-top-color: #007bff;
+    animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
-    to {
-        transform: translateY(-50%) rotate(360deg);
-    }
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+#map { 
+    flex-grow: 1;
+    width: 100%;
+    height: 100vh;
+}
+
+.info-box {
+    padding: 6px 8px;
+    background: white;
+    background: rgba(255,255,255,0.8);
+    box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    border-radius: 5px;
+    max-width: 300px;
+}
+
+.legend {
+    line-height: 18px;
+    color: #555;
+    background: white;
+    padding: 10px;
+    border-radius: 5px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.2);
+}
+
+.marker-cluster {
+    background-color: rgba(0, 123, 255, 0.6);
+    border-radius: 50%;
+    color: white;
+    text-align: center;
+    font-weight: bold;
+}
+
+/* Add these styles for autocomplete */
+.autoComplete_wrapper {
+    width: 100%;
+    max-width: 400px;
+}
+
+.autoComplete_result {
+    margin: 0;
+    padding: 10px;
+    list-style: none;
+    text-align: left;
+    font-size: 14px;
+    color: #212121;
+    transition: all 0.1s ease-in-out;
+    border-radius: 3px;
+    background-color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: all 0.2s ease;
+}
+
+.autoComplete_result:hover {
+    cursor: pointer;
+    background-color: #f0f0f0;
+}
+
+.autoComplete_highlighted {
+    color: #007bff;
+    font-weight: bold;
+}
+
+.autoComplete_selected {
+    background-color: #f0f0f0;
+}
+
+/* Add these styles for autocomplete */
+.leaflet-control-geocoder {
+    width: 100%;
+    max-width: 400px;
+    margin-top: 10px !important;
+}
+
+.leaflet-control-geocoder-form input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.leaflet-control-geocoder-alternatives {
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+}
+
+.leaflet-control-geocoder-alternatives li {
+    padding: 10px;
+    cursor: pointer;
+}
+
+.leaflet-control-geocoder-alternatives li:hover {
+    background-color: #f0f0f0;
+}                    
+
+/* Add styles for Google Places Autocomplete */
+.pac-container {
+    z-index: 1051 !important;
+}
+
+.custom-pin-icon {
+    background: none;
+    border: none;
+}
+
+.custom-pin-icon svg {
+    width: 40px;
+    height: 40px;
 }
