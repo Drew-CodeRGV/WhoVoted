@@ -3,6 +3,6 @@ const config = {
     MAP_ZOOM: 12,
     HEATMAP_RADIUS: 20,
     HEATMAP_BLUR: 15,
-    HEATMAP_MAX_ZOOM: 14,
+    HEATMAP_MAX_ZOOM: 12,
     NEARBY_RADIUS: 1000 // 1km
 };
