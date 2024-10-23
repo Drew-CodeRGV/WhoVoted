@@ -17,6 +17,9 @@ function initMap() {
     });
 
     map.on('zoomend', updateMapView);
+
+    // Add geolocation control
+    addGeolocationControl();
 }
 
 function updateMapView() {
@@ -46,4 +49,78 @@ function addCustomMarker(latlng) {
     return L.marker(latlng, { icon: customPinIcon }).addTo(map);
 }
 
-initMap();
+function addGeolocationControl() {
+    const geolocationButton = document.getElementById('geolocation-button');
+    if (geolocationButton) {
+        geolocationButton.addEventListener('click', centerMapOnUserLocation);
+    } else {
+        console.error("Geolocation button not found");
+    }
+}
+
+function centerMapOnUserLocation() {
+    if ("geolocation" in navigator) {
+        const geolocationButton = document.getElementById('geolocation-button');
+        geolocationButton.classList.add('loading');
+        geolocationButton.disabled = true;
+
+        navigator.geolocation.getCurrentPosition(function(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            map.setView([lat, lng], 16);
+            
+            const userLocationMarker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'user-location-marker',
+                    html: '<div style="background-color: #4285F4; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white;"></div>',
+                    iconSize: [22, 22],
+                    iconAnchor: [11, 11]
+                })
+            }).addTo(map);
+
+            userLocationMarker.bindPopup("You are here").openPopup();
+
+            showNearbyLocations([lat, lng]);
+            reverseGeocode(lat, lng);
+
+            geolocationButton.classList.remove('loading');
+            geolocationButton.disabled = false;
+        }, function(error) {
+            console.error("Error getting user location:", error);
+            alert("Unable to get your location. Please make sure you've granted permission to access your location.");
+            
+            geolocationButton.classList.remove('loading');
+            geolocationButton.disabled = false;
+        }, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+        });
+    } else {
+        alert("Geolocation is not supported by your browser.");
+    }
+}
+
+function reverseGeocode(lat, lng) {
+    const geocoder = new google.maps.Geocoder();
+    const latlng = { lat: lat, lng: lng };
+
+    geocoder.geocode({ location: latlng }, (results, status) => {
+        if (status === "OK") {
+            if (results[0]) {
+                const address = results[0].formatted_address;
+                document.getElementById('search-input').value = address;
+            } else {
+                console.log("No results found");
+            }
+        } else {
+            console.log("Geocoder failed due to: " + status);
+        }
+    });
+}
+
+// Make sure to export the initMap function
+window.initMap = initMap;
+
+// Call initMap when the DOM is fully loaded
+document.addEventListener('DOMContentLoaded', initMap);

@@ -59,8 +59,8 @@
             box-sizing: border-box;
         }
         
-        .search-button {
-            padding: 10px 24px;
+        .search-button, .geolocation-button {
+            padding: 10px;
             background: #007bff;
             color: white;
             border: none;
@@ -69,10 +69,52 @@
             height: 44px;
             font-size: 16px;
             transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         
-        .search-button:hover {
+        .search-button {
+            padding: 10px 24px;
+            margin-right: 10px;
+        }
+        
+        .geolocation-button {
+            width: 44px;
+        }
+        
+        .search-button:hover, .geolocation-button:hover {
             background: #0056b3;
+        }
+        
+        .geolocation-button svg {
+            width: 24px;
+            height: 24px;
+        }
+        
+        .geolocation-button.loading {
+            position: relative;
+            color: transparent;
+        }
+        
+        .geolocation-button.loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-top: -8px;
+            margin-left: -8px;
+            border-radius: 50%;
+            border: 2px solid #ffffff;
+            border-top-color: #007bff;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
         
         #map { 
@@ -214,203 +256,26 @@
         }
     </style>
     
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBsi0hqt44YuszCHWFo0QfDCtUWr8cqCj0&libraries=places"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBsi0hqt44YuszCHWFo0QfDCtUWr8cqCj0&libraries=places,geocoding"></script>
+    
+    <!-- Add this line to load the config file -->
+    <script src="config.js"></script>
 </head>
 <body>
     <div class="search-container">
         <input id="search-input" type="text" placeholder="Search for an address">
         <button class="search-button" id="search-button">Search</button>
+        <button id="geolocation-button" class="geolocation-button" title="Find my location">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+                <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
+            </svg>
+        </button>
     </div>
     <div id="map"></div>
 
-    <script>
-        // Initialize the map centered on your area
-        const map = L.map('map').setView([26.2034, -98.2300], 12); // McAllen area
-
-        // Add OpenStreetMap tiles
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-
-        // Initialize marker cluster group
-        const markerClusterGroup = L.markerClusterGroup();
-
-        // Initialize heatmap data array
-        const heatmapData = [];
-
-        // Initialize heatmap layer (we'll add data to it later)
-        const heatmapLayer = L.heatLayer([], {
-            radius: 20,
-            blur: 15,
-            maxZoom: 14 // Adjust this value to set when to switch from heatmap to markers
-        });
-
-        // Load GeoJSON data
-        async function loadMapData() {
-            try {
-                const response = await fetch('data/map_data.json');
-                const data = await response.json();
-                
-                L.geoJSON(data, {
-                    pointToLayer: function(feature, latlng) {
-                        // Add point to heatmap data
-                        heatmapData.push([latlng.lat, latlng.lng, 1]);
-
-                        // Create marker for cluster
-                        return L.circleMarker(latlng, {
-                            radius: 6,
-                            fillColor: "#007bff",
-                            color: "#fff",
-                            weight: 1,
-                            opacity: 1,
-                            fillOpacity: 0.8
-                        });
-                    },
-                    onEachFeature: function(feature, layer) {
-                        // Create popup content
-                        let popupContent = `
-                            <div class="info-box">
-                                <strong>Address:</strong> ${feature.properties.address}<br>
-                                <strong>Precinct:</strong> ${feature.properties.precinct}<br>
-                                <strong>Ballot Style:</strong> ${feature.properties.ballot_style}
-                            </div>
-                        `;
-                        layer.bindPopup(popupContent);
-                    }
-                }).addTo(markerClusterGroup);
-
-                // Update heatmap layer with collected data
-                heatmapLayer.setLatLngs(heatmapData);
-                
-                // Initial update of map view
-                updateMapView();
-                
-            } catch (error) {
-                console.error('Error loading map data:', error);
-                alert('Error loading map data. Please try again later.');
-            }
-        }
-
-        // Function to toggle between heatmap and markers based on zoom level
-        function updateMapView() {
-            let currentZoom = map.getZoom();
-            if (currentZoom > 14) { // Adjust this value to match maxZoom in heatmapLayer options
-                map.removeLayer(heatmapLayer);
-                map.addLayer(markerClusterGroup);
-            } else {
-                map.removeLayer(markerClusterGroup);
-                map.addLayer(heatmapLayer);
-            }
-        }
-
-        // Listen for zoom events
-        map.on('zoomend', updateMapView);
-
-        // Initialize Google Places Autocomplete
-        const input = document.getElementById('search-input');
-        const searchButton = document.getElementById('search-button');
-        const autocomplete = new google.maps.places.Autocomplete(input, {
-            types: ['address'],
-            componentRestrictions: {country: 'us'},
-            bounds: new google.maps.LatLngBounds(
-                new google.maps.LatLng(26.0, -98.5),
-                new google.maps.LatLng(26.4, -98.0)
-            ),
-            strictBounds: true
-        });
-
-        // Function to perform the search
-        function performSearch() {
-            const place = autocomplete.getPlace();
-            if (!place || !place.geometry) {
-                // If no place is selected, try to get the first autocomplete suggestion
-                const service = new google.maps.places.AutocompleteService();
-                service.getPlacePredictions({ input: input.value }, function(predictions, status) {
-                    if (status === google.maps.places.PlacesServiceStatus.OK && predictions && predictions.length > 0) {
-                        const placesService = new google.maps.places.PlacesService(document.createElement('div'));
-                        placesService.getDetails({ placeId: predictions[0].place_id }, function(result, status) {
-                            if (status === google.maps.places.PlacesServiceStatus.OK) {
-                                handleSelectedPlace(result);
-                            }
-                        });
-                    } else {
-                        console.log("No results found");
-                    }
-                });
-            } else {
-                handleSelectedPlace(place);
-            }
-        }
-
-        // Function to handle the selected place
-        function handleSelectedPlace(place) {
-            const latlng = [place.geometry.location.lat(), place.geometry.location.lng()];
-            
-            // Create a custom pin icon using SVG
-            const customPinIcon = L.divIcon({
-                className: 'custom-pin-icon',
-                html: `
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#007bff">
-                        <path d="M12 0C7.31 0 3.5 3.81 3.5 8.5C3.5 14.88 12 24 12 24S20.5 14.88 20.5 8.5C20.5 3.81 16.69 0 12 0ZM12 13C9.79 13 8 11.21 8 9C8 6.79 9.79 5 12 5C14.21 5 16 6.79 16 9C16 11.21 14.21 13 12 13Z"/>
-                    </svg>
-                `,
-                iconSize: [40, 40],
-                iconAnchor: [20, 40],
-                popupAnchor: [0, -40]
-            });
-
-            // Add a marker for the searched address with the custom icon
-            const searchMarker = L.marker(latlng, {
-                icon: customPinIcon
-            }).addTo(map);
-
-            // Zoom to the location
-            map.setView(latlng, 16);
-
-            // Show nearby locations within 1km
-            showNearbyLocations(latlng);
-        }
-
-        // Handle place selection from autocomplete
-        autocomplete.addListener('place_changed', performSearch);
-
-        // Handle search button click
-        searchButton.addEventListener('click', performSearch);
-
-        // Handle enter key press in the input field
-        input.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                performSearch();
-            }
-        });
-
-        // Function to show locations within radius of searched address
-        function showNearbyLocations(center) {
-            const radius = 1000; // 1km radius
-            markerClusterGroup.eachLayer(function(layer) {
-                if (layer.feature) {
-                    const distance = map.distance(
-                        center,
-                        [layer.feature.geometry.coordinates[1], layer.feature.geometry.coordinates[0]]
-                    );
-                    if (distance <= radius) {
-                        layer.setStyle({
-                            fillColor: '#28a745',
-                            radius: 8
-                        });
-                    } else {
-                        layer.setStyle({
-                            fillColor: '#007bff',
-                            radius: 6
-                        });
-                    }
-                }
-            });
-        }
-
-        // Load map data when page loads
-        loadMapData();
-    </script>
+    <!-- Load your JavaScript files -->
+    <script src="map.js"></script>
+    <script src="search.js"></script>
+    <script src="data.js"></script>
 </body>
 </html>
