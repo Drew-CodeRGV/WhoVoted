@@ -5,8 +5,8 @@ function initMap() {
     map = L.map('map').setView(config.MAP_CENTER, config.MAP_ZOOM);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap contributors | DL R5'
+        maxZoom: 20,
+        attribution: '© OpenStreetMap contributors | DL-R6'
     }).addTo(map);
 
     markerClusterGroup = L.markerClusterGroup({
@@ -18,7 +18,7 @@ function initMap() {
         showCoverageOnHover: false,
         removeOutsideVisibleBounds: true,
         animate: false,        
-        spiderfyDistanceMultiplier: 1.5,
+        spiderfyDistanceMultiplier: 1.0,
         singleMarkerMode: true,      // Show individual markers when possible
         iconCreateFunction: function(cluster) {
             var childCount = cluster.getChildCount();
