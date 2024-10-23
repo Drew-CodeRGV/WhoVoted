@@ -6,7 +6,7 @@ function initMap() {
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        attribution: '© OpenStreetMap contributors | DL R4'
+        attribution: '© OpenStreetMap contributors | DL R5'
     }).addTo(map);
 
     markerClusterGroup = L.markerClusterGroup({
