@@ -6,7 +6,7 @@ function initMap() {
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 18,
-        attribution: '© OpenStreetMap contributors | DL-R8'
+        attribution: '© OpenStreetMap contributors | DL-R9'
     }).addTo(map);
 
     markerClusterGroup = L.markerClusterGroup({
@@ -44,11 +44,6 @@ function initMap() {
         max: 1.0,
         minOpacity: 0.4,
         maxOpacity: 0.1,  // Adjust this value between 0 and 1 (default is 0.6)
-        gradient: {
-        0.4: 'blue',
-        0.65: 'lime',
-        1: 'red'
-    }
     });
 
     map.on('zoomend', updateMapView);
