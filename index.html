@@ -31,7 +31,7 @@
         }
         .info-strip {
             position: fixed;
-            top: 0;
+            bottom: 0;
             left: 0;
             right: 0;
             background-color: rgba(255, 255, 255, 0.8);
@@ -47,16 +47,17 @@
         }
         .overlay-image {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 250px;
-            opacity: 0.5;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 187.5px; /* 75% of original 250px */
+            opacity: 0.15; /* 15% opacity */
             z-index: 1000;
             pointer-events: none;
         }
         .search-container {
             position: fixed;
-            top: 40px;
+            top: 100px; /* Moved lower to accommodate the image above */
             left: 50%;
             transform: translateX(-50%);
             z-index: 1000;
@@ -117,9 +118,7 @@
     <script src="config.js"></script>
 </head>
 <body>
-    <div class="info-strip">
-        Using publicly available voter data obtained from <a href="https://www.hidalgocounty.us/3339/Unofficial-Early-Voting-Totals-Rosters" target="_blank">Hidalgo County Elections Department</a> as of 10/22/2024
-    </div>
+    <img src="assets/politiquera.png" alt="Overlay" class="overlay-image">
     <div class="search-container">
         <input id="search-input" type="text" placeholder="Search for an address">
         <button class="search-button" id="search-button">Search</button>
@@ -130,7 +129,9 @@
         </button>
     </div>
     <div id="map"></div>
-    <img src="assets/politiquera.png" alt="Overlay" class="overlay-image">
+    <div class="info-strip">
+        Using publicly available voter data obtained from <a href="https://www.hidalgocounty.us/3339/Unofficial-Early-Voting-Totals-Rosters" target="_blank">Hidalgo County Elections Department</a> as of 10/22/2024
+    </div>
     
     <!-- Load your JavaScript files -->
     <script src="map.js"></script>
