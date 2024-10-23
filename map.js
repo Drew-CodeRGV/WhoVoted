@@ -6,7 +6,7 @@ function initMap() {
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 18,
-        attribution: '© OpenStreetMap contributors | DL-R9'
+        attribution: '© OpenStreetMap contributors | DL-R10'
     }).addTo(map);
 
     markerClusterGroup = L.markerClusterGroup({
@@ -23,7 +23,7 @@ function initMap() {
         iconCreateFunction: function(cluster) {
             var childCount = cluster.getChildCount();
             var c = ' marker-cluster-';
-            if (childCount < 6) {
+            if (childCount < 10) {
                 c += 'small';
             } else if (childCount < 50) {
                 c += 'medium';
