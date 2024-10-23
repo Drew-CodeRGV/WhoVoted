@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Address Search Map</title>
+    <title>Politiquera.Com - Voting & Election Info</title>
     
     <!-- Leaflet CSS and JS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
@@ -34,8 +34,8 @@
             top: 0;
             left: 0;
             right: 0;
-            height: 200px;
-            background-color: rgba(0, 0, 51, 0.5); /* Navy blue with 50% transparency */
+            height: 240px; /* Increased height for better padding */
+            background-color: rgba(0, 0, 51, 0.5);
             z-index: 999;
             transition: background-color 2s ease;
         }
@@ -63,15 +63,16 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            width: 187.5px;
+            width: 25vw; /* Responsive width based on viewport width */
+            max-width: 300px; /* Maximum width */
+            min-width: 200px; /* Minimum width */
             opacity: 0.15;
             z-index: 1000;
             pointer-events: none;
-            filter: drop-shadow(0 2px 5px rgba(0,0,0,0.2)); /* Added drop shadow */
         }
         .search-container {
             position: fixed;
-            top: 100px;
+            top: 120px; /* Adjusted for larger logo */
             left: 50%;
             transform: translateX(-50%);
             z-index: 1000;
@@ -86,7 +87,7 @@
         }
         .instruction-text {
             position: fixed;
-            top: 160px;
+            top: 180px; /* Adjusted spacing */
             left: 50%;
             transform: translateX(-50%);
             color: white;
@@ -97,6 +98,9 @@
             opacity: 1;
             transition: opacity 2s ease;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            padding: 15px; /* Added padding */
+            max-width: 80%; /* Ensure text doesn't stretch too wide */
+            line-height: 1.4; /* Improved readability */
         }
         .instruction-text.fade-out {
             opacity: 0;
@@ -107,7 +111,7 @@
             border-left: 10px solid transparent;
             border-right: 10px solid transparent;
             border-bottom: 10px solid white;
-            margin: 0 auto 5px auto;
+            margin: 0 auto 10px auto; /* Increased bottom margin */
         }
         #search-input {
             flex: 1;
