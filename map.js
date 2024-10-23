@@ -6,13 +6,13 @@ function initMap() {
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        attribution: '© OpenStreetMap contributors'
+        attribution: '© OpenStreetMap contributors | DL R2'
     }).addTo(map);
 
     markerClusterGroup = L.markerClusterGroup({
         disableClusteringAtZoom: 18, // Disable clustering at max zoom
         spiderfyOnMaxZoom: false,    // Disable spiderifying at max zoom
-        maxClusterRadius: 10,   // Reduce cluster radius (default is 80)
+        maxClusterRadius: 5,   // Reduce cluster radius (default is 80)
         chunkedLoading: true,
         zoomToBoundsOnClick: true,
         showCoverageOnHover: false,
