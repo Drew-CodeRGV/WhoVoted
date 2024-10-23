@@ -11,7 +11,7 @@ function initMap() {
 
     markerClusterGroup = L.markerClusterGroup({
         disableClusteringAtZoom: 18, // Disable clustering at max zoom
-        spiderfyOnMaxZoom: false,    // Disable spiderifying at max zoom
+        spiderfyOnMaxZoom: true,    // Disable spiderifying at max zoom
         maxClusterRadius: 20,   // Reduce cluster radius (default is 80)
         chunkedLoading: true,
         zoomToBoundsOnClick: true,
