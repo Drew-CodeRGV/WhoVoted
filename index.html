@@ -21,9 +21,20 @@
     
     <!-- Google Maps API -->
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBsi0hqt44YuszCHWFo0QfDCtUWr8cqCj0&libraries=places,geocoding"></script>
-
     <!-- Custom Styles -->
     <link rel="stylesheet" href="styles.css" />
+    
+    <style>
+        .overlay-image {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 250px;
+            opacity: 0.5;
+            z-index: 1000;
+            pointer-events: none; /* This makes the overlay not interfere with map interactions */
+        }
+    </style>
     
     <!-- Add this line to load the config file -->
     <script src="config.js"></script>
@@ -39,7 +50,8 @@
         </button>
     </div>
     <div id="map"></div>
-
+    <img src="politiquera.png" alt="Overlay" class="overlay-image">
+    
     <!-- Load your JavaScript files -->
     <script src="map.js"></script>
     <script src="search.js"></script>
