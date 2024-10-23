@@ -3,21 +3,397 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Address Search Map</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
-    <link rel="stylesheet" href="styles.css">
+    <title>Neighborhood Voter Map</title>
+    
+    <!-- Leaflet CSS and JS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    
+    <!-- OpenCage Geocoder -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/opencage-api-client/1.0.2/opencage-api.min.js"></script>
+    
+    <!-- Add these lines in the <head> section of your HTML file -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    
+    <!-- Add these lines for autocomplete -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: Arial, sans-serif;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+            flex-direction: column;
+        }
+        
+        .search-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        #search-input {
+            width: 300px;
+            padding: 10px 14px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            height: 44px;
+            box-sizing: border-box;
+        }
+        
+        .search-button {
+            padding: 10px 24px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            height: 44px;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        .search-button:hover {
+            background: #0056b3;
+        }
+        
+        #map { 
+            flex-grow: 1;
+            width: 100%;
+            height: 100vh;
+        }
+        
+        .info-box {
+            padding: 6px 8px;
+            background: white;
+            background: rgba(255,255,255,0.8);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
+            max-width: 300px;
+        }
+        
+        .legend {
+            line-height: 18px;
+            color: #555;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
+        
+        .marker-cluster {
+            background-color: rgba(0, 123, 255, 0.6);
+            border-radius: 50%;
+            color: white;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        /* Add these styles for autocomplete */
+        .autoComplete_wrapper {
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        .autoComplete_result {
+            margin: 0;
+            padding: 10px;
+            list-style: none;
+            text-align: left;
+            font-size: 14px;
+            color: #212121;
+            transition: all 0.1s ease-in-out;
+            border-radius: 3px;
+            background-color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: all 0.2s ease;
+        }
+        
+        .autoComplete_result:hover {
+            cursor: pointer;
+            background-color: #f0f0f0;
+        }
+        
+        .autoComplete_highlighted {
+            color: #007bff;
+            font-weight: bold;
+        }
+        
+        .autoComplete_selected {
+            background-color: #f0f0f0;
+        }
+        
+        /* Add these styles for autocomplete */
+        .leaflet-control-geocoder {
+            width: 100%;
+            max-width: 400px;
+            margin-top: 10px !important;
+        }
+        
+        .leaflet-control-geocoder-form input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .leaflet-control-geocoder-alternatives {
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+        }
+        
+        .leaflet-control-geocoder-alternatives li {
+            padding: 10px;
+            cursor: pointer;
+        }
+        
+        .leaflet-control-geocoder-alternatives li:hover {
+            background-color: #f0f0f0;
+        }
+        
+        /* Add these styles for Algolia Places */
+        .algolia-places {
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        .ap-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .ap-suggestion {
+            padding: 10px;
+            cursor: pointer;
+        }
+        
+        .ap-suggestion:hover {
+            background-color: #f0f0f0;
+        }
+        
+        /* Add styles for Google Places Autocomplete */
+        .pac-container {
+            z-index: 1051 !important;
+        }
+    </style>
+    <!-- Add this line in the <head> section, just before the closing </head> tag -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBsi0hqt44YuszCHWFo0QfDCtUWr8cqCj0&libraries=places"></script>
 </head>
 <body>
-    <div class="container">
-        <div class="search-container">
-            <input type="text" id="search-input" placeholder="Enter an address...">
-            <div id="suggestions-container" class="suggestions-container"></div>
-        </div>
-        <div id="map"></div>
+    <div class="search-container">
+        <input id="search-input" type="text" placeholder="Search for an address">
+        <button class="search-button" id="search-button">Search</button>
     </div>
+    <div id="map"></div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-    <script src="map.js"></script>
-    <script src="search.js"></script>
+    <script>
+        // Initialize the map centered on your area
+        const map = L.map('map').setView([26.2034, -98.2300], 12); // McAllen area
+
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Initialize marker cluster group
+        const markerClusterGroup = L.markerClusterGroup();
+
+        // Initialize heatmap data array
+        const heatmapData = [];
+
+        // Initialize heatmap layer (we'll add data to it later)
+        const heatmapLayer = L.heatLayer([], {
+            radius: 20,
+            blur: 15,
+            maxZoom: 14 // Adjust this value to set when to switch from heatmap to markers
+        });
+
+        // Load GeoJSON data
+        async function loadMapData() {
+            try {
+                const response = await fetch('data/map_data.json');
+                const data = await response.json();
+                
+                L.geoJSON(data, {
+                    pointToLayer: function(feature, latlng) {
+                        // Add point to heatmap data
+                        heatmapData.push([latlng.lat, latlng.lng, 1]);
+
+                        // Create marker for cluster
+                        return L.circleMarker(latlng, {
+                            radius: 6,
+                            fillColor: "#007bff",
+                            color: "#fff",
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        });
+                    },
+                    onEachFeature: function(feature, layer) {
+                        // Create popup content
+                        let popupContent = `
+                            <div class="info-box">
+                                <strong>Address:</strong> ${feature.properties.address}<br>
+                                <strong>Precinct:</strong> ${feature.properties.precinct}<br>
+                                <strong>Ballot Style:</strong> ${feature.properties.ballot_style}
+                            </div>
+                        `;
+                        layer.bindPopup(popupContent);
+                    }
+                }).addTo(markerClusterGroup);
+
+                // Update heatmap layer with collected data
+                heatmapLayer.setLatLngs(heatmapData);
+                
+                // Initial update of map view
+                updateMapView();
+                
+            } catch (error) {
+                console.error('Error loading map data:', error);
+                alert('Error loading map data. Please try again later.');
+            }
+        }
+
+        // Function to toggle between heatmap and markers based on zoom level
+        function updateMapView() {
+            let currentZoom = map.getZoom();
+            if (currentZoom > 14) { // Adjust this value to match maxZoom in heatmapLayer options
+                map.removeLayer(heatmapLayer);
+                map.addLayer(markerClusterGroup);
+            } else {
+                map.removeLayer(markerClusterGroup);
+                map.addLayer(heatmapLayer);
+            }
+        }
+
+        // Listen for zoom events
+        map.on('zoomend', updateMapView);
+
+        // Initialize Google Places Autocomplete
+        const input = document.getElementById('search-input');
+        const searchButton = document.getElementById('search-button');
+        const autocomplete = new google.maps.places.Autocomplete(input, {
+            types: ['address'],
+            componentRestrictions: {country: 'us'},
+            bounds: new google.maps.LatLngBounds(
+                new google.maps.LatLng(26.0, -98.5),
+                new google.maps.LatLng(26.4, -98.0)
+            ),
+            strictBounds: true
+        });
+
+        // Function to perform the search
+        function performSearch() {
+            const place = autocomplete.getPlace();
+            if (!place || !place.geometry) {
+                // If no place is selected, try to get the first autocomplete suggestion
+                const service = new google.maps.places.AutocompleteService();
+                service.getPlacePredictions({ input: input.value }, function(predictions, status) {
+                    if (status === google.maps.places.PlacesServiceStatus.OK && predictions && predictions.length > 0) {
+                        const placesService = new google.maps.places.PlacesService(document.createElement('div'));
+                        placesService.getDetails({ placeId: predictions[0].place_id }, function(result, status) {
+                            if (status === google.maps.places.PlacesServiceStatus.OK) {
+                                handleSelectedPlace(result);
+                            }
+                        });
+                    } else {
+                        console.log("No results found");
+                    }
+                });
+            } else {
+                handleSelectedPlace(place);
+            }
+        }
+
+        // Function to handle the selected place
+        function handleSelectedPlace(place) {
+            const latlng = [place.geometry.location.lat(), place.geometry.location.lng()];
+            
+            // Add a marker for the searched address
+            const searchMarker = L.marker(latlng, {
+                icon: L.divIcon({
+                    className: 'search-marker',
+                    html: '📍',
+                    iconSize: [25, 25],
+                    iconAnchor: [12, 24]
+                })
+            }).addTo(map);
+
+            // Zoom to the location
+            map.setView(latlng, 16);
+
+            // Show nearby locations within 1km
+            showNearbyLocations(latlng);
+        }
+
+        // Handle place selection from autocomplete
+        autocomplete.addListener('place_changed', performSearch);
+
+        // Handle search button click
+        searchButton.addEventListener('click', performSearch);
+
+        // Handle enter key press in the input field
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+
+        // Function to show locations within radius of searched address
+        function showNearbyLocations(center) {
+            const radius = 1000; // 1km radius
+            markerClusterGroup.eachLayer(function(layer) {
+                if (layer.feature) {
+                    const distance = map.distance(
+                        center,
+                        [layer.feature.geometry.coordinates[1], layer.feature.geometry.coordinates[0]]
+                    );
+                    if (distance <= radius) {
+                        layer.setStyle({
+                            fillColor: '#28a745',
+                            radius: 8
+                        });
+                    } else {
+                        layer.setStyle({
+                            fillColor: '#007bff',
+                            radius: 6
+                        });
+                    }
+                }
+            });
+        }
+
+        // Load map data when page loads
+        loadMapData();
+    </script>
 </body>
 </html>
