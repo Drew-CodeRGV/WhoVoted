@@ -10,9 +10,9 @@ function initMap() {
     }).addTo(map);
 
     markerClusterGroup = L.markerClusterGroup({
-        disableClusteringAtZoom: 12, // Disable clustering at max zoom
+        disableClusteringAtZoom: 18, // Disable clustering at max zoom
         spiderfyOnMaxZoom: false,    // Disable spiderifying at max zoom
-        maxClusterRadius: 5,   // Reduce cluster radius (default is 80)
+        maxClusterRadius: 10,   // Reduce cluster radius (default is 80)
         chunkedLoading: true,
         zoomToBoundsOnClick: true,
         showCoverageOnHover: false,
@@ -23,7 +23,7 @@ function initMap() {
         iconCreateFunction: function(cluster) {
             var childCount = cluster.getChildCount();
             var c = ' marker-cluster-';
-            if (childCount < 10) {
+            if (childCount < 2) {
                 c += 'small';
             } else if (childCount < 50) {
                 c += 'medium';
