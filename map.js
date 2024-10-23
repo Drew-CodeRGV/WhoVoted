@@ -42,10 +42,7 @@ function initMap() {
         blur: config.HEATMAP_BLUR,
         maxZoom: config.HEATMAP_MAX_ZOOM,
         maxOpacity: 0.4,  // Adjust this value between 0 and 1 (default is 0.6)
-        gradient: {
-        0.4: 'blue',
-        0.65: 'lime',
-        1: 'red'        
+             
     });
 
     map.on('zoomend', updateMapView);
