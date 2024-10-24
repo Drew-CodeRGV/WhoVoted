@@ -228,13 +228,14 @@
     </div>
     <div id="map"></div>
     <div class="info-strip">
-        Using publicly available data from <a href="https://www.hidalgocounty.us/3339/Unofficial-Early-Voting-Totals-Rosters" target="_blank">Hidalgo County Elections Department</a>. 34,272 out of 446,749 voters (7.67%) as of 11AM on 10/23/2024.
+      Using publicly available data from <a href="https://www.hidalgocounty.us/3339/Unofficial-Early-Voting-Totals-Rosters" target="_blank">Hidalgo County Elections Department</a>. <span id="total-addresses">Loading...</span> out of <span id="total-voters">446,749</span> voters (<span id="percentage">0.00</span>%) as of <span id="last-updated">Loading...</span>.
     </div>
     
     <!-- Load your JavaScript files -->
     <script src="map.js"></script>
     <script src="search.js"></script>
     <script src="data.js"></script>
+    <script src="metadata.js"></script>
     
     <script>
         // Add fade out effect after 10 seconds
