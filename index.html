@@ -208,6 +208,46 @@
             width: 20px;
             height: 20px;
         }
+  .welcome-popup {
+    position: fixed;
+    top: 165px;  /* Position it below the search bar */
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 51, 0.9);
+    color: white;
+    padding: 20px;
+    border-radius: 8px;
+    z-index: 1002;  /* Above other elements */
+    max-width: 80%;
+    width: 400px;
+    font-family: Arial, sans-serif;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    line-height: 1.5;
+    font-size: 14px;
+}
+
+.welcome-popup .close-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.welcome-popup .close-button:hover {
+    opacity: 0.8;
+}
+    
+    
     </style>
     
     <!-- Add this line to load the config file -->
@@ -216,6 +256,10 @@
 <body>
     <div class="header-background"></div>
     <img src="assets/politiquera.png" alt="Overlay" class="overlay-image">
+    <div class="welcome-popup" id="welcomePopup">
+    <button class="close-button" onclick="document.getElementById('welcomePopup').style.display='none'">×</button>
+    Welcome to Politiquera.com! This map shows you who has early-voted in Hidalgo County according to their voter turnout rosters. Use this to see who's voted in your City, Community or on your block. If they haven't voted, you can use this as a conversation starter to encourage them to get out and vote! Thanks for visiting!
+</div>
     <div class="search-container">
         <input id="search-input" type="text" placeholder="Search for an address">
         <button class="search-button" id="search-button">Search</button>
