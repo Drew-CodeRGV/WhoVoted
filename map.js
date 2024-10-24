@@ -4,22 +4,32 @@ let map, markerClusterGroup, heatmapLayer;
 function initMap() {
   map = L.map('map').setView(config.MAP_CENTER, config.MAP_ZOOM);
 
+  // Create custom icon using Font Awesome - ADD THIS NEW CODE
+  var customIcon = L.divIcon({
+    html: '<i class="fa-solid fa-flag-usa"></i>',
+    iconSize: [32, 32],
+    className: 'custom-div-icon'
+  });
+
+  // Set as default icon for all markers - ADD THIS NEW CODE
+  L.Marker.prototype.options.icon = customIcon;
+
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 18,
-    attribution: '© OpenStreetMap contributors | DL-R21'
+    attribution: '© OpenStreetMap contributors | DL-R23'
   }).addTo(map);
 
   markerClusterGroup = L.markerClusterGroup({
-    disableClusteringAtZoom: 17, // Disable clustering at max zoom
-    spiderfyOnMaxZoom: true,    // Disable spiderifying at max zoom
-    maxClusterRadius: 20,   // Reduce cluster radius (default is 80)
+    disableClusteringAtZoom: 17,
+    spiderfyOnMaxZoom: true,
+    maxClusterRadius: 20,
     chunkedLoading: true,
     zoomToBoundsOnClick: true,
     showCoverageOnHover: false,
     removeOutsideVisibleBounds: true,
     animate: false,
     spiderfyDistanceMultiplier: 2.0,
-    singleMarkerMode: true,      // Show individual markers when possible
+    singleMarkerMode: true,
     iconCreateFunction: function (cluster) {
       var childCount = cluster.getChildCount();
       var c = ' marker-cluster-';
@@ -37,6 +47,8 @@ function initMap() {
       });
     }
   });
+
+  
   heatmapLayer = L.heatLayer([], {
     radius: config.HEATMAP_RADIUS,
     blur: config.HEATMAP_BLUR,
