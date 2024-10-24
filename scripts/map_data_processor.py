@@ -3,20 +3,184 @@ import json
 from datetime import datetime
 from pathlib import Path
 import requests
-from geopy.geocoders import Nominatim, ArcGIS, Photon
-from geopy.extra.rate_limiter import RateLimiter
-from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
-import time
-import logging
-import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 import threading
+import logging
+import re
+import time
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+class ThreadSafeCounter:
+    def __init__(self):
+        self.value = 0
+        self.lock = Lock()
+
+    def increment(self):
+        with self.lock:
+            self.value += 1
+            return self.value
+
+
+class GoogleGeocoder:
+    def __init__(self, api_key, max_workers=4):
+        self.api_key = api_key
+        self.max_workers = max_workers
+        self.cache = {}
+        self.cache_lock = Lock()
+        self.request_lock = Lock()
+        self.last_request_time = 0
+        self.min_delay = 0.1  # 100ms between requests to respect rate limits
+
+    def geocode_address(self, address):
+        # Check cache first
+        with self.cache_lock:
+            if address in self.cache:
+                return address, self.cache[address]
+
+        # Rate limiting
+        with self.request_lock:
+            current_time = time.time()
+            time_since_last = current_time - self.last_request_time
+            if time_since_last < self.min_delay:
+                time.sleep(self.min_delay - time_since_last)
+            self.last_request_time = time.time()
+
+        try:
+            base_url = "https://maps.googleapis.com/maps/api/geocode/json"
+            params = {"address": address, "key": self.api_key}
+
+            response = requests.get(base_url, params=params, timeout=10)
+            data = response.json()
+
+            if data["status"] == "OK":
+                result = data["results"][0]
+                location = result["geometry"]["location"]
+
+                location_data = {
+                    "latitude": location["lat"],
+                    "longitude": location["lng"],
+                    "formatted_address": result["formatted_address"],
+                    "place_id": result["place_id"],
+                }
+
+                # Update cache
+                with self.cache_lock:
+                    self.cache[address] = location_data
+
+                return address, location_data
+            else:
+                logger.debug(
+                    f"Geocoding failed with status: {data['status']} for address: {address}"
+                )
+                if "error_message" in data:
+                    logger.debug(f"Error message: {data['error_message']}")
+                return address, None
+
+        except Exception as e:
+            logger.debug(f"Error geocoding address {address}: {str(e)}")
+            return address, None
+
+
+def ensure_directory(directory):
+    """Create directory if it doesn't exist and verify it's writable"""
+    try:
+        os.makedirs(directory, exist_ok=True)
+        # Test if directory is writable
+        test_file = Path(directory) / ".write_test"
+        test_file.touch()
+        test_file.unlink()
+        return True
+    except Exception as e:
+        logger.error(f"Error creating/accessing directory {directory}: {str(e)}")
+        return False
+
+
+def save_json_file(data, filepath, backup=True):
+    """Save JSON data with error handling and backup"""
+    filepath = Path(filepath)
+    try:
+        if backup and filepath.exists():
+            # Create backup with timestamp to avoid conflicts
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_path = filepath.with_name(f"{filepath.stem}_{timestamp}.json.bak")
+            try:
+                os.replace(filepath, backup_path)
+            except Exception as e:
+                logger.warning(f"Could not create backup, proceeding without: {str(e)}")
+
+        # Save new data
+        with open(filepath, "w") as f:
+            json.dump(data, f, indent=2)
+
+        logger.info(f"Successfully saved data to {filepath}")
+        return True
+    except Exception as e:
+        logger.error(f"Error saving file {filepath}: {str(e)}")
+        return False
+
+
+def save_progress_atomic(data, filepath):
+    """Save progress data atomically using a temporary file"""
+    filepath = Path(filepath)
+    temp_path = filepath.with_name(f"{filepath.stem}_temp.json")
+    try:
+        # Write to temporary file first
+        with open(temp_path, "w") as f:
+            json.dump(data, f, indent=2)
+
+        # Then rename it to the target file (atomic operation)
+        os.replace(temp_path, filepath)
+        return True
+    except Exception as e:
+        logger.error(f"Error saving progress: {str(e)}")
+        if temp_path.exists():
+            try:
+                temp_path.unlink()
+            except:
+                pass
+        return False
+
+
+def load_existing_geocoded_data(map_data_file):
+    """Load existing geocoded addresses from map data file"""
+    try:
+        if map_data_file.exists():
+            with open(map_data_file, "r") as f:
+                existing_data = json.load(f)
+
+            # Create a dictionary of existing geocoded addresses
+            geocoded_addresses = {}
+            for feature in existing_data.get("features", []):
+                props = feature.get("properties", {})
+                original_address = props.get("original_address")
+                if original_address:
+                    geocoded_addresses[original_address] = {
+                        "location_data": {
+                            "latitude": feature["geometry"]["coordinates"][1],
+                            "longitude": feature["geometry"]["coordinates"][0],
+                            "formatted_address": props.get("address"),
+                            "place_id": props.get("place_id"),
+                        },
+                        "feature": feature,
+                    }
+
+            logger.info(f"Loaded {len(geocoded_addresses)} existing geocoded addresses")
+            return existing_data, geocoded_addresses
+        else:
+            return {"type": "FeatureCollection", "features": []}, {}
+    except Exception as e:
+        logger.warning(f"Error loading existing geocoded data: {str(e)}")
+        return {"type": "FeatureCollection", "features": []}, {}
 
 
 def fetch_csv(url):
@@ -41,69 +205,6 @@ def fetch_csv(url):
     except requests.exceptions.RequestException as e:
         logger.error(f"Error fetching CSV: {str(e)}")
         raise
-
-
-class ThreadSafeCounter:
-    def __init__(self):
-        self.value = 0
-        self.lock = Lock()
-
-    def increment(self):
-        with self.lock:
-            self.value += 1
-            return self.value
-
-
-class MultiGeocoder:
-    def __init__(self, max_workers=4):
-        self.max_workers = max_workers
-        self.cache = {}
-        self.cache_lock = Lock()
-
-        # Initialize geocoders with separate rate limiters for each thread
-        self.geocoder_classes = [
-            (Nominatim, {"user_agent": "county_map_processor"}, 1.5),
-            (ArcGIS, {}, 0.5),
-            (Photon, {}, 0.5),
-        ]
-
-        self.thread_local = threading.local()
-
-    def get_geocoders(self):
-        if not hasattr(self.thread_local, "geocoders"):
-            self.thread_local.geocoders = []
-            for GeocoderClass, kwargs, delay in self.geocoder_classes:
-                geocoder = GeocoderClass(**kwargs)
-                rate_limited = RateLimiter(
-                    geocoder.geocode, min_delay_seconds=delay, max_retries=2
-                )
-                self.thread_local.geocoders.append(
-                    (GeocoderClass.__name__, rate_limited)
-                )
-        return self.thread_local.geocoders
-
-    def geocode_address(self, address):
-        # Check cache first
-        with self.cache_lock:
-            if address in self.cache:
-                return address, self.cache[address]
-
-        for service_name, geocoder in self.get_geocoders():
-            try:
-                location = geocoder(address, timeout=10)
-                if location:
-                    # Update cache
-                    with self.cache_lock:
-                        self.cache[address] = location
-                    logger.debug(
-                        f"Successfully geocoded with {service_name}: {address}"
-                    )
-                    return address, location
-            except Exception as e:
-                logger.debug(f"Error with {service_name} for {address}: {str(e)}")
-                continue
-
-        return address, None
 
 
 def clean_address(address):
@@ -137,13 +238,22 @@ def clean_address(address):
     return " ".join(address.split())
 
 
-def process_data(url, output_dir="public/data", max_workers=4):
+def process_data(url, api_key, output_dir="data", max_workers=4):
     """
-    Fetch and process CSV data with parallel geocoding.
+    Fetch and process CSV data with parallel geocoding using Google's API.
     """
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    # Ensure output directory exists and is writable
+    if not ensure_directory(output_dir):
+        raise RuntimeError(f"Cannot access or create output directory: {output_dir}")
+
+    output_dir = Path(output_dir)
+    map_data_file = output_dir / "map_data.json"
+    progress_file = output_dir / "progress.json"
 
     try:
+        # Load existing geocoded data
+        geojson_data, geocoded_addresses = load_existing_geocoded_data(map_data_file)
+
         # Fetch CSV data from URL
         df = fetch_csv(url)
 
@@ -153,20 +263,23 @@ def process_data(url, output_dir="public/data", max_workers=4):
         df = df.dropna(subset=["cleaned_address"])
 
         # Load existing progress
-        progress_file = Path(output_dir) / "progress.json"
         processed_addresses = set()
         if progress_file.exists():
-            with open(progress_file, "r") as f:
-                processed_addresses = set(json.load(f))
+            try:
+                with open(progress_file, "r") as f:
+                    processed_addresses = set(json.load(f))
+            except json.JSONDecodeError:
+                logger.warning("Could not read progress file, starting fresh")
 
         # Initialize geocoder and results
-        geocoder = MultiGeocoder(max_workers=max_workers)
-        geojson_data = {"type": "FeatureCollection", "features": []}
+        geocoder = GoogleGeocoder(api_key, max_workers=max_workers)
         failed_addresses = []
 
         # Create progress counter
         counter = ThreadSafeCounter()
         total_addresses = len(df)
+        save_lock = Lock()  # Add lock for file saving
+        geocoded_cache_lock = Lock()  # Add lock for geocoded addresses cache
 
         def process_chunk(chunk):
             results = []
@@ -177,28 +290,54 @@ def process_data(url, output_dir="public/data", max_workers=4):
                 if address in processed_addresses:
                     continue
 
-                address, location = geocoder.geocode_address(address)
-                count = counter.increment()
+                # Check if address is already geocoded
+                with geocoded_cache_lock:
+                    existing_data = geocoded_addresses.get(address)
 
-                if count % 10 == 0:
-                    logger.info(f"Processed {count}/{total_addresses} addresses...")
-
-                if location:
-                    feature = {
-                        "type": "Feature",
-                        "geometry": {
-                            "type": "Point",
-                            "coordinates": [location.longitude, location.latitude],
-                        },
-                        "properties": {
-                            "address": address,
-                            "precinct": row["PRECINCT"],
-                            "ballot_style": row["BALLOT STYLE"],
-                        },
-                    }
-                    results.append(feature)
+                if existing_data:
+                    # Use existing geocoded data
+                    results.append(existing_data["feature"])
+                    count = counter.increment()
+                    if count % 10 == 0:
+                        logger.info(
+                            f"Processed {count}/{total_addresses} addresses (cache hit)..."
+                        )
                 else:
-                    local_failed.append(address)
+                    # Geocode new address
+                    address, location = geocoder.geocode_address(address)
+                    count = counter.increment()
+
+                    if count % 10 == 0:
+                        logger.info(f"Processed {count}/{total_addresses} addresses...")
+
+                    if location:
+                        feature = {
+                            "type": "Feature",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [
+                                    location["longitude"],
+                                    location["latitude"],
+                                ],
+                            },
+                            "properties": {
+                                "address": location["formatted_address"],
+                                "original_address": address,
+                                "precinct": row["PRECINCT"],
+                                "ballot_style": row["BALLOT STYLE"],
+                                "place_id": location["place_id"],
+                            },
+                        }
+                        results.append(feature)
+
+                        # Add to cache
+                        with geocoded_cache_lock:
+                            geocoded_addresses[address] = {
+                                "location_data": location,
+                                "feature": feature,
+                            }
+                    else:
+                        local_failed.append(address)
 
             return results, local_failed
 
@@ -215,33 +354,41 @@ def process_data(url, output_dir="public/data", max_workers=4):
 
             for future in as_completed(future_to_chunk):
                 chunk_results, chunk_failed = future.result()
-                geojson_data["features"].extend(chunk_results)
-                failed_addresses.extend(chunk_failed)
-
-                # Save intermediate results
-                with open(Path(output_dir) / "map_data.json", "w") as f:
-                    json.dump(geojson_data, f)
-
-                # Update progress
-                with open(progress_file, "w") as f:
-                    json.dump(
-                        list(
-                            processed_addresses.union(
-                                set(addr for _, addr in chunk_failed)
-                            )
-                        ),
-                        f,
+                with save_lock:  # Use lock when updating shared data
+                    # Only append new results (avoid duplicates)
+                    existing_features = set(
+                        f["properties"]["original_address"]
+                        for f in geojson_data["features"]
                     )
+                    new_features = [
+                        f
+                        for f in chunk_results
+                        if f["properties"]["original_address"] not in existing_features
+                    ]
 
-        # Save final results
-        with open(Path(output_dir) / "map_data.json", "w") as f:
-            json.dump(geojson_data, f)
+                    geojson_data["features"].extend(new_features)
+                    failed_addresses.extend(chunk_failed)
+                    new_processed = processed_addresses.union(set(chunk_failed))
+
+                    # Save intermediate results atomically
+                    if new_features and save_json_file(
+                        geojson_data, map_data_file, backup=False
+                    ):
+                        save_progress_atomic(list(new_processed), progress_file)
+                        processed_addresses = new_processed
+
+        # Save final results with backup
+        if not save_json_file(geojson_data, map_data_file, backup=True):
+            raise RuntimeError("Failed to save final results")
 
         # Save failed addresses
         if failed_addresses:
-            with open(Path(output_dir) / "failed_addresses.txt", "w") as f:
-                for addr in failed_addresses:
-                    f.write(f"{addr}\n")
+            try:
+                with open(output_dir / "failed_addresses.txt", "w") as f:
+                    for addr in failed_addresses:
+                        f.write(f"{addr}\n")
+            except Exception as e:
+                logger.error(f"Error saving failed addresses: {str(e)}")
 
         # Save metadata
         metadata = {
@@ -250,15 +397,16 @@ def process_data(url, output_dir="public/data", max_workers=4):
             "total_addresses": total_addresses,
             "successfully_geocoded": len(geojson_data["features"]),
             "failed_addresses": len(failed_addresses),
+            "cache_hits": len(geocoded_addresses),
         }
 
-        with open(Path(output_dir) / "metadata.json", "w") as f:
-            json.dump(metadata, f)
+        save_json_file(metadata, output_dir / "metadata.json", backup=False)
 
         logger.info("Processing complete:")
         logger.info(
             f"Successfully geocoded: {len(geojson_data['features'])}/{total_addresses}"
         )
+        logger.info(f"Cache hits: {len(geocoded_addresses)}")
         logger.info(f"Failed addresses: {len(failed_addresses)}")
 
     except Exception as e:
@@ -267,8 +415,9 @@ def process_data(url, output_dir="public/data", max_workers=4):
 
 
 if __name__ == "__main__":
-    # Replace with your CSV URL
-    CSV_URL = "https://www.hidalgocounty.us/DocumentCenter/View/68887/EV-Roster-November-5-2024-Cumulative"
+    # Replace with your CSV URL and Google API key
+    CSV_URL = os.getenv("CSV_URL")
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
     # Adjust max_workers based on your CPU and memory
-    process_data(CSV_URL, max_workers=4)
+    process_data(CSV_URL, GOOGLE_API_KEY, max_workers=4)
