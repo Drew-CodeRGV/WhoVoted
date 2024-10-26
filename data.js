@@ -1,9 +1,15 @@
 async function loadMapData() {
     try {
-        const response = await fetch('data/map_data.json');
-        const data = await response.json();
+        const [mapDataResponse, votingLocationsResponse] = await Promise.all([
+            fetch('data/map_data.json'),
+            fetch('data/voting_locations.json')
+        ]);
+
+        const mapData = await mapDataResponse.json();
+        const votingLocations = await votingLocationsResponse.json();
         
-        L.geoJSON(data, {
+        // Load map data
+        L.geoJSON(mapData, {
             pointToLayer: function(feature, latlng) {
                 heatmapLayer.addLatLng(latlng);
                 return L.circleMarker(latlng, {
@@ -27,11 +33,36 @@ async function loadMapData() {
             }
         }).addTo(markerClusterGroup);
 
+        // Load voting locations
+        loadVotingLocations(votingLocations);
+
         updateMapView();
     } catch (error) {
-        console.error('Error loading map data:', error);
-        alert('Error loading map data. Please try again later.');
+        console.error('Error loading data:', error);
+        alert('Error loading data. Please try again later.');
     }
+}
+
+function loadVotingLocations(locations) {
+    const votingLocationIcon = L.divIcon({
+        html: '<i class="fas fa-house-user voting-location-icon"></i>',
+        iconSize: [32, 32],
+        className: 'voting-location-icon'
+    });
+
+    locations.forEach(location => {
+        const marker = L.marker([parseFloat(location.latitude), parseFloat(location.longitude)], { icon: votingLocationIcon })
+            .bindPopup(`
+                <strong>${location.location}</strong><br>
+                Address: ${location.address}<br>
+                City: ${location.city}<br>
+                Voting Area: ${location.voting_area}
+            `);
+        votingLocationsLayer.addLayer(marker);
+    });
+
+    // Add the voting locations layer to the map
+    map.addLayer(votingLocationsLayer);
 }
 
 function showNearbyLocations(center) {

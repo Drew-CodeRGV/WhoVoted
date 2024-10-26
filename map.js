@@ -1,5 +1,5 @@
 // map.js
-let map, markerClusterGroup, heatmapLayer;
+let map, markerClusterGroup, heatmapLayer, votingLocationsLayer, votingLocationsControl;
 
 function initMap() {
   map = L.map('map').setView(config.MAP_CENTER, config.MAP_ZOOM);
@@ -58,10 +58,20 @@ function initMap() {
     maxOpacity: 0.6,  // Adjust this value between 0 and 1 (default is 0.6)
   });
 
+  // Create a new layer group for voting locations
+  votingLocationsLayer = L.layerGroup();
+
+  // Add control panel for toggling voting locations
+  votingLocationsControl = L.control.layers(null, { "Voting Locations": votingLocationsLayer }, { collapsed: false });
+  votingLocationsControl.addTo(map);
+
   map.on('zoomend', updateMapView);
 
   // Add geolocation control
   addGeolocationControl();
+
+  // Load map data and voting locations
+  loadMapData();
 }
 
 function updateMapView() {
@@ -159,6 +169,25 @@ function reverseGeocode(lat, lng) {
       console.log("Geocoder failed due to: " + status);
     }
   });
+}
+
+function loadVotingLocations(icon) {
+  fetch('data/voting_locations.json')
+    .then(response => response.json())
+    .then(data => {
+      data.forEach(location => {
+        const marker = L.marker([location.latitude, location.longitude], { icon: icon })
+          .bindPopup(`
+            <strong>${location.location}</strong><br>
+            Address: ${location.address}<br>
+            City: ${location.city}<br>
+            Voting Area: ${location.voting_area}
+          `);
+        votingLocationsLayer.addLayer(marker);
+      });
+      votingLocationsLayer.addTo(map);
+    })
+    .catch(error => console.error('Error loading voting locations:', error));
 }
 
 // Make sure to export the initMap function
