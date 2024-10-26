@@ -1,8 +1,8 @@
 {
-  "last_updated": "2024-10-25T12:42:32.841860",
+  "last_updated": "2024-10-26T11:18:16.733189",
   "source_url": "https://www.hidalgocounty.us/DocumentCenter/View/68887/EV-Roster-November-5-2024-Cumulative",
-  "total_addresses": 63356,
-  "successfully_geocoded": 90162,
-  "failed_addresses": 0,
-  "cache_hits": 68586
+  "total_addresses": 77706,
+  "successfully_geocoded": 101058,
+  "failed_addresses": 10,
+  "cache_hits": 77257
 }
