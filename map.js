@@ -1,25 +1,35 @@
 // map.js
-let map, markerClusterGroup, heatmapLayer;
+let map, markerClusterGroup, heatmapLayer, votingLocationsLayer, votingLocationsControl;
 
 function initMap() {
   map = L.map('map').setView(config.MAP_CENTER, config.MAP_ZOOM);
 
+  // Create custom icon using Font Awesome - ADD THIS NEW CODE
+  var customIcon = L.divIcon({
+    html: '<i class="fa-solid fa-flag-usa"></i>',
+    iconSize: [32, 32],
+    className: 'custom-div-icon'
+  });
+
+  // Set as default icon for all markers - ADD THIS NEW CODE
+  L.Marker.prototype.options.icon = customIcon;
+
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 18,
-    attribution: '© OpenStreetMap contributors | DL-R21'
+    attribution: '© OpenStreetMap contributors | DL-R23'
   }).addTo(map);
 
   markerClusterGroup = L.markerClusterGroup({
-    disableClusteringAtZoom: 17, // Disable clustering at max zoom
-    spiderfyOnMaxZoom: true,    // Disable spiderifying at max zoom
-    maxClusterRadius: 20,   // Reduce cluster radius (default is 80)
+    disableClusteringAtZoom: 17,
+    spiderfyOnMaxZoom: true,
+    maxClusterRadius: 20,
     chunkedLoading: true,
     zoomToBoundsOnClick: true,
     showCoverageOnHover: false,
     removeOutsideVisibleBounds: true,
     animate: false,
     spiderfyDistanceMultiplier: 2.0,
-    singleMarkerMode: true,      // Show individual markers when possible
+    singleMarkerMode: true,
     iconCreateFunction: function (cluster) {
       var childCount = cluster.getChildCount();
       var c = ' marker-cluster-';
@@ -37,6 +47,8 @@ function initMap() {
       });
     }
   });
+
+  
   heatmapLayer = L.heatLayer([], {
     radius: config.HEATMAP_RADIUS,
     blur: config.HEATMAP_BLUR,
@@ -46,10 +58,20 @@ function initMap() {
     maxOpacity: 0.6,  // Adjust this value between 0 and 1 (default is 0.6)
   });
 
+  // Create a new layer group for voting locations
+  votingLocationsLayer = L.layerGroup();
+
+  // Add control panel for toggling voting locations
+  votingLocationsControl = L.control.layers(null, { "Voting Locations": votingLocationsLayer }, { collapsed: false });
+  votingLocationsControl.addTo(map);
+
   map.on('zoomend', updateMapView);
 
   // Add geolocation control
   addGeolocationControl();
+
+  // Load map data and voting locations
+  loadMapData();
 }
 
 function updateMapView() {
@@ -147,6 +169,25 @@ function reverseGeocode(lat, lng) {
       console.log("Geocoder failed due to: " + status);
     }
   });
+}
+
+function loadVotingLocations(icon) {
+  fetch('data/voting_locations.json')
+    .then(response => response.json())
+    .then(data => {
+      data.forEach(location => {
+        const marker = L.marker([location.latitude, location.longitude], { icon: icon })
+          .bindPopup(`
+            <strong>${location.location}</strong><br>
+            Address: ${location.address}<br>
+            City: ${location.city}<br>
+            Voting Area: ${location.voting_area}
+          `);
+        votingLocationsLayer.addLayer(marker);
+      });
+      votingLocationsLayer.addTo(map);
+    })
+    .catch(error => console.error('Error loading voting locations:', error));
 }
 
 // Make sure to export the initMap function
