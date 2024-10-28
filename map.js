@@ -86,6 +86,16 @@ function initMap() {
   // Initialize map
   map = L.map('map', mapConfig);
 
+  // Create custom icon using Font Awesome
+  var customIcon = L.divIcon({
+    html: '<i class="fa-solid fa-flag-usa"></i>',
+    iconSize: [32, 32],
+    className: 'custom-div-icon'
+  });
+
+  // Set as default icon for all markers
+  L.Marker.prototype.options.icon = customIcon;
+
   // Add base tile layer
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 18,
@@ -145,7 +155,8 @@ function addControls() {
 
   // Add layer control
   votingLocationsControl = L.control.layers(null, {
-    "Voting Locations": votingLocationsLayer
+    "Voting Locations": votingLocationsLayer,
+    "District Boundaries": districtLayer
   }, { collapsed: false });
   votingLocationsControl.addTo(map);
 
@@ -199,13 +210,15 @@ function loadData() {
 }
 
 function addDistrictsToMap() {
-  L.geoJSON(districtData, {
+  const geoJsonLayer = L.geoJSON(districtData, {
     style: feature => feature.properties.style,
     onEachFeature: (feature, layer) => {
       layer.bindPopup(feature.properties.name);
       districtLayer.addLayer(layer);
     }
   });
+  districtLayer.addTo(map);
+  districtLayer.remove(); // Start with districts hidden
 }
 
 function toggleDistricts(e) {
@@ -242,20 +255,76 @@ function updateMapView() {
 function loadVotingLocations() {
   fetch('data/voting_locations.json')
     .then(response => response.json())
-    .then(data => {
-      data.forEach(location => {
+    .then(locations => {
+      if (!Array.isArray(locations)) {
+        console.error('Expected array of locations');
+        return;
+      }
+      locations.forEach(location => {
         const marker = L.marker([location.latitude, location.longitude])
           .bindPopup(`
             <strong>${location.location}</strong><br>
             Address: ${location.address}<br>
             City: ${location.city}<br>
-            Voting Area: ${location.voting_area}
+            Voting Area: ${location.voting_area}<br>
+            Total Votes: ${location.total_votes}
           `);
         votingLocationsLayer.addLayer(marker);
+        markerClusterGroup.addLayer(marker.clone());
       });
       votingLocationsLayer.addTo(map);
     })
     .catch(error => console.error('Error loading voting locations:', error));
+}
+
+function addGeolocationControl() {
+  const geolocationButton = document.getElementById('geolocation-button');
+  if (geolocationButton) {
+    geolocationButton.addEventListener('click', centerMapOnUserLocation);
+  }
+}
+
+function centerMapOnUserLocation() {
+  if ("geolocation" in navigator) {
+    const geolocationButton = document.getElementById('geolocation-button');
+    geolocationButton.classList.add('loading');
+    geolocationButton.disabled = true;
+
+    navigator.geolocation.getCurrentPosition(
+      function(position) {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        map.setView([lat, lng], 16);
+
+        const userLocationMarker = L.marker([lat, lng], {
+          icon: L.divIcon({
+            className: 'user-location-marker',
+            html: '<div style="background-color: #4285F4; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white;"></div>',
+            iconSize: [22, 22],
+            iconAnchor: [11, 11]
+          })
+        }).addTo(map);
+
+        userLocationMarker.bindPopup("You are here").openPopup();
+
+        geolocationButton.classList.remove('loading');
+        geolocationButton.disabled = false;
+      },
+      function(error) {
+        console.error("Error getting user location:", error);
+        alert("Unable to get your location. Please make sure you've granted permission to access your location.");
+        geolocationButton.classList.remove('loading');
+        geolocationButton.disabled = false;
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  } else {
+    alert("Geolocation is not supported by your browser.");
+  }
 }
 
 function createClusterIcon(cluster) {
