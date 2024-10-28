@@ -1,6 +1,6 @@
 // config.js
 const config = {
-    // Map base settings (your specified values)
+    // Map base settings
     MAP_CENTER: [26.2034, -98.2300],
     MAP_ZOOM: 12,
     HEATMAP_RADIUS: 15,
@@ -52,56 +52,5 @@ const config = {
             fillOpacity: 0.2,
             fillColor: '#FFFF00'
         }
-    },
-
-    // District boundary coordinates
-    DISTRICT_COORDINATES: {
-        'McAllen District 1': [
-            [-98.2235, 26.2815],
-            [-98.2392, 26.2814],
-            [-98.2392, 26.2627],
-            [-98.2235, 26.2627],
-            [-98.2235, 26.2815]
-        ],
-        'McAllen District 2': [
-            [-98.2392, 26.2814],
-            [-98.2571, 26.2814],
-            [-98.2571, 26.2734],
-            [-98.2392, 26.2734],
-            [-98.2392, 26.2814]
-        ],
-        'McAllen District 3': [
-            [-98.2235, 26.2627],
-            [-98.2392, 26.2627],
-            [-98.2392, 26.1896],
-            [-98.2235, 26.1896],
-            [-98.2235, 26.2627]
-        ],
-        'McAllen District 4': [
-            [-98.2392, 26.2165],
-            [-98.2701, 26.2165],
-            [-98.2701, 26.1896],
-            [-98.2392, 26.1896],
-            [-98.2392, 26.2165]
-        ],
-        'McAllen District 5': [
-            [-98.2483, 26.2734],
-            [-98.2571, 26.2734],
-            [-98.2571, 26.2165],
-            [-98.2483, 26.2165],
-            [-98.2483, 26.2734]
-        ],
-        'McAllen District 6': [
-            [-98.2392, 26.2627],
-            [-98.2483, 26.2627],
-            [-98.2483, 26.2165],
-            [-98.2392, 26.2165],
-            [-98.2392, 26.2627]
-        ]
     }
 };
-
-// Export the config object
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = config;
-}
