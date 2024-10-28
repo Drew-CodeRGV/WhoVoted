@@ -1,140 +1,110 @@
-{
-  "locations": [
+[
     {
-      "location": "Fireman's Pumphouse",
-      "address": "201 N 1st St",
-      "city": "McAllen",
-      "voting_area": "District 4",
-      "latitude": 26.2064,
-      "longitude": -98.2547,
-      "total_votes": 5225,
-      "early_votes": {
-        "21-Oct": 1017,
-        "22-Oct": 1028,
-        "23-Oct": 928,
-        "24-Oct": 786,
-        "25-Oct": 785,
-        "26-Oct": 475,
-        "27-Oct": 206
-      }
+        "location": "Fireman's Pumphouse",
+        "address": "201 N 1st St",
+        "city": "McAllen",
+        "voting_area": "District 4",
+        "latitude": 26.2064,
+        "longitude": -98.2547,
+        "total_votes": 5225,
+        "early_votes": {
+            "21-Oct": 1017,
+            "22-Oct": 1028,
+            "23-Oct": 928,
+            "24-Oct": 786,
+            "25-Oct": 785,
+            "26-Oct": 475,
+            "27-Oct": 206
+        }
     },
     {
-      "location": "Palm View Community Center",
-      "address": "3401 Jordan Rd",
-      "city": "McAllen",
-      "voting_area": "District 5",
-      "latitude": 26.2734,
-      "longitude": -98.2483,
-      "total_votes": 2064,
-      "early_votes": {
-        "21-Oct": 411,
-        "22-Oct": 388,
-        "23-Oct": 320,
-        "24-Oct": 349,
-        "25-Oct": 307,
-        "26-Oct": 203,
-        "27-Oct": 86
-      }
+        "location": "Palm View Community Center",
+        "address": "3401 Jordan Rd",
+        "city": "McAllen",
+        "voting_area": "District 5",
+        "latitude": 26.2734,
+        "longitude": -98.2483,
+        "total_votes": 2064,
+        "early_votes": {
+            "21-Oct": 411,
+            "22-Oct": 388,
+            "23-Oct": 320,
+            "24-Oct": 349,
+            "25-Oct": 307,
+            "26-Oct": 203,
+            "27-Oct": 86
+        }
     },
     {
-      "location": "Hidalgo Co. Water Improvement Dist. #3",
-      "address": "1921 N 23rd St",
-      "city": "McAllen",
-      "voting_area": "District 1",
-      "latitude": 26.2273,
-      "longitude": -98.2392,
-      "total_votes": 1291,
-      "early_votes": {
-        "21-Oct": 199,
-        "22-Oct": 218,
-        "23-Oct": 284,
-        "24-Oct": 213,
-        "25-Oct": 206,
-        "26-Oct": 121,
-        "27-Oct": 50
-      }
+        "location": "Hidalgo Co. Water Improvement Dist. #3",
+        "address": "1921 N 23rd St",
+        "city": "McAllen",
+        "voting_area": "District 1",
+        "latitude": 26.2273,
+        "longitude": -98.2392,
+        "total_votes": 1291,
+        "early_votes": {
+            "21-Oct": 199,
+            "22-Oct": 218,
+            "23-Oct": 284,
+            "24-Oct": 213,
+            "25-Oct": 206,
+            "26-Oct": 121,
+            "27-Oct": 50
+        }
     },
     {
-      "location": "STC Pecan Campus",
-      "address": "3201 W Pecan Blvd",
-      "city": "McAllen",
-      "voting_area": "District 1",
-      "latitude": 26.2273,
-      "longitude": -98.2235,
-      "total_votes": 2291,
-      "early_votes": {
-        "21-Oct": 489,
-        "22-Oct": 415,
-        "23-Oct": 404,
-        "24-Oct": 335,
-        "25-Oct": 327,
-        "26-Oct": 211,
-        "27-Oct": 110
-      }
+        "location": "STC Pecan Campus",
+        "address": "3201 W Pecan Blvd",
+        "city": "McAllen",
+        "voting_area": "District 1",
+        "latitude": 26.2273,
+        "longitude": -98.2235,
+        "total_votes": 2291,
+        "early_votes": {
+            "21-Oct": 489,
+            "22-Oct": 415,
+            "23-Oct": 404,
+            "24-Oct": 335,
+            "25-Oct": 327,
+            "26-Oct": 211,
+            "27-Oct": 110
+        }
     },
     {
-      "location": "Lark Community Center",
-      "address": "2601 Lark Ave",
-      "city": "McAllen",
-      "voting_area": "District 6",
-      "latitude": 26.2396,
-      "longitude": -98.2483,
-      "total_votes": 8956,
-      "early_votes": {
-        "21-Oct": 1614,
-        "22-Oct": 1491,
-        "23-Oct": 1389,
-        "24-Oct": 1339,
-        "25-Oct": 1370,
-        "26-Oct": 1175,
-        "27-Oct": 578
-      }
+        "location": "Lark Community Center",
+        "address": "2601 Lark Ave",
+        "city": "McAllen",
+        "voting_area": "District 6",
+        "latitude": 26.2396,
+        "longitude": -98.2483,
+        "total_votes": 8956,
+        "early_votes": {
+            "21-Oct": 1614,
+            "22-Oct": 1491,
+            "23-Oct": 1389,
+            "24-Oct": 1339,
+            "25-Oct": 1370,
+            "26-Oct": 1175,
+            "27-Oct": 578
+        }
     },
     {
-      "location": "STC Nursing Campus",
-      "address": "1901 S McColl Rd",
-      "city": "McAllen",
-      "voting_area": "District 1",
-      "latitude": 26.2165,
-      "longitude": -98.2304,
-      "total_votes": 1262,
-      "early_votes": {
-        "21-Oct": 294,
-        "22-Oct": 232,
-        "23-Oct": 197,
-        "24-Oct": 194,
-        "25-Oct": 185,
-        "26-Oct": 104,
-        "27-Oct": 56
-      }
+        "location": "STC Nursing Campus",
+        "address": "1901 S McColl Rd",
+        "city": "McAllen",
+        "voting_area": "District 1",
+        "latitude": 26.2165,
+        "longitude": -98.2304,
+        "total_votes": 1262,
+        "early_votes": {
+            "21-Oct": 294,
+            "22-Oct": 232,
+            "23-Oct": 197,
+            "24-Oct": 194,
+            "25-Oct": 185,
+            "26-Oct": 104,
+            "27-Oct": 56
+        }
     }
-  ],
-  "metadata": {
-    "last_updated": "2024-10-27T23:59:59",
-    "total_locations": 6,
-    "total_votes": 21089,
-    "date_range": {
-      "start": "2024-10-21",
-      "end": "2024-10-27"
-    },
-    "source": "Hidalgo County Elections Department",
-    "districts": {
-      "District 1": {
-        "locations": 3,
-        "total_votes": 4844
-      },
-      "District 4": {
-        "locations": 1,
-        "total_votes": 5225
-      },
-      "District 5": {
-        "locations": 1,
-        "total_votes": 2064
-      },
-      "District 6": {
-        "locations": 1,
-        "total_votes": 8956
-      }
-    }
-  }
-}
+]
