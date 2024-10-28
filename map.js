@@ -149,56 +149,29 @@ function initializeLayers() {
 }
 
 function addControls() {
-  // Add district control
-  const districtControl = createDistrictControl();
-  map.addControl(districtControl);
-
-  // Add layer control
-  votingLocationsControl = L.control.layers(null, {
-    "Voting Locations": votingLocationsLayer,
-    "District Boundaries": districtLayer
-  }, { collapsed: false });
-  votingLocationsControl.addTo(map);
-
-  // Add geolocation control
-  addGeolocationControl();
-}
-
-function createDistrictControl() {
-  const LayerControl = L.Control.extend({
-    options: { position: 'topright' },
-    onAdd: function() {
-      const container = L.DomUtil.create('div', 'district-control');
-      container.innerHTML = `
-        <div class="layer-control-box">
-          <h4>District Boundaries</h4>
-          <div class="control-toggle">
-            <label class="switch">
-              <input type="checkbox" id="district-toggle">
-              <span class="slider round"></span>
-            </label>
-            <span>Show/Hide Districts</span>
-          </div>
-          <div class="opacity-control">
-            <label for="district-opacity">Opacity: </label>
-            <input type="range" id="district-opacity" min="0" max="100" value="70">
-            <span id="opacity-value">70%</span>
-          </div>
-        </div>
-      `;
-      return container;
+  // Add layer control with all layers
+  votingLocationsControl = L.control.layers(
+    // Base layers (null if none)
+    null,
+    // Overlay layers
+    {
+      "Voting Locations": votingLocationsLayer,
+      "District Boundaries": districtLayer,
+      "Heat Map": heatmapLayer,
+      "Clusters": markerClusterGroup
+    },
+    // Options
+    { 
+      collapsed: false,
+      position: 'topright'
     }
-  });
-  return new LayerControl();
+  );
+  votingLocationsControl.addTo(map);
 }
 
 function addEventListeners() {
   // Map zoom event
   map.on('zoomend', updateMapView);
-
-  // District controls
-  document.getElementById('district-toggle')?.addEventListener('change', toggleDistricts);
-  document.getElementById('district-opacity')?.addEventListener('input', updateDistrictOpacity);
 }
 
 function loadData() {
@@ -210,35 +183,16 @@ function loadData() {
 }
 
 function addDistrictsToMap() {
-  const geoJsonLayer = L.geoJSON(districtData, {
+  L.geoJSON(districtData, {
     style: feature => feature.properties.style,
     onEachFeature: (feature, layer) => {
       layer.bindPopup(feature.properties.name);
       districtLayer.addLayer(layer);
     }
   });
+  // Add district layer but keep it hidden initially
   districtLayer.addTo(map);
-  districtLayer.remove(); // Start with districts hidden
-}
-
-function toggleDistricts(e) {
-  if (e.target.checked) {
-    districtLayer.addTo(map);
-  } else {
-    districtLayer.remove();
-  }
-}
-
-function updateDistrictOpacity(e) {
-  const opacity = e.target.value / 100;
-  document.getElementById('opacity-value').textContent = e.target.value + '%';
-  
-  districtLayer.eachLayer(layer => {
-    layer.setStyle({
-      fillOpacity: opacity * 0.2,
-      opacity: opacity
-    });
-  });
+  map.removeLayer(districtLayer);
 }
 
 function updateMapView() {
@@ -253,6 +207,8 @@ function updateMapView() {
 }
 
 function loadVotingLocations() {
+  let heatmapData = [];
+
   fetch('data/voting_locations.json')
     .then(response => response.json())
     .then(locations => {
@@ -261,6 +217,13 @@ function loadVotingLocations() {
         return;
       }
       locations.forEach(location => {
+        // Add to heatmap data
+        heatmapData.push([
+          location.latitude,
+          location.longitude,
+          location.total_votes / 1000 // Normalize the intensity
+        ]);
+
         const marker = L.marker([location.latitude, location.longitude])
           .bindPopup(`
             <strong>${location.location}</strong><br>
@@ -272,59 +235,14 @@ function loadVotingLocations() {
         votingLocationsLayer.addLayer(marker);
         markerClusterGroup.addLayer(marker.clone());
       });
+      
       votingLocationsLayer.addTo(map);
+      heatmapLayer.setLatLngs(heatmapData);
+      
+      // Initial view based on zoom level
+      updateMapView();
     })
     .catch(error => console.error('Error loading voting locations:', error));
-}
-
-function addGeolocationControl() {
-  const geolocationButton = document.getElementById('geolocation-button');
-  if (geolocationButton) {
-    geolocationButton.addEventListener('click', centerMapOnUserLocation);
-  }
-}
-
-function centerMapOnUserLocation() {
-  if ("geolocation" in navigator) {
-    const geolocationButton = document.getElementById('geolocation-button');
-    geolocationButton.classList.add('loading');
-    geolocationButton.disabled = true;
-
-    navigator.geolocation.getCurrentPosition(
-      function(position) {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        map.setView([lat, lng], 16);
-
-        const userLocationMarker = L.marker([lat, lng], {
-          icon: L.divIcon({
-            className: 'user-location-marker',
-            html: '<div style="background-color: #4285F4; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white;"></div>',
-            iconSize: [22, 22],
-            iconAnchor: [11, 11]
-          })
-        }).addTo(map);
-
-        userLocationMarker.bindPopup("You are here").openPopup();
-
-        geolocationButton.classList.remove('loading');
-        geolocationButton.disabled = false;
-      },
-      function(error) {
-        console.error("Error getting user location:", error);
-        alert("Unable to get your location. Please make sure you've granted permission to access your location.");
-        geolocationButton.classList.remove('loading');
-        geolocationButton.disabled = false;
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      }
-    );
-  } else {
-    alert("Geolocation is not supported by your browser.");
-  }
 }
 
 function createClusterIcon(cluster) {
