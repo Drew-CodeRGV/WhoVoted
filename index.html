@@ -1,7 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Google tag (gtag.js) --> <script async src="https://www.googletagmanager.com/gtag/js?id=G-JR8NZLG3T6"></script> <script> window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', 'G-JR8NZLG3T6'); </script>
+    <!-- Google tag (gtag.js) --> 
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-JR8NZLG3T6"></script> 
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-JR8NZLG3T6');
+    </script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Politiquera.Com - Voting & Election Info</title>
@@ -12,7 +20,6 @@
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
-
         gtag('config', 'G-P26LYV7B8H');
     </script>
 
@@ -55,17 +62,167 @@
     
     <!-- Google Maps API -->
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBsi0hqt44YuszCHWFo0QfDCtUWr8cqCj0&libraries=places,geocoding"></script>
+    
     <!-- Custom Styles -->
-    <link rel="stylesheet" href="styles.css" />  
-    <!-- Add this line to load the config file -->
+    <link rel="stylesheet" href="styles.css" />
+
+    <style>
+        /* District Control Styles */
+        .district-control {
+            padding: 10px;
+            background: white;
+            border: 2px solid rgba(0,0,0,0.2);
+            border-radius: 4px;
+            background-clip: padding-box;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .layer-control-box {
+            padding: 6px 8px;
+        }
+
+        .layer-control-box h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .control-toggle {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+            margin-right: 10px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .4s;
+        }
+
+        .slider.round {
+            border-radius: 20px;
+        }
+
+        .slider.round:before {
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        .opacity-control {
+            margin-top: 10px;
+        }
+
+        .opacity-control label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-size: 12px;
+        }
+
+        .opacity-control input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+
+        #opacity-value {
+            display: inline-block;
+            width: 40px;
+            text-align: right;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .districts-legend {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+
+        .districts-legend h5 {
+            margin: 0 0 5px 0;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 2px 0;
+            font-size: 11px;
+            color: #666;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            margin-right: 5px;
+            border: 1px solid rgba(0,0,0,0.2);
+        }
+
+        /* Map container style */
+        #map {
+            height: 100vh;
+            width: 100%;
+            z-index: 1;
+        }
+
+        /* Ensure popups appear above other elements */
+        .leaflet-popup {
+            z-index: 1000;
+        }
+    </style>
+
+    <!-- Config file -->
     <script src="config.js"></script>
 </head>
 <body>   
     <img src="assets/politiquera.png" alt="Overlay" class="overlay-image">
+    
+    <!-- Welcome Popup -->
     <div class="welcome-popup" id="welcomePopup">
-    <button class="close-button" onclick="document.getElementById('welcomePopup').style.display='none'">×</button>
-    Welcome to Politiquera.com! This map shows you who has early-voted in Hidalgo & Cameron County according to their voter turnout rosters. Use this to see who's voted in your City, Community or on your block. If they haven't voted, you can use this as a conversation starter to encourage them to get out and vote! Thanks for visiting!
-</div>
+        <button class="close-button" onclick="document.getElementById('welcomePopup').style.display='none'">×</button>
+        Welcome to Politiquera.com! This map shows you who has early-voted in Hidalgo & Cameron County according to their voter turnout rosters. Use this to see who's voted in your City, Community or on your block. If they haven't voted, you can use this as a conversation starter to encourage them to get out and vote! Thanks for visiting!
+    </div>
+
+    <!-- Search Container -->
     <div class="search-container">
         <input id="search-input" type="text" placeholder="Search for an address">
         <button class="search-button" id="search-button">Search</button>
@@ -75,28 +232,29 @@
             </svg>
         </button>
     </div>
-    <!--
-    <div class="instruction-text">
-        <div class="arrow-up"></div>
-        Start here. Look up your RGV neighborhood and see who hasn't voted yet - maybe they need a ride or some info!<br>A blue dot indicates a voting household.
-    </div> 
-    -->
+
+    <!-- Map Container -->
     <div id="map"></div>
+
+    <!-- Info Strip -->
     <div class="info-strip">
-      Using publicly available data from <a href="https://www.hidalgocounty.us/3339/Unofficial-Early-Voting-Totals-Rosters" target="_blank">Hidalgo County</a> & <a href="https://cameroncountytx.gov/elections/results/" target="_blank">Cameron County</a> Elections Department. <span id="total-addresses">Loading...</span> out of <span id="total-voters">446,749</span> Hidalgo County voters (<span id="percentage">0.00</span>%) as of <span id="last-updated">Loading...</span>.
+        Using publicly available data from <a href="https://www.hidalgocounty.us/3339/Unofficial-Early-Voting-Totals-Rosters" target="_blank">Hidalgo County</a> & <a href="https://cameroncountytx.gov/elections/results/" target="_blank">Cameron County</a> Elections Department. <span id="total-addresses">Loading...</span> out of <span id="total-voters">446,749</span> Hidalgo County voters (<span id="percentage">0.00</span>%) as of <span id="last-updated">Loading...</span>.
     </div>
     
-    <!-- Load your JavaScript files -->
+    <!-- JavaScript Files -->
     <script src="map.js"></script>
     <script src="search.js"></script>
     <script src="data.js"></script>
     <script src="metadata.js"></script>
     
+    <!-- Initialize welcome popup fade -->
     <script>
-        // Add fade out effect after 10 seconds
         setTimeout(() => {
-            document.querySelector('.header-background').classList.add('fade-out');
-            document.querySelector('.instruction-text').classList.add('fade-out');
+            const headerBackground = document.querySelector('.header-background');
+            const instructionText = document.querySelector('.instruction-text');
+            
+            if (headerBackground) headerBackground.classList.add('fade-out');
+            if (instructionText) instructionText.classList.add('fade-out');
         }, 10000);
     </script>
 </body>
