@@ -364,8 +364,8 @@ function loadCountyBoundaries() {
                     dashArray: '5, 5'  // Creates a dashed line
                 },
                 onEachFeature: (feature, layer) => {
-                    if (feature.properties && feature.properties.TXDOT_CNTY_TYPE_NM) {
-                        layer.bindPopup(feature.properties.TXDOT_CNTY_TYPE_NM);
+                    if (feature.properties && feature.properties.CNTY_NM) {
+                        layer.bindPopup(feature.properties.CNTY_NM);
                     }
                     countyLayer.addLayer(layer);
                 }
