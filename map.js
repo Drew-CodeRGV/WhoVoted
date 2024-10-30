@@ -1,5 +1,5 @@
 // map.js
-let map, markerClusterGroup, heatmapLayer, votingLocationsLayer, votingLocationsControl, districtLayer;
+let map, markerClusterGroup, heatmapLayer, votingLocationsLayer, votingLocationsControl, districtLayer, countyLayer;
 
 // Initialize map configurations
 const mapConfig = {
@@ -149,6 +149,9 @@ function initializeLayers() {
   
   // Initialize district layer
   districtLayer = L.layerGroup();
+  
+  // Initialize county layer
+  countyLayer = L.layerGroup();
 }
 
 function addControls() {
@@ -159,7 +162,8 @@ function addControls() {
     // Overlay layers
     {
       "Voting Locations": votingLocationsLayer,
-      // "District Boundaries": districtLayer,
+      "District Boundaries": districtLayer,
+      "County Boundaries": countyLayer,
       "Heat Map": heatmapLayer,
       // "Clusters": markerClusterGroup
     },
@@ -180,6 +184,9 @@ function addEventListeners() {
 function loadData() {
   // Add districts to map
   addDistrictsToMap();
+  
+  // Add county boundaries
+  loadCountyBoundaries();
   
   // Load voting locations
   loadVotingLocations();
@@ -344,9 +351,35 @@ function reverseGeocode(lat, lng) {
   });
 }
 
-
+function loadCountyBoundaries() {
+    fetch('data/tx-county-outlines.json')
+        .then(response => response.json())
+        .then(data => {
+            L.geoJSON(data, {
+                style: {
+                    color: '#666',
+                    weight: 2,
+                    opacity: 0.7,
+                    fillOpacity: 0,
+                    dashArray: '5, 5'  // Creates a dashed line
+                },
+                onEachFeature: (feature, layer) => {
+                    if (feature.properties && feature.properties.CNTY_NM) {
+                        layer.bindPopup(feature.properties.CNTY_NM);
+                    }
+                    countyLayer.addLayer(layer);
+                }
+            });
+            
+            // Add county layer but keep it hidden initially
+            countyLayer.addTo(map);
+            map.removeLayer(countyLayer);
+        })
+        .catch(error => console.error('Error loading county boundaries:', error));
+}
 // Initialize map when DOM is loaded
 document.addEventListener('DOMContentLoaded', initMap);
 
 // Export for global access
 window.initMap = initMap;
+
