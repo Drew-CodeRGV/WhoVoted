@@ -938,3 +938,14 @@ function getDatasetManager() {
 
 // Initialize DatasetManager when the script loads
 initializeDatasetManager();
+
+// Failsafe: Hide loading indicator after page load if still showing
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        const loadingIndicator = document.getElementById('map-loading-indicator');
+        if (loadingIndicator && window.getComputedStyle(loadingIndicator).display !== 'none') {
+            console.warn('Loading indicator still showing after page load, hiding it');
+            loadingIndicator.style.display = 'none';
+        }
+    }, 5000); // Wait 5 seconds after page load
+});
