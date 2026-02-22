@@ -1,1 +1,16 @@
-{"last_updated": "2024-10-23T14:08:11.392827", "source_url": "http://localhost:8081/voters_test.csv", "total_addresses": 19, "successfully_geocoded": 19, "failed_addresses": 0}
+{
+  "year": "2024",
+  "county": "Hidalgo",
+  "election_type": "primary",
+  "election_date": "2024-03-05",
+  "voting_method": "early-voting",
+  "primary_party": "republican",
+  "original_filename": "2024 Primary EV REP (Cumulative)_202403020808348828.xlsx",
+  "last_updated": "2026-02-22T09:38:30.281958",
+  "total_addresses": 9783,
+  "successfully_geocoded": 9783,
+  "failed_addresses": 0,
+  "cache_hits": 373,
+  "cache_hit_rate": 1.0,
+  "api_calls": 0
+}

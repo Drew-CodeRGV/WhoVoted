@@ -1,0 +1,909 @@
+// Data loading and management
+let availableDatasets = [];
+let currentDataset = null;
+
+async function loadMapData() {
+    try {
+        console.log('Starting loadMapData...');
+        
+        // First, discover all available datasets
+        availableDatasets = await discoverDatasets();
+        console.log('Available datasets:', availableDatasets);
+        
+        // Populate dataset selector
+        populateDatasetSelector();
+        
+        // Load the most recent dataset by default
+        if (availableDatasets.length > 0) {
+            const defaultDataset = availableDatasets[0]; // Already sorted by date, most recent first
+            console.log('Loading default dataset:', defaultDataset);
+            await loadDataset(defaultDataset);
+        } else {
+            console.warn('No datasets found');
+        }
+        
+        // Load metadata (this will be overridden by loadDataset, but kept for compatibility)
+        await loadMetadata();
+        
+        // Update map view based on zoom
+        map.on('zoomend', updateMapView);
+        updateMapView();
+        
+        console.log('loadMapData completed successfully');
+        
+    } catch (error) {
+        console.error('Error loading data:', error);
+        console.error('Error stack:', error.stack);
+    }
+}
+
+function updateElectionYearsPanel() {
+    const content = document.getElementById('layerControlContent');
+    if (!content) return;
+    
+    if (!availableDatasets || availableDatasets.length === 0) {
+        content.innerHTML = '<div class="layer-control-empty">No election data available</div>';
+        return;
+    }
+    
+    // Extract unique years from datasets
+    const years = [...new Set(availableDatasets.map(d => d.year))].sort((a, b) => b - a);
+    
+    let html = '<div class="layer-list">';
+    
+    years.forEach(year => {
+        // Count datasets for this year
+        const datasetsForYear = availableDatasets.filter(d => d.year === year);
+        const totalVoters = datasetsForYear.reduce((sum, d) => sum + d.totalAddresses, 0);
+        
+        html += `
+            <div class="layer-item">
+                <div class="layer-year-info">
+                    <span class="layer-label">${year}</span>
+                    <span class="layer-count">${totalVoters.toLocaleString()} voters</span>
+                </div>
+                <div class="layer-datasets">
+        `;
+        
+        datasetsForYear.forEach((dataset, index) => {
+            const datasetIndex = availableDatasets.indexOf(dataset);
+            const votingMethodLabel = dataset.votingMethod === 'election-day' ? 'Election Day' : 'Early Voting';
+            const electionTypeLabel = dataset.electionType.charAt(0).toUpperCase() + dataset.electionType.slice(1);
+            
+            html += `
+                <div class="layer-dataset-item" onclick="selectDatasetFromPanel(${datasetIndex})">
+                    <span>${dataset.county} ${electionTypeLabel} - ${votingMethodLabel}</span>
+                    <span class="dataset-voter-count">${dataset.totalAddresses.toLocaleString()}</span>
+                </div>
+            `;
+        });
+        
+        html += `
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    content.innerHTML = html;
+}
+
+async function selectDatasetFromPanel(index) {
+    if (availableDatasets[index]) {
+        // Update the dropdown selector
+        const selector = document.getElementById('dataset-selector');
+        if (selector) {
+            selector.value = index;
+        }
+        
+        // Load the dataset
+        await loadDataset(availableDatasets[index]);
+    }
+}
+
+async function discoverDatasets() {
+    const datasets = [];
+    
+    try {
+        // Call backend API to list all available datasets
+        const response = await fetch('/admin/list-datasets');
+        
+        if (!response.ok) {
+            console.error('Failed to fetch datasets from backend');
+            return datasets;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.datasets) {
+            console.log(`Discovered ${data.datasets.length} datasets from backend`);
+            
+            // Group datasets by election (merge DEM/REP primaries into single dataset)
+            const groupedDatasets = new Map();
+            
+            data.datasets.forEach(dataset => {
+                // Create key without party (to group DEM/REP together)
+                const key = `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}_${dataset.electionDate}`;
+                
+                if (!groupedDatasets.has(key)) {
+                    // First dataset for this election - store it
+                    groupedDatasets.set(key, {
+                        ...dataset,
+                        parties: [dataset.primaryParty].filter(p => p), // Array of parties
+                        mapDataFiles: [dataset.mapDataFile], // Array of map data files to merge
+                        totalAddresses: dataset.totalAddresses
+                    });
+                } else {
+                    // Merge with existing dataset
+                    const existing = groupedDatasets.get(key);
+                    if (dataset.primaryParty) {
+                        existing.parties.push(dataset.primaryParty);
+                    }
+                    existing.mapDataFiles.push(dataset.mapDataFile);
+                    existing.totalAddresses += dataset.totalAddresses;
+                }
+            });
+            
+            // Convert map to array
+            const mergedDatasets = Array.from(groupedDatasets.values());
+            console.log(`Merged into ${mergedDatasets.length} combined datasets`);
+            return mergedDatasets;
+        } else {
+            console.error('Backend returned invalid response:', data);
+            return datasets;
+        }
+        
+    } catch (error) {
+        console.error('Error discovering datasets:', error);
+    }
+    
+    return datasets;
+}
+
+function populateDatasetSelector() {
+    const selector = document.getElementById('dataset-selector');
+    if (!selector) return;
+    
+    selector.innerHTML = '';
+    
+    if (availableDatasets.length === 0) {
+        selector.innerHTML = '<option value="">No datasets available</option>';
+        selector.disabled = true;
+        return;
+    }
+    
+    availableDatasets.forEach((dataset, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        
+        // Format label
+        const votingMethodLabel = dataset.votingMethod === 'election-day' ? 'Election Day' : 'Early Voting';
+        const electionTypeLabel = dataset.electionType.charAt(0).toUpperCase() + dataset.electionType.slice(1);
+        
+        option.textContent = `${dataset.county} ${dataset.year} ${electionTypeLabel} - ${votingMethodLabel} (${dataset.totalAddresses.toLocaleString()} voters)`;
+        
+        selector.appendChild(option);
+    });
+    
+    // Add change event listener
+    selector.addEventListener('change', async (e) => {
+        const index = parseInt(e.target.value);
+        if (!isNaN(index) && availableDatasets[index]) {
+            await loadDataset(availableDatasets[index]);
+        }
+    });
+    
+    selector.disabled = false;
+}
+
+async function loadDataset(dataset) {
+    try {
+        console.log('Loading dataset:', dataset);
+        currentDataset = dataset;
+        
+        // If dataset has multiple map data files (DEM + REP), merge them
+        let mergedGeojson = {
+            type: 'FeatureCollection',
+            features: []
+        };
+        
+        const filesToLoad = dataset.mapDataFiles || [dataset.mapDataFile];
+        console.log('Loading files:', filesToLoad);
+        
+        for (const mapDataFile of filesToLoad) {
+            console.log('Fetching:', `data/${mapDataFile}`);
+            const response = await fetch(`data/${mapDataFile}`);
+            if (!response.ok) {
+                console.error(`Failed to load ${mapDataFile}: ${response.status} ${response.statusText}`);
+                continue;
+            }
+            
+            const geojson = await response.json();
+            console.log(`Loaded ${mapDataFile} with`, geojson.features ? geojson.features.length : 0, 'features');
+            
+            // Merge features
+            if (geojson.features) {
+                mergedGeojson.features.push(...geojson.features);
+            }
+        }
+        
+        console.log('Total merged features:', mergedGeojson.features.length);
+        
+        // Store the data globally
+        window.mapData = mergedGeojson;
+        
+        // Reinitialize markers and heatmap with new data
+        initializeDataLayers();
+        
+        // Update metadata display to show the selected dataset's info
+        updateInfoStrip({
+            successfully_geocoded: dataset.totalAddresses,
+            last_updated: dataset.lastUpdated,
+            county: dataset.county,
+            year: dataset.year,
+            election_type: dataset.electionType,
+            voting_method: dataset.votingMethod
+        });
+        
+        console.log(`Loaded ${dataset.mapDataFile} successfully`);
+        
+    } catch (error) {
+        console.error('Error loading dataset:', error);
+        alert(`Failed to load dataset: ${error.message}`);
+    }
+}
+
+function initializeDataLayers() {
+    if (!window.mapData || !window.mapData.features) {
+        console.warn('No map data available');
+        return;
+    }
+    
+    console.log('Initializing data layers with', window.mapData.features.length, 'features');
+    
+    // Get current party filter from DatasetManager
+    const datasetManager = getDatasetManager();
+    const partyFilter = datasetManager.getPartyFilter();
+    
+    // Apply party filter if needed
+    let features = window.mapData.features;
+    if (partyFilter && partyFilter !== 'all') {
+        const filterEngine = new PartyFilterEngine();
+        features = filterEngine.filterByParty(features, partyFilter);
+        console.log(`Applied ${partyFilter} filter, showing ${features.length} of ${window.mapData.features.length} features`);
+    }
+    
+    // Clear existing layers
+    if (markerClusterGroup) {
+        markerClusterGroup.clearLayers();
+    }
+    
+    // Create heatmap data arrays
+    const heatmapData = [];
+    const heatmapDataDemocratic = [];
+    const heatmapDataRepublican = [];
+    const bounds = L.latLngBounds();
+    
+    // Add markers for each voter
+    features.forEach(feature => {
+        const coords = feature.geometry.coordinates;
+        const props = feature.properties;
+        
+        const lat = coords[1];
+        const lng = coords[0];
+        
+        // Add to traditional heatmap
+        heatmapData.push([lat, lng, 1]);
+        
+        // Add to party-specific heatmaps ONLY if no party filter is active
+        // When filtering by party, only populate the relevant party's heatmap
+        if (partyFilter === 'all' || !partyFilter) {
+            // No filter active - populate both party heatmaps based on actual party
+            const party = props.party_affiliation_current;
+            if (party && party.toLowerCase().includes('democrat')) {
+                heatmapDataDemocratic.push([lat, lng, 1]);
+            } else if (party && party.toLowerCase().includes('republican')) {
+                heatmapDataRepublican.push([lat, lng, 1]);
+            }
+        } else if (partyFilter === 'democratic') {
+            // Democratic filter active - only populate Democratic heatmap
+            heatmapDataDemocratic.push([lat, lng, 1]);
+        } else if (partyFilter === 'republican') {
+            // Republican filter active - only populate Republican heatmap
+            heatmapDataRepublican.push([lat, lng, 1]);
+        }
+        
+        // Extend bounds
+        bounds.extend([lat, lng]);
+        
+        // Determine marker color based on party affiliation
+        const markerColor = determineMarkerColor(props);
+        
+        // Create marker with party color
+        const marker = L.circleMarker([lat, lng], {
+            radius: 8,
+            fillColor: getMarkerFillColor(markerColor),
+            color: '#fff',
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+        });
+        
+        // Create popup content
+        let popupContent = `<strong>Address:</strong> ${props.address || 'N/A'}<br>`;
+        if (props.name) popupContent += `<strong>Name:</strong> ${props.name}<br>`;
+        if (props.precinct) popupContent += `<strong>Precinct:</strong> ${props.precinct}<br>`;
+        if (props.party_affiliation_current) popupContent += `<strong>Party:</strong> ${props.party_affiliation_current}<br>`;
+        if (props.check_in) popupContent += `<strong>Voted:</strong> ${props.check_in}<br>`;
+        
+        marker.bindPopup(popupContent);
+        markerClusterGroup.addLayer(marker);
+    });
+    
+    console.log('Added', markerClusterGroup.getLayers().length, 'markers to cluster group');
+    console.log('Created', heatmapData.length, 'heatmap points');
+    console.log('Created', heatmapDataDemocratic.length, 'Democratic heatmap points');
+    console.log('Created', heatmapDataRepublican.length, 'Republican heatmap points');
+    console.log('Party filter:', partyFilter);
+    console.log('Heatmap mode:', window.heatmapMode);
+    
+    // Update heatmap layers with new data
+    // CRITICAL: Remove layers from map BEFORE calling setLatLngs to avoid errors
+    // IMPORTANT: Only update layers that have data to avoid internal Leaflet errors
+    // Use setTimeout to avoid Leaflet internal state issues with _animating property
+    
+    // Update traditional heatmap (always has data)
+    if (heatmapLayer) {
+        // Remove from map before updating
+        if (map && map.hasLayer(heatmapLayer)) {
+            map.removeLayer(heatmapLayer);
+        }
+        // Defer the update to avoid internal Leaflet state issues
+        setTimeout(() => {
+            try {
+                heatmapLayer.setLatLngs(heatmapData);
+                console.log('Updated traditional heatmap layer with', heatmapData.length, 'points');
+            } catch (error) {
+                console.error('Error updating traditional heatmap:', error);
+            }
+        }, 10);
+    }
+    
+    // Update Democratic heatmap ONLY if it has data
+    if (typeof heatmapLayerDemocratic !== 'undefined' && heatmapLayerDemocratic && heatmapDataDemocratic.length > 0) {
+        // Remove from map before updating
+        if (map && map.hasLayer(heatmapLayerDemocratic)) {
+            map.removeLayer(heatmapLayerDemocratic);
+        }
+        // Defer the update to avoid internal Leaflet state issues
+        setTimeout(() => {
+            try {
+                heatmapLayerDemocratic.setLatLngs(heatmapDataDemocratic);
+                console.log('Updated Democratic heatmap layer with', heatmapDataDemocratic.length, 'points');
+            } catch (error) {
+                console.error('Error updating Democratic heatmap:', error);
+            }
+        }, 10);
+    } else if (typeof heatmapLayerDemocratic !== 'undefined' && heatmapLayerDemocratic) {
+        // If no data, just remove from map
+        if (map && map.hasLayer(heatmapLayerDemocratic)) {
+            map.removeLayer(heatmapLayerDemocratic);
+        }
+        console.log('Democratic heatmap has no data, cleared from map');
+    }
+    
+    // Update Republican heatmap ONLY if it has data
+    if (typeof heatmapLayerRepublican !== 'undefined' && heatmapLayerRepublican && heatmapDataRepublican.length > 0) {
+        // Remove from map before updating
+        if (map && map.hasLayer(heatmapLayerRepublican)) {
+            map.removeLayer(heatmapLayerRepublican);
+        }
+        // Defer the update to avoid internal Leaflet state issues
+        setTimeout(() => {
+            try {
+                heatmapLayerRepublican.setLatLngs(heatmapDataRepublican);
+                console.log('Updated Republican heatmap layer with', heatmapDataRepublican.length, 'points');
+            } catch (error) {
+                console.error('Error updating Republican heatmap:', error);
+            }
+        }, 10);
+    } else if (typeof heatmapLayerRepublican !== 'undefined' && heatmapLayerRepublican) {
+        // If no data, just remove from map
+        if (map && map.hasLayer(heatmapLayerRepublican)) {
+            map.removeLayer(heatmapLayerRepublican);
+        }
+        console.log('Republican heatmap has no data, cleared from map');
+    }
+    
+    // Don't auto-zoom to fit data bounds - keep focused on Hidalgo County
+    // Users can manually zoom/pan to see outlier data points
+    
+    // Update map view to show appropriate layer
+    updateMapView();
+}
+
+async function detectAvailableYears() {
+    const years = new Set();
+    
+    // Primary strategy: Check default metadata.json for the current year
+    try {
+        const metadataResponse = await fetch('data/metadata.json');
+        if (metadataResponse.ok) {
+            const metadata = await metadataResponse.json();
+            if (metadata.year) {
+                const year = typeof metadata.year === 'string' ? parseInt(metadata.year) : metadata.year;
+                years.add(year);
+                console.log(`Detected year from metadata.json: ${year}`);
+            }
+        }
+    } catch (error) {
+        console.warn('Could not load metadata.json:', error);
+    }
+    
+    // Fallback strategy: Try to detect year-specific files
+    // Check for common years (2020-2026)
+    const currentYear = new Date().getFullYear();
+    for (let year = 2020; year <= currentYear; year++) {
+        try {
+            // Try the simple pattern (for backward compatibility if files are renamed)
+            const response = await fetch(`data/map_data_${year}.json`, { method: 'HEAD' });
+            if (response.ok) {
+                years.add(year);
+            }
+        } catch (error) {
+            // File doesn't exist, skip
+        }
+    }
+    
+    // If no years detected, return empty array (will trigger loadDefaultData fallback)
+    return Array.from(years).sort();
+}
+
+async function loadDefaultData() {
+    try {
+        console.log('Loading default data from data/map_data.json');
+        
+        // Load metadata first to get the correct year
+        const metadataResponse = await fetch('data/metadata.json');
+        let year = new Date().getFullYear(); // Fallback to current year
+        
+        if (metadataResponse.ok) {
+            const metadata = await metadataResponse.json();
+            if (metadata.year) {
+                // Use year from metadata (could be string or number)
+                year = typeof metadata.year === 'string' ? parseInt(metadata.year) : metadata.year;
+                console.log(`Using year from metadata: ${year}`);
+            } else {
+                console.warn('metadata.json missing year field, using current year as fallback');
+            }
+        } else {
+            console.warn('metadata.json not found, using current year as fallback');
+        }
+        
+        // Load map data
+        const response = await fetch('data/map_data.json');
+        
+        if (!response.ok) {
+            throw new Error('Failed to load default data file');
+        }
+        
+        const mapData = await response.json();
+        console.log('Loaded map data:', mapData.features ? mapData.features.length : 0, 'features');
+        
+        // Use the year from metadata
+        activeYears.add(year);
+        
+        // Process the data FIRST
+        processYearData(year, mapData);
+        
+        // Update layer control with the correct year
+        updateLayerControl([year]);
+        const checkbox = document.getElementById(`layer-${year}`);
+        if (checkbox) {
+            checkbox.checked = true;
+        }
+        
+        // Now show the layer after processing is complete
+        showYearLayer(year);
+        
+    } catch (error) {
+        console.error('Error loading default data:', error);
+        throw error;
+    }
+}
+
+async function loadMetadata() {
+    try {
+        const response = await fetch('data/metadata.json');
+        
+        if (!response.ok) {
+            console.warn('Metadata file not found');
+            return;
+        }
+        
+        const metadata = await response.json();
+        updateInfoStrip(metadata);
+        
+    } catch (error) {
+        console.warn('Error loading metadata:', error);
+    }
+}
+
+
+function updateInfoStrip(metadata) {
+    const totalAddresses = document.getElementById('total-addresses');
+    const lastUpdated = document.getElementById('last-updated');
+    
+    if (totalAddresses && metadata.successfully_geocoded) {
+        totalAddresses.textContent = metadata.successfully_geocoded.toLocaleString();
+    }
+    
+    if (lastUpdated && metadata.last_updated) {
+        const date = new Date(metadata.last_updated);
+        lastUpdated.textContent = date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+}
+
+// ============================================================================
+// PARTY AFFILIATION DATA PARSING
+// ============================================================================
+
+/**
+ * Parses and normalizes voter data to include party affiliation fields
+ * @param {Object} rawVoterData - Raw voter data from JSON
+ * @returns {Object} Normalized voter data with party affiliation fields
+ */
+function parseVoterData(rawVoterData) {
+    return {
+        // Coordinates
+        lat: rawVoterData.lat || (rawVoterData.geometry?.coordinates?.[1]),
+        lng: rawVoterData.lng || (rawVoterData.geometry?.coordinates?.[0]),
+        
+        // Basic info
+        name: rawVoterData.name || rawVoterData.properties?.name,
+        address: rawVoterData.address || rawVoterData.properties?.address,
+        precinct: rawVoterData.precinct || rawVoterData.properties?.precinct,
+        
+        // Party affiliation fields (with defaults)
+        party_affiliation_current: rawVoterData.party_affiliation_current || 
+                                   rawVoterData.properties?.party_affiliation_current || 
+                                   '',
+        
+        party_history: rawVoterData.party_history || 
+                      rawVoterData.properties?.party_history || 
+                      [],
+        
+        has_switched_parties: rawVoterData.has_switched_parties || 
+                             rawVoterData.properties?.has_switched_parties || 
+                             false,
+        
+        election_dates_participated: rawVoterData.election_dates_participated || 
+                                    rawVoterData.properties?.election_dates_participated || 
+                                    [],
+        
+        voted_in_current_election: rawVoterData.voted_in_current_election !== undefined ? 
+                                  rawVoterData.voted_in_current_election : 
+                                  (rawVoterData.properties?.voted_in_current_election !== undefined ? 
+                                   rawVoterData.properties.voted_in_current_election : 
+                                   false),
+        
+        is_registered: rawVoterData.is_registered !== undefined ? 
+                      rawVoterData.is_registered : 
+                      (rawVoterData.properties?.is_registered !== undefined ? 
+                       rawVoterData.properties.is_registered : 
+                       true), // Default to true if not specified
+        
+        household_voter_count: rawVoterData.household_voter_count || 
+                              rawVoterData.properties?.household_voter_count || 
+                              1
+    };
+}
+
+/**
+ * Loads election metadata including available election dates
+ * @returns {Object} Metadata with elections array
+ */
+async function loadElectionMetadata() {
+    try {
+        const response = await fetch('data/metadata.json');
+        
+        if (!response.ok) {
+            console.warn('Metadata file not found');
+            return { elections: [] };
+        }
+        
+        const metadata = await response.json();
+        
+        // Extract election information
+        const elections = [];
+        
+        if (metadata.election) {
+            elections.push({
+                date: metadata.election.date,
+                name: metadata.election.name || 'Election',
+                type: metadata.election.type || 'general'
+            });
+        }
+        
+        // If there are multiple elections in the data
+        if (metadata.elections && Array.isArray(metadata.elections)) {
+            elections.push(...metadata.elections);
+        }
+        
+        return { ...metadata, elections };
+        
+    } catch (error) {
+        console.error('Error loading election metadata:', error);
+        return { elections: [] };
+    }
+}
+
+// ============================================================================
+// DATASET MANAGER - State management for dataset selection and party filtering
+// ============================================================================
+
+/**
+ * Manages dataset selection and party filter state with localStorage persistence
+ * Handles graceful degradation if localStorage is unavailable
+ */
+class DatasetManager {
+    constructor() {
+        this.currentDataset = null;
+        this.partyFilter = 'all'; // Default: show all voters
+        this.selectedDatasetIndex = null;
+        
+        // Load saved state from localStorage
+        this.loadState();
+    }
+    
+    /**
+     * Set the current dataset
+     * @param {Object} dataset - Dataset object with metadata
+     */
+    setCurrentDataset(dataset) {
+        this.currentDataset = dataset;
+        this.saveState();
+    }
+    
+    /**
+     * Get the current dataset
+     * @returns {Object|null} Current dataset or null if none selected
+     */
+    getCurrentDataset() {
+        return this.currentDataset;
+    }
+    
+    /**
+     * Set the party filter value
+     * @param {string} filterValue - Filter value: 'all', 'republican', or 'democratic'
+     */
+    setPartyFilter(filterValue) {
+        if (!['all', 'republican', 'democratic'].includes(filterValue)) {
+            console.warn(`Invalid party filter value: ${filterValue}, defaulting to 'all'`);
+            filterValue = 'all';
+        }
+        this.partyFilter = filterValue;
+        this.saveState();
+    }
+    
+    /**
+     * Get the current party filter value
+     * @returns {string} Current filter value: 'all', 'republican', or 'democratic'
+     */
+    getPartyFilter() {
+        return this.partyFilter;
+    }
+    
+    /**
+     * Set the selected dataset index
+     * @param {number} index - Index of the selected dataset in the datasets array
+     */
+    setSelectedDatasetIndex(index) {
+        this.selectedDatasetIndex = index;
+        this.saveState();
+    }
+    
+    /**
+     * Get the selected dataset index
+     * @returns {number|null} Selected dataset index or null if none selected
+     */
+    getSelectedDatasetIndex() {
+        return this.selectedDatasetIndex;
+    }
+    
+    /**
+     * Check if the current dataset is a primary election
+     * @returns {boolean} True if current dataset is a primary election
+     */
+    isPrimaryElection() {
+        if (!this.currentDataset || !this.currentDataset.electionType) {
+            return false;
+        }
+        return this.currentDataset.electionType.toLowerCase() === 'primary';
+    }
+    
+    /**
+     * Save current state to localStorage
+     * Gracefully handles localStorage failures
+     */
+    saveState() {
+        try {
+            if (this.selectedDatasetIndex !== null) {
+                localStorage.setItem('selectedDatasetIndex', this.selectedDatasetIndex.toString());
+            }
+            localStorage.setItem('partyFilter', this.partyFilter);
+        } catch (error) {
+            // localStorage may be unavailable (private browsing, quota exceeded, etc.)
+            // Gracefully degrade to session-only state without showing error to user
+            console.warn('Failed to save state to localStorage:', error.message);
+        }
+    }
+    
+    /**
+     * Load saved state from localStorage
+     * Gracefully handles localStorage failures and missing data
+     */
+    loadState() {
+        try {
+            const savedIndex = localStorage.getItem('selectedDatasetIndex');
+            if (savedIndex !== null) {
+                this.selectedDatasetIndex = parseInt(savedIndex, 10);
+            }
+            
+            const savedFilter = localStorage.getItem('partyFilter');
+            if (savedFilter && ['all', 'republican', 'democratic'].includes(savedFilter)) {
+                this.partyFilter = savedFilter;
+            } else {
+                // Default to 'all' if no valid saved filter
+                this.partyFilter = 'all';
+            }
+        } catch (error) {
+            // localStorage may be unavailable
+            // Use default values and continue without persistence
+            console.warn('Failed to load state from localStorage:', error.message);
+            this.selectedDatasetIndex = null;
+            this.partyFilter = 'all';
+        }
+    }
+}
+
+// ============================================================================
+// PARTY FILTER ENGINE - Filters voter data by party affiliation
+// ============================================================================
+
+/**
+ * Filters voter data based on party affiliation criteria
+ * Handles null/undefined party data gracefully with warning logging
+ */
+class PartyFilterEngine {
+    /**
+     * Filter GeoJSON features by party affiliation
+     * @param {Array} features - Array of GeoJSON feature objects
+     * @param {string} filterValue - Filter value: 'all', 'republican', or 'democratic'
+     * @returns {Array} Filtered array of features
+     */
+    filterByParty(features, filterValue) {
+        // Validate input
+        if (!Array.isArray(features)) {
+            console.warn('PartyFilterEngine.filterByParty: features is not an array');
+            return [];
+        }
+        
+        // Return all features if filter is 'all'
+        if (filterValue === 'all') {
+            return features;
+        }
+        
+        // Debug: Log unique party values in the dataset
+        if (features.length > 0) {
+            const uniqueParties = [...new Set(features.map(f => f.properties?.party_affiliation_current).filter(p => p))];
+            console.log('Unique party values in dataset:', uniqueParties);
+            console.log('Filtering for:', filterValue);
+        }
+        
+        // Filter features based on party affiliation
+        return features.filter(feature => {
+            return this.matchesPartyFilter(feature.properties, filterValue);
+        });
+    }
+    
+    /**
+     * Check if voter properties match the party filter criteria
+     * @param {Object} voterProperties - Voter properties object from GeoJSON feature
+     * @param {string} filterValue - Filter value: 'republican' or 'democratic'
+     * @returns {boolean} True if voter matches the filter criteria
+     */
+    matchesPartyFilter(voterProperties, filterValue) {
+        const party = this.getPartyAffiliation(voterProperties);
+        
+        // Handle null/undefined party affiliation
+        if (!party) {
+            return false;
+        }
+        
+        const partyLower = party.toLowerCase();
+        
+        if (filterValue === 'republican') {
+            return partyLower.includes('republican') || partyLower.includes('rep');
+        }
+        
+        if (filterValue === 'democratic') {
+            return partyLower.includes('democrat') || partyLower.includes('dem');
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Extract party affiliation from voter properties with null/undefined handling
+     * @param {Object} voterProperties - Voter properties object from GeoJSON feature
+     * @returns {string|null} Party affiliation string or null if invalid
+     */
+    getPartyAffiliation(voterProperties) {
+        // Handle null/undefined voterProperties
+        if (!voterProperties) {
+            console.warn('PartyFilterEngine.getPartyAffiliation: voterProperties is null or undefined');
+            return null;
+        }
+        
+        const party = voterProperties.party_affiliation_current;
+        
+        // Handle null/undefined party_affiliation_current
+        if (party === null || party === undefined) {
+            console.warn('PartyFilterEngine.getPartyAffiliation: party_affiliation_current is null or undefined for voter:', voterProperties);
+            return null;
+        }
+        
+        // Handle non-string party affiliation
+        if (typeof party !== 'string') {
+            console.warn('PartyFilterEngine.getPartyAffiliation: party_affiliation_current is not a string:', party, 'for voter:', voterProperties);
+            return null;
+        }
+        
+        return party;
+    }
+}
+
+// ============================================================================
+// GLOBAL INSTANCE INITIALIZATION
+// ============================================================================
+
+/**
+ * Global DatasetManager instance
+ * Initialized on application load with saved state from localStorage
+ */
+let datasetManager = null;
+
+/**
+ * Initialize the global DatasetManager instance
+ * This should be called when the application loads
+ */
+function initializeDatasetManager() {
+    if (!datasetManager) {
+        datasetManager = new DatasetManager();
+        console.log('DatasetManager initialized with state:', {
+            selectedDatasetIndex: datasetManager.getSelectedDatasetIndex(),
+            partyFilter: datasetManager.getPartyFilter()
+        });
+    }
+    return datasetManager;
+}
+
+/**
+ * Get the global DatasetManager instance
+ * Creates one if it doesn't exist
+ * @returns {DatasetManager} The global DatasetManager instance
+ */
+function getDatasetManager() {
+    if (!datasetManager) {
+        return initializeDatasetManager();
+    }
+    return datasetManager;
+}
+
+// Initialize DatasetManager when the script loads
+initializeDatasetManager();

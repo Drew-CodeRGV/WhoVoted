@@ -1,1 +1,9 @@
 .env
+# Node modules
+node_modules/
+
+# Test coverage
+coverage/
+
+# Jest cache
+.jest-cache/

@@ -1,0 +1,2388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - WhoVoted</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+        }
+        
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .upload-zone {
+            border: 3px dashed #ddd;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .upload-zone:hover {
+            border-color: #667eea;
+            background: #f9f9ff;
+        }
+        
+        .upload-zone.dragover {
+            border-color: #667eea;
+            background: #f0f0ff;
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        
+        .file-input {
+            position: absolute;
+            width: 0.1px;
+            height: 0.1px;
+            opacity: 0;
+            overflow: hidden;
+            z-index: -1;
+        }
+        
+        .file-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            display: none;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .year-select,
+        .county-select,
+        .election-type-select,
+        .date-input {
+            width: 100%;
+            max-width: 400px;
+            padding: 10px 15px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+        
+        .county-select {
+            max-width: 100%;
+        }
+        
+        .year-select:focus,
+        .county-select:focus,
+        .election-type-select:focus,
+        .date-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .year-select:hover,
+        .county-select:hover,
+        .election-type-select:hover,
+        .date-input:hover {
+            border-color: #999;
+        }
+        
+        .date-input {
+            cursor: text;
+        }
+        
+        .file-info.show {
+            display: block;
+        }
+        
+        .upload-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .upload-btn.show {
+            display: inline-block;
+        }
+        
+        .upload-btn:hover {
+            opacity: 0.9;
+        }
+        
+        .progress-section {
+            display: none;
+        }
+        
+        .progress-section.show {
+            display: block;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+        
+        .status-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .status-item {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        
+        .status-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .status-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .log-viewer {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 5px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+        }
+        
+        .log-timestamp {
+            color: #858585;
+        }
+        
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .error-message.show {
+            display: block;
+        }
+        
+        .success-message {
+            background: #efe;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .success-message.show {
+            display: block;
+        }
+        
+        .download-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .download-btn.show {
+            display: inline-block;
+        }
+        
+        .history-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 20px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .table-wrapper {
+            overflow-x: auto;
+            margin-top: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .history-table thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .history-table th {
+            padding: 16px 12px;
+            text-align: left;
+            font-weight: 600;
+            color: white;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        
+        .history-table td {
+            padding: 14px 12px;
+            color: #333;
+            font-size: 13px;
+            border-bottom: 1px solid #f0f0f0;
+            vertical-align: middle;
+        }
+        
+        .history-table tbody tr {
+            transition: background-color 0.2s ease;
+        }
+        
+        .history-table tbody tr:hover {
+            background: #f8f9ff;
+        }
+        
+        .history-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        
+        /* Column-specific styling */
+        .history-table td:nth-child(1) {
+            /* Upload Date */
+            font-weight: 500;
+            color: #666;
+            min-width: 110px;
+            white-space: nowrap;
+        }
+        
+        .history-table th:nth-child(1) {
+            min-width: 110px;
+        }
+        
+        .history-table td:nth-child(2) {
+            /* Filename */
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #555;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            cursor: help;
+            position: relative;
+        }
+        
+        .history-table td:nth-child(2):hover::after {
+            content: attr(title);
+            position: absolute;
+            left: 0;
+            top: 100%;
+            background: #333;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            white-space: nowrap;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            margin-top: 4px;
+        }
+        
+        .history-table td:nth-child(3),
+        .history-table td:nth-child(4),
+        .history-table td:nth-child(5) {
+            /* County, Year, Election Type */
+            font-weight: 500;
+        }
+        
+        .history-table td:nth-child(5) {
+            /* Election Type */
+            text-transform: capitalize;
+        }
+        
+        .history-table td:nth-child(7),
+        .history-table td:nth-child(8),
+        .history-table td:nth-child(9) {
+            /* Total, Geocoded, Failed */
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        
+        .history-table td:nth-child(10) {
+            /* Success Rate */
+            text-align: center;
+        }
+        
+        .history-table td:nth-child(11) {
+            /* Actions */
+            white-space: nowrap;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+        
+        .badge-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+        
+        .badge-warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        .badge-info {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+        
+        .badge-danger {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: white;
+        }
+        
+        .regeocode-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+        }
+        
+        .regeocode-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
+        }
+        
+        .regeocode-btn:active {
+            transform: translateY(0);
+        }
+        
+        .regeocode-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+        
+        .delete-btn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-left: 6px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(245, 87, 108, 0.3);
+        }
+        
+        .delete-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(245, 87, 108, 0.4);
+        }
+        
+        .delete-btn:active {
+            transform: translateY(0);
+        }
+        
+        .preview-btn {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-right: 6px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(56, 239, 125, 0.3);
+        }
+        
+        .preview-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(56, 239, 125, 0.4);
+        }
+        
+        .preview-btn:active {
+            transform: translateY(0);
+        }
+        
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        
+        .modal-content {
+            background-color: #fefefe;
+            margin: 2% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            border-radius: 10px;
+            width: 95%;
+            max-width: 1400px;
+            max-height: 90vh;
+            overflow: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #eee;
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 20px;
+        }
+        
+        .close:hover,
+        .close:focus {
+            color: #000;
+        }
+        
+        .search-box {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .search-box:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+        
+        .data-table th,
+        .data-table td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        
+        .data-table th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .data-table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        
+        .data-table tr:hover {
+            background: #f0f0ff;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 2px solid #eee;
+        }
+        
+        .pagination-info {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .pagination-controls button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 0 5px;
+            font-size: 14px;
+        }
+        
+        .pagination-controls button:hover {
+            background: #5568d3;
+        }
+        
+        .pagination-controls button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        /* Multi-job display styles */
+        .jobs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .job-card {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .job-card.running {
+            border-left: 4px solid #667eea;
+        }
+        
+        .job-card.success {
+            border-left: 4px solid #11998e;
+        }
+        
+        .job-card.error {
+            border-left: 4px solid #f5576c;
+        }
+        
+        .job-card.queued {
+            border-left: 4px solid #ffc107;
+        }
+        
+        .job-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .job-header strong {
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .job-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        
+        .job-card.running .job-status {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .job-card.success .job-status {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+        
+        .job-card.error .job-status {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        .job-card.queued .job-status {
+            background: linear-gradient(135deg, #ffc107 0%, #ff8b00 100%);
+            color: white;
+        }
+        
+        .job-info {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+        
+        .job-stats {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: #666;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .job-stats span {
+            font-variant-numeric: tabular-nums;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>WhoVoted Admin Dashboard</h1>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+    
+    <div class="container">
+        <div class="card">
+            <h2>Upload Voter Roll CSV</h2>
+            
+            <div id="error-message" class="error-message"></div>
+            <div id="success-message" class="success-message"></div>
+            
+            <div class="form-group">
+                <label for="county-select">Texas County:</label>
+                <select id="county-select" class="county-select" required>
+                    <option value="">Select a county...</option>
+                    <option value="Hidalgo">Hidalgo County</option>
+                    <option value="Cameron">Cameron County</option>
+                    <option value="">──────────────</option>
+                    <option value="Anderson">Anderson County</option>
+                    <option value="Andrews">Andrews County</option>
+                    <option value="Angelina">Angelina County</option>
+                    <option value="Aransas">Aransas County</option>
+                    <option value="Archer">Archer County</option>
+                    <option value="Armstrong">Armstrong County</option>
+                    <option value="Atascosa">Atascosa County</option>
+                    <option value="Austin">Austin County</option>
+                    <option value="Bailey">Bailey County</option>
+                    <option value="Bandera">Bandera County</option>
+                    <option value="Bastrop">Bastrop County</option>
+                    <option value="Baylor">Baylor County</option>
+                    <option value="Bee">Bee County</option>
+                    <option value="Bell">Bell County</option>
+                    <option value="Bexar">Bexar County</option>
+                    <option value="Blanco">Blanco County</option>
+                    <option value="Borden">Borden County</option>
+                    <option value="Bosque">Bosque County</option>
+                    <option value="Bowie">Bowie County</option>
+                    <option value="Brazoria">Brazoria County</option>
+                    <option value="Brazos">Brazos County</option>
+                    <option value="Brewster">Brewster County</option>
+                    <option value="Briscoe">Briscoe County</option>
+                    <option value="Brooks">Brooks County</option>
+                    <option value="Brown">Brown County</option>
+                    <option value="Burleson">Burleson County</option>
+                    <option value="Burnet">Burnet County</option>
+                    <option value="Caldwell">Caldwell County</option>
+                    <option value="Calhoun">Calhoun County</option>
+                    <option value="Callahan">Callahan County</option>
+                    <option value="Camp">Camp County</option>
+                    <option value="Carson">Carson County</option>
+                    <option value="Cass">Cass County</option>
+                    <option value="Castro">Castro County</option>
+                    <option value="Chambers">Chambers County</option>
+                    <option value="Cherokee">Cherokee County</option>
+                    <option value="Childress">Childress County</option>
+                    <option value="Clay">Clay County</option>
+                    <option value="Cochran">Cochran County</option>
+                    <option value="Coke">Coke County</option>
+                    <option value="Coleman">Coleman County</option>
+                    <option value="Collin">Collin County</option>
+                    <option value="Collingsworth">Collingsworth County</option>
+                    <option value="Colorado">Colorado County</option>
+                    <option value="Comal">Comal County</option>
+                    <option value="Comanche">Comanche County</option>
+                    <option value="Concho">Concho County</option>
+                    <option value="Cooke">Cooke County</option>
+                    <option value="Coryell">Coryell County</option>
+                    <option value="Cottle">Cottle County</option>
+                    <option value="Crane">Crane County</option>
+                    <option value="Crockett">Crockett County</option>
+                    <option value="Crosby">Crosby County</option>
+                    <option value="Culberson">Culberson County</option>
+                    <option value="Dallam">Dallam County</option>
+                    <option value="Dallas">Dallas County</option>
+                    <option value="Dawson">Dawson County</option>
+                    <option value="DeafSmith">Deaf Smith County</option>
+                    <option value="Delta">Delta County</option>
+                    <option value="Denton">Denton County</option>
+                    <option value="DeWitt">DeWitt County</option>
+                    <option value="Dickens">Dickens County</option>
+                    <option value="Dimmit">Dimmit County</option>
+                    <option value="Donley">Donley County</option>
+                    <option value="Duval">Duval County</option>
+                    <option value="Eastland">Eastland County</option>
+                    <option value="Ector">Ector County</option>
+                    <option value="Edwards">Edwards County</option>
+                    <option value="Ellis">Ellis County</option>
+                    <option value="ElPaso">El Paso County</option>
+                    <option value="Erath">Erath County</option>
+                    <option value="Falls">Falls County</option>
+                    <option value="Fannin">Fannin County</option>
+                    <option value="Fayette">Fayette County</option>
+                    <option value="Fisher">Fisher County</option>
+                    <option value="Floyd">Floyd County</option>
+                    <option value="Foard">Foard County</option>
+                    <option value="FortBend">Fort Bend County</option>
+                    <option value="Franklin">Franklin County</option>
+                    <option value="Freestone">Freestone County</option>
+                    <option value="Frio">Frio County</option>
+                    <option value="Gaines">Gaines County</option>
+                    <option value="Galveston">Galveston County</option>
+                    <option value="Garza">Garza County</option>
+                    <option value="Gillespie">Gillespie County</option>
+                    <option value="Glasscock">Glasscock County</option>
+                    <option value="Goliad">Goliad County</option>
+                    <option value="Gonzales">Gonzales County</option>
+                    <option value="Gray">Gray County</option>
+                    <option value="Grayson">Grayson County</option>
+                    <option value="Gregg">Gregg County</option>
+                    <option value="Grimes">Grimes County</option>
+                    <option value="Guadalupe">Guadalupe County</option>
+                    <option value="Hale">Hale County</option>
+                    <option value="Hall">Hall County</option>
+                    <option value="Hamilton">Hamilton County</option>
+                    <option value="Hansford">Hansford County</option>
+                    <option value="Hardeman">Hardeman County</option>
+                    <option value="Hardin">Hardin County</option>
+                    <option value="Harris">Harris County</option>
+                    <option value="Harrison">Harrison County</option>
+                    <option value="Hartley">Hartley County</option>
+                    <option value="Haskell">Haskell County</option>
+                    <option value="Hays">Hays County</option>
+                    <option value="Hemphill">Hemphill County</option>
+                    <option value="Henderson">Henderson County</option>
+                    <option value="Hill">Hill County</option>
+                    <option value="Hockley">Hockley County</option>
+                    <option value="Hood">Hood County</option>
+                    <option value="Hopkins">Hopkins County</option>
+                    <option value="Houston">Houston County</option>
+                    <option value="Howard">Howard County</option>
+                    <option value="Hudspeth">Hudspeth County</option>
+                    <option value="Hunt">Hunt County</option>
+                    <option value="Hutchinson">Hutchinson County</option>
+                    <option value="Irion">Irion County</option>
+                    <option value="Jack">Jack County</option>
+                    <option value="Jackson">Jackson County</option>
+                    <option value="Jasper">Jasper County</option>
+                    <option value="JeffDavis">Jeff Davis County</option>
+                    <option value="Jefferson">Jefferson County</option>
+                    <option value="JimHogg">Jim Hogg County</option>
+                    <option value="JimWells">Jim Wells County</option>
+                    <option value="Johnson">Johnson County</option>
+                    <option value="Jones">Jones County</option>
+                    <option value="Karnes">Karnes County</option>
+                    <option value="Kaufman">Kaufman County</option>
+                    <option value="Kendall">Kendall County</option>
+                    <option value="Kenedy">Kenedy County</option>
+                    <option value="Kent">Kent County</option>
+                    <option value="Kerr">Kerr County</option>
+                    <option value="Kimble">Kimble County</option>
+                    <option value="King">King County</option>
+                    <option value="Kinney">Kinney County</option>
+                    <option value="Kleberg">Kleberg County</option>
+                    <option value="Knox">Knox County</option>
+                    <option value="Lamar">Lamar County</option>
+                    <option value="Lamb">Lamb County</option>
+                    <option value="Lampasas">Lampasas County</option>
+                    <option value="LaSalle">La Salle County</option>
+                    <option value="Lavaca">Lavaca County</option>
+                    <option value="Lee">Lee County</option>
+                    <option value="Leon">Leon County</option>
+                    <option value="Liberty">Liberty County</option>
+                    <option value="Limestone">Limestone County</option>
+                    <option value="Lipscomb">Lipscomb County</option>
+                    <option value="LiveOak">Live Oak County</option>
+                    <option value="Llano">Llano County</option>
+                    <option value="Loving">Loving County</option>
+                    <option value="Lubbock">Lubbock County</option>
+                    <option value="Lynn">Lynn County</option>
+                    <option value="Madison">Madison County</option>
+                    <option value="Marion">Marion County</option>
+                    <option value="Martin">Martin County</option>
+                    <option value="Mason">Mason County</option>
+                    <option value="Matagorda">Matagorda County</option>
+                    <option value="Maverick">Maverick County</option>
+                    <option value="McCulloch">McCulloch County</option>
+                    <option value="McLennan">McLennan County</option>
+                    <option value="McMullen">McMullen County</option>
+                    <option value="Medina">Medina County</option>
+                    <option value="Menard">Menard County</option>
+                    <option value="Midland">Midland County</option>
+                    <option value="Milam">Milam County</option>
+                    <option value="Mills">Mills County</option>
+                    <option value="Mitchell">Mitchell County</option>
+                    <option value="Montague">Montague County</option>
+                    <option value="Montgomery">Montgomery County</option>
+                    <option value="Moore">Moore County</option>
+                    <option value="Morris">Morris County</option>
+                    <option value="Motley">Motley County</option>
+                    <option value="Nacogdoches">Nacogdoches County</option>
+                    <option value="Navarro">Navarro County</option>
+                    <option value="Newton">Newton County</option>
+                    <option value="Nolan">Nolan County</option>
+                    <option value="Nueces">Nueces County</option>
+                    <option value="Ochiltree">Ochiltree County</option>
+                    <option value="Oldham">Oldham County</option>
+                    <option value="Orange">Orange County</option>
+                    <option value="PaloPinto">Palo Pinto County</option>
+                    <option value="Panola">Panola County</option>
+                    <option value="Parker">Parker County</option>
+                    <option value="Parmer">Parmer County</option>
+                    <option value="Pecos">Pecos County</option>
+                    <option value="Polk">Polk County</option>
+                    <option value="Potter">Potter County</option>
+                    <option value="Presidio">Presidio County</option>
+                    <option value="Rains">Rains County</option>
+                    <option value="Randall">Randall County</option>
+                    <option value="Reagan">Reagan County</option>
+                    <option value="Real">Real County</option>
+                    <option value="RedRiver">Red River County</option>
+                    <option value="Reeves">Reeves County</option>
+                    <option value="Refugio">Refugio County</option>
+                    <option value="Roberts">Roberts County</option>
+                    <option value="Robertson">Robertson County</option>
+                    <option value="Rockwall">Rockwall County</option>
+                    <option value="Runnels">Runnels County</option>
+                    <option value="Rusk">Rusk County</option>
+                    <option value="Sabine">Sabine County</option>
+                    <option value="SanAugustine">San Augustine County</option>
+                    <option value="SanJacinto">San Jacinto County</option>
+                    <option value="SanPatricio">San Patricio County</option>
+                    <option value="SanSaba">San Saba County</option>
+                    <option value="Schleicher">Schleicher County</option>
+                    <option value="Scurry">Scurry County</option>
+                    <option value="Shackelford">Shackelford County</option>
+                    <option value="Shelby">Shelby County</option>
+                    <option value="Sherman">Sherman County</option>
+                    <option value="Smith">Smith County</option>
+                    <option value="Somervell">Somervell County</option>
+                    <option value="Starr">Starr County</option>
+                    <option value="Stephens">Stephens County</option>
+                    <option value="Sterling">Sterling County</option>
+                    <option value="Stonewall">Stonewall County</option>
+                    <option value="Sutton">Sutton County</option>
+                    <option value="Swisher">Swisher County</option>
+                    <option value="Tarrant">Tarrant County</option>
+                    <option value="Taylor">Taylor County</option>
+                    <option value="Terrell">Terrell County</option>
+                    <option value="Terry">Terry County</option>
+                    <option value="Throckmorton">Throckmorton County</option>
+                    <option value="Titus">Titus County</option>
+                    <option value="TomGreen">Tom Green County</option>
+                    <option value="Travis">Travis County</option>
+                    <option value="Trinity">Trinity County</option>
+                    <option value="Tyler">Tyler County</option>
+                    <option value="Upshur">Upshur County</option>
+                    <option value="Upton">Upton County</option>
+                    <option value="Uvalde">Uvalde County</option>
+                    <option value="ValVerde">Val Verde County</option>
+                    <option value="VanZandt">Van Zandt County</option>
+                    <option value="Victoria">Victoria County</option>
+                    <option value="Walker">Walker County</option>
+                    <option value="Waller">Waller County</option>
+                    <option value="Ward">Ward County</option>
+                    <option value="Washington">Washington County</option>
+                    <option value="Webb">Webb County</option>
+                    <option value="Wharton">Wharton County</option>
+                    <option value="Wheeler">Wheeler County</option>
+                    <option value="Wichita">Wichita County</option>
+                    <option value="Wilbarger">Wilbarger County</option>
+                    <option value="Willacy">Willacy County</option>
+                    <option value="Williamson">Williamson County</option>
+                    <option value="Wilson">Wilson County</option>
+                    <option value="Winkler">Winkler County</option>
+                    <option value="Wise">Wise County</option>
+                    <option value="Wood">Wood County</option>
+                    <option value="Yoakum">Yoakum County</option>
+                    <option value="Young">Young County</option>
+                    <option value="Zapata">Zapata County</option>
+                    <option value="Zavala">Zavala County</option>
+                </select>
+                <p style="color: #666; font-size: 13px; margin-top: 5px;">Select the county this voter data is from</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="voting-method-select">Voting Method:</label>
+                <select id="voting-method-select" class="county-select" required>
+                    <option value="">Select voting method...</option>
+                    <option value="early-voting" selected>Early Voting</option>
+                    <option value="election-day">Election Day</option>
+                </select>
+                <p style="color: #666; font-size: 13px; margin-top: 5px;">Tag this data as Early Voting or Election Day turnout</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="processing-speed">Processing Speed:</label>
+                <select id="processing-speed" class="county-select">
+                    <option value="1">Regular (1 worker)</option>
+                    <option value="10">Fast (10 workers - 10x faster)</option>
+                    <option value="20" selected>Very Fast (20 workers - 20x faster)</option>
+                    <option value="40">Ultra Fast (40 workers - 40x faster)</option>
+                </select>
+                <p style="color: #666; font-size: 13px; margin-top: 5px;">More workers = faster geocoding but higher API usage</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="election-year">Election Year:</label>
+                <select id="election-year" class="year-select" required>
+                    <option value="2026">2026</option>
+                    <option value="2025">2025</option>
+                    <option value="2024" selected>2024</option>
+                    <option value="2023">2023</option>
+                    <option value="2022">2022</option>
+                    <option value="2021">2021</option>
+                    <option value="2020">2020</option>
+                </select>
+                <p style="color: #666; font-size: 13px; margin-top: 5px;">Select the election year for this data</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="election-type">Election Type:</label>
+                <select id="election-type" class="election-type-select" required>
+                    <option value="">Select election type...</option>
+                    <option value="primary-democratic">Democratic Primary</option>
+                    <option value="primary-republican">Republican Primary</option>
+                    <option value="primary">Primary Election (Mixed/Other)</option>
+                    <option value="runoff">Runoff Election</option>
+                    <option value="general">General Election</option>
+                    <option value="special">Special Election</option>
+                </select>
+                <p style="color: #666; font-size: 13px; margin-top: 5px;">Select the type of election</p>
+            </div>
+            
+            <div class="form-group" id="primary-party-group" style="display: none;">
+                <label for="primary-party">Primary Party:</label>
+                <select id="primary-party" class="election-type-select">
+                    <option value="">Not a primary / Mixed</option>
+                    <option value="democratic">Democratic Primary</option>
+                    <option value="republican">Republican Primary</option>
+                </select>
+                <p style="color: #666; font-size: 13px; margin-top: 5px;">If this is a primary election, select which party's primary</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="election-date">Election Date:</label>
+                <input type="date" id="election-date" class="date-input" required>
+                <p style="color: #666; font-size: 13px; margin-top: 5px;">Enter the election date</p>
+            </div>
+            
+            <div class="upload-zone" id="upload-zone">
+                <div class="upload-icon">📁</div>
+                <p>Drag and drop CSV or Excel file here or click to browse</p>
+                <p style="color: #999; font-size: 14px; margin-top: 10px;">Maximum file size: 100MB</p>
+                <p style="color: #999; font-size: 13px; margin-top: 5px;">Supported formats: CSV, XLS, XLSX • Must include VUID or CERT column</p>
+            </div>
+            
+            <input type="file" id="file-input" class="file-input" accept=".csv,.xls,.xlsx" multiple>
+            
+            <div id="file-info" class="file-info">
+                <strong>Selected file:</strong>
+                <div id="file-details"></div>
+            </div>
+            
+            <button id="upload-btn" class="upload-btn">Upload and Process</button>
+        </div>
+        
+        <div class="card">
+            <h2>Upload History</h2>
+            <div id="upload-history">
+                <p style="color: #999; text-align: center; padding: 20px;">Loading upload history...</p>
+            </div>
+        </div>
+        
+        <div class="card progress-section" id="progress-section">
+            <h2>Processing Status</h2>
+            
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill">0%</div>
+            </div>
+            
+            <div style="display: flex; justify-content: center; gap: 20px; margin-top: 10px; font-size: 13px; color: #666;">
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <div style="width: 16px; height: 16px; background: #28a745; border-radius: 3px;"></div>
+                    <span>Previously Geocoded (Cached)</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <div style="width: 16px; height: 16px; background: #007bff; border-radius: 3px;"></div>
+                    <span>Newly Geocoded</span>
+                </div>
+            </div>
+            
+            <div class="status-info">
+                <div class="status-item">
+                    <div class="status-label">Status</div>
+                    <div class="status-value" id="status-text">Idle</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Total Records</div>
+                    <div class="status-value" id="total-records">0</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Processed</div>
+                    <div class="status-value" id="processed-records">0</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Geocoded</div>
+                    <div class="status-value" id="geocoded-count">0</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Failed</div>
+                    <div class="status-value" id="failed-count">0</div>
+                </div>
+            </div>
+            
+            <h3 style="margin-top: 30px; margin-bottom: 15px;">Processing Log</h3>
+            <div class="log-viewer" id="log-viewer"></div>
+            
+            <button id="download-errors-btn" class="download-btn">Download Error Report</button>
+        </div>
+    </div>
+    
+    <!-- Data Preview Modal -->
+    <div id="preview-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Data Preview</h2>
+                <span class="close" onclick="closePreviewModal()">&times;</span>
+            </div>
+            
+            <input type="text" id="search-input" class="search-box" placeholder="Search in all columns...">
+            
+            <div style="overflow-x: auto;">
+                <table class="data-table" id="preview-table">
+                    <thead id="preview-thead"></thead>
+                    <tbody id="preview-tbody"></tbody>
+                </table>
+            </div>
+            
+            <div class="pagination">
+                <div class="pagination-info" id="pagination-info"></div>
+                <div class="pagination-controls">
+                    <button id="prev-btn" onclick="previousPage()">Previous</button>
+                    <button id="next-btn" onclick="nextPage()">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Duplicate Warning Modal -->
+    <div id="duplicate-modal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2>⚠️ Duplicate Files Detected</h2>
+                <span class="close" onclick="closeDuplicateModal()">&times;</span>
+            </div>
+            
+            <div id="duplicate-content" style="margin: 20px 0;">
+                <!-- Duplicate details will be inserted here -->
+            </div>
+            
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #eee;">
+                <p style="margin-bottom: 15px; font-weight: 600;">What would you like to do?</p>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="regeocode-btn" onclick="handleDuplicateAction('skip')" style="flex: 1; min-width: 150px;">
+                        Skip Duplicates
+                        <div style="font-size: 10px; font-weight: normal; margin-top: 4px;">Don't upload duplicate files</div>
+                    </button>
+                    <button class="preview-btn" onclick="handleDuplicateAction('replace')" style="flex: 1; min-width: 150px;">
+                        Replace Existing
+                        <div style="font-size: 10px; font-weight: normal; margin-top: 4px;">Delete old data and upload new</div>
+                    </button>
+                    <button class="delete-btn" onclick="handleDuplicateAction('ignore')" style="flex: 1; min-width: 150px;">
+                        Upload Anyway
+                        <div style="font-size: 10px; font-weight: normal; margin-top: 4px;">Create duplicate datasets</div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+// Admin dashboard JavaScript
+// Version: 2026-02-21-v3 (Added duplicate detection)
+let selectedFiles = [];  // Changed to array for multiple files
+let statusPollInterval = null;
+let pendingUploadData = null;  // Store upload data for duplicate handling
+
+// DOM elements
+const uploadZone = document.getElementById('upload-zone');
+const fileInput = document.getElementById('file-input');
+const fileInfo = document.getElementById('file-info');
+const fileDetails = document.getElementById('file-details');
+const uploadBtn = document.getElementById('upload-btn');
+const errorMessage = document.getElementById('error-message');
+const successMessage = document.getElementById('success-message');
+const progressSection = document.getElementById('progress-section');
+const progressFill = document.getElementById('progress-fill');
+const statusText = document.getElementById('status-text');
+const totalRecords = document.getElementById('total-records');
+const processedRecords = document.getElementById('processed-records');
+const geocodedCount = document.getElementById('geocoded-count');
+const failedCount = document.getElementById('failed-count');
+const logViewer = document.getElementById('log-viewer');
+const downloadErrorsBtn = document.getElementById('download-errors-btn');
+
+// Upload zone click handler
+uploadZone.addEventListener('click', (e) => {
+    console.log('Upload zone clicked');
+    e.preventDefault();
+    e.stopPropagation();
+    fileInput.click();
+});
+
+// File input change handler
+fileInput.addEventListener('change', (e) => {
+    console.log('File input changed', e.target.files);
+    if (e.target.files && e.target.files.length > 0) {
+        selectedFiles = Array.from(e.target.files);
+        displaySelectedFiles();
+    }
+});
+
+function displaySelectedFiles() {
+    const fileDetails = document.getElementById('file-details');
+    if (selectedFiles.length === 0) {
+        fileDetails.innerHTML = 'No files selected';
+        fileInfo.classList.remove('show');
+        uploadBtn.classList.remove('show');
+        return;
+    }
+    
+    let html = `<strong>${selectedFiles.length} file(s) selected:</strong><ul style="margin: 10px 0; padding-left: 20px;">`;
+    selectedFiles.forEach(file => {
+        html += `<li>${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</li>`;
+    });
+    html += '</ul>';
+    fileDetails.innerHTML = html;
+    
+    fileInfo.classList.add('show');
+    uploadBtn.classList.add('show');
+    
+    // Analyze first file for metadata
+    if (selectedFiles.length > 0) {
+        analyzeFile(selectedFiles[0]);
+    }
+}
+
+// Election type change handler - show/hide Primary Party field and auto-set party
+document.getElementById('election-type').addEventListener('change', (e) => {
+    const primaryPartyGroup = document.getElementById('primary-party-group');
+    const primaryPartySelect = document.getElementById('primary-party');
+    const electionType = e.target.value;
+    
+    // Auto-set primary party based on election type
+    if (electionType === 'primary-democratic') {
+        primaryPartySelect.value = 'democratic';
+        primaryPartyGroup.style.display = 'none'; // Hide since it's auto-set
+    } else if (electionType === 'primary-republican') {
+        primaryPartySelect.value = 'republican';
+        primaryPartyGroup.style.display = 'none'; // Hide since it's auto-set
+    } else if (electionType === 'primary' || electionType === 'runoff') {
+        primaryPartyGroup.style.display = 'block'; // Show for manual selection
+        primaryPartySelect.value = ''; // Reset value
+    } else {
+        primaryPartyGroup.style.display = 'none';
+        primaryPartySelect.value = ''; // Reset value
+    }
+});
+
+// Drag and drop handlers
+uploadZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadZone.classList.add('dragover');
+});
+
+uploadZone.addEventListener('dragleave', () => {
+    uploadZone.classList.remove('dragover');
+});
+
+uploadZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        selectedFiles = Array.from(e.dataTransfer.files);
+        displaySelectedFiles();
+    }
+});
+
+// Handle file selection (kept for backward compatibility but now uses selectedFiles array)
+function handleFileSelect(file) {
+    if (!file) return;
+    
+    // Validate file type (case-insensitive)
+    const fileName = file.name.toLowerCase();
+    if (!fileName.endsWith('.csv') && !fileName.endsWith('.xls') && !fileName.endsWith('.xlsx')) {
+        showError('Only CSV and Excel files are accepted (.csv, .xls, .xlsx). Your file: ' + file.name);
+        return;
+    }
+    
+    // Validate file size (100MB)
+    const maxSize = 100 * 1024 * 1024;
+    if (file.size > maxSize) {
+        showError('File size exceeds 100MB limit');
+        return;
+    }
+    
+    selectedFile = file;
+    
+    // Display file info
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+    fileDetails.innerHTML = `
+        <div><strong>Name:</strong> ${file.name}</div>
+        <div><strong>Size:</strong> ${sizeMB} MB</div>
+        <div><strong>Type:</strong> ${file.type || 'text/csv'}</div>
+        <div style="margin-top: 10px; color: #667eea;"><em>Analyzing file...</em></div>
+    `;
+    
+    fileInfo.classList.add('show');
+    uploadBtn.classList.add('show');
+    hideError();
+    
+    // Analyze file and pre-fill form
+    analyzeFile(file);
+}
+
+// Analyze file to extract metadata
+async function analyzeFile(file) {
+    try {
+        // Parse filename for metadata
+        const filename = file.name;
+        const filenameLower = filename.toLowerCase();
+        
+        // Extract year from filename (look for 4-digit year)
+        const yearMatch = filename.match(/20\d{2}/);
+        if (yearMatch) {
+            document.getElementById('election-year').value = yearMatch[0];
+        }
+        
+        // Extract county from filename
+        const counties = [
+            'Anderson', 'Andrews', 'Angelina', 'Aransas', 'Archer', 'Armstrong', 'Atascosa', 'Austin',
+            'Bailey', 'Bandera', 'Bastrop', 'Baylor', 'Bee', 'Bell', 'Bexar', 'Blanco', 'Borden',
+            'Bosque', 'Bowie', 'Brazoria', 'Brazos', 'Brewster', 'Briscoe', 'Brooks', 'Brown',
+            'Burleson', 'Burnet', 'Caldwell', 'Calhoun', 'Callahan', 'Cameron', 'Camp', 'Carson',
+            'Cass', 'Castro', 'Chambers', 'Cherokee', 'Childress', 'Clay', 'Cochran', 'Coke',
+            'Coleman', 'Collin', 'Collingsworth', 'Colorado', 'Comal', 'Comanche', 'Concho', 'Cooke',
+            'Coryell', 'Cottle', 'Crane', 'Crockett', 'Crosby', 'Culberson', 'Dallam', 'Dallas',
+            'Dawson', 'DeafSmith', 'Delta', 'Denton', 'DeWitt', 'Dickens', 'Dimmit', 'Donley',
+            'Duval', 'Eastland', 'Ector', 'Edwards', 'Ellis', 'ElPaso', 'Erath', 'Falls', 'Fannin',
+            'Fayette', 'Fisher', 'Floyd', 'Foard', 'FortBend', 'Franklin', 'Freestone', 'Frio',
+            'Gaines', 'Galveston', 'Garza', 'Gillespie', 'Glasscock', 'Goliad', 'Gonzales', 'Gray',
+            'Grayson', 'Gregg', 'Grimes', 'Guadalupe', 'Hale', 'Hall', 'Hamilton', 'Hansford',
+            'Hardeman', 'Hardin', 'Harris', 'Harrison', 'Hartley', 'Haskell', 'Hays', 'Hemphill',
+            'Henderson', 'Hidalgo', 'Hill', 'Hockley', 'Hood', 'Hopkins', 'Houston', 'Howard',
+            'Hudspeth', 'Hunt', 'Hutchinson', 'Irion', 'Jack', 'Jackson', 'Jasper', 'JeffDavis',
+            'Jefferson', 'JimHogg', 'JimWells', 'Johnson', 'Jones', 'Karnes', 'Kaufman', 'Kendall',
+            'Kenedy', 'Kent', 'Kerr', 'Kimble', 'King', 'Kinney', 'Kleberg', 'Knox', 'Lamar',
+            'Lamb', 'Lampasas', 'LaSalle', 'Lavaca', 'Lee', 'Leon', 'Liberty', 'Limestone',
+            'Lipscomb', 'LiveOak', 'Llano', 'Loving', 'Lubbock', 'Lynn', 'Madison', 'Marion',
+            'Martin', 'Mason', 'Matagorda', 'Maverick', 'McCulloch', 'McLennan', 'McMullen', 'Medina',
+            'Menard', 'Midland', 'Milam', 'Mills', 'Mitchell', 'Montague', 'Montgomery', 'Moore',
+            'Morris', 'Motley', 'Nacogdoches', 'Navarro', 'Newton', 'Nolan', 'Nueces', 'Ochiltree',
+            'Oldham', 'Orange', 'PaloPinto', 'Panola', 'Parker', 'Parmer', 'Pecos', 'Polk', 'Potter',
+            'Presidio', 'Rains', 'Randall', 'Reagan', 'Real', 'RedRiver', 'Reeves', 'Refugio',
+            'Roberts', 'Robertson', 'Rockwall', 'Runnels', 'Rusk', 'Sabine', 'SanAugustine',
+            'SanJacinto', 'SanPatricio', 'SanSaba', 'Schleicher', 'Scurry', 'Shackelford', 'Shelby',
+            'Sherman', 'Smith', 'Somervell', 'Starr', 'Stephens', 'Sterling', 'Stonewall', 'Sutton',
+            'Swisher', 'Tarrant', 'Taylor', 'Terrell', 'Terry', 'Throckmorton', 'Titus', 'TomGreen',
+            'Travis', 'Trinity', 'Tyler', 'Upshur', 'Upton', 'Uvalde', 'ValVerde', 'VanZandt',
+            'Victoria', 'Walker', 'Waller', 'Ward', 'Washington', 'Webb', 'Wharton', 'Wheeler',
+            'Wichita', 'Wilbarger', 'Willacy', 'Williamson', 'Wilson', 'Winkler', 'Wise', 'Wood',
+            'Yoakum', 'Young', 'Zapata', 'Zavala'
+        ];
+        
+        for (const county of counties) {
+            if (filenameLower.includes(county.toLowerCase())) {
+                document.getElementById('county-select').value = county;
+                break;
+            }
+        }
+        
+        // Detect election type from filename
+        if (filenameLower.includes('primary') || filenameLower.includes('prim')) {
+            document.getElementById('election-type').value = 'primary';
+        } else if (filenameLower.includes('general') || filenameLower.includes('gen')) {
+            document.getElementById('election-type').value = 'general';
+        } else if (filenameLower.includes('runoff')) {
+            document.getElementById('election-type').value = 'runoff';
+        } else if (filenameLower.includes('special')) {
+            document.getElementById('election-type').value = 'special';
+        }
+        
+        // Detect voting method from filename
+        if (filenameLower.includes('early') || filenameLower.includes('ev')) {
+            document.getElementById('voting-method-select').value = 'early-voting';
+        } else if (filenameLower.includes('election day') || filenameLower.includes('ed') || filenameLower.includes('eday')) {
+            document.getElementById('voting-method-select').value = 'election-day';
+        }
+        
+        // Try to extract date from filename (various formats)
+        const datePatterns = [
+            /(\d{4})-(\d{2})-(\d{2})/,  // YYYY-MM-DD
+            /(\d{2})-(\d{2})-(\d{4})/,  // MM-DD-YYYY
+            /(\d{4})(\d{2})(\d{2})/,    // YYYYMMDD
+            /(\d{2})(\d{2})(\d{4})/     // MMDDYYYY
+        ];
+        
+        for (const pattern of datePatterns) {
+            const match = filename.match(pattern);
+            if (match) {
+                let year, month, day;
+                if (pattern.source.startsWith('(\\d{4})')) {
+                    // Year first
+                    year = match[1];
+                    month = match[2];
+                    day = match[3];
+                } else {
+                    // Month first
+                    month = match[1];
+                    day = match[2];
+                    year = match[3];
+                }
+                
+                // Validate and set date
+                if (year && month && day) {
+                    const dateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                    document.getElementById('election-date').value = dateStr;
+                    break;
+                }
+            }
+        }
+        
+        // Read first few lines of CSV to analyze content
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const text = e.target.result;
+            const lines = text.split('\n').slice(0, 100); // Read first 100 lines
+            
+            if (lines.length > 0) {
+                const header = lines[0].toUpperCase();
+                const sampleData = lines.slice(1, 20).join('\n').toUpperCase();
+                
+                // Detect party affiliation from data
+                let demCount = 0;
+                let repCount = 0;
+                
+                for (const line of lines.slice(1, 20)) {
+                    const lineLower = line.toLowerCase();
+                    if (lineLower.includes(',d,') || lineLower.includes(',d\r') || lineLower.includes(',dem,') || lineLower.includes(',democrat')) {
+                        demCount++;
+                    }
+                    if (lineLower.includes(',r,') || lineLower.includes(',r\r') || lineLower.includes(',rep,') || lineLower.includes(',republican')) {
+                        repCount++;
+                    }
+                }
+                
+                // If predominantly one party, might be a primary
+                if (demCount > repCount * 2) {
+                    // Likely Democratic primary
+                    if (document.getElementById('election-type').value === '') {
+                        document.getElementById('election-type').value = 'primary';
+                    }
+                } else if (repCount > demCount * 2) {
+                    // Likely Republican primary
+                    if (document.getElementById('election-type').value === '') {
+                        document.getElementById('election-type').value = 'primary';
+                    }
+                }
+                
+                // Update file details with analysis results
+                let analysisHtml = '<div style="margin-top: 10px; padding: 10px; background: #f0f0ff; border-radius: 5px;">';
+                analysisHtml += '<strong>Auto-detected:</strong><br>';
+                
+                const detectedFields = [];
+                if (document.getElementById('county-select').value) {
+                    detectedFields.push(`County: ${document.getElementById('county-select').value}`);
+                }
+                if (document.getElementById('election-year').value) {
+                    detectedFields.push(`Year: ${document.getElementById('election-year').value}`);
+                }
+                if (document.getElementById('election-type').value) {
+                    detectedFields.push(`Type: ${document.getElementById('election-type').value}`);
+                }
+                if (document.getElementById('voting-method-select').value) {
+                    const method = document.getElementById('voting-method-select').value === 'early-voting' ? 'Early Voting' : 'Election Day';
+                    detectedFields.push(`Method: ${method}`);
+                }
+                if (document.getElementById('election-date').value) {
+                    detectedFields.push(`Date: ${document.getElementById('election-date').value}`);
+                }
+                
+                if (detectedFields.length > 0) {
+                    analysisHtml += detectedFields.join('<br>');
+                    analysisHtml += '<br><em style="color: #666; font-size: 12px;">Please verify and fill in any missing fields</em>';
+                } else {
+                    analysisHtml += '<em style="color: #999;">Could not auto-detect metadata. Please fill in all fields.</em>';
+                }
+                
+                analysisHtml += '</div>';
+                
+                fileDetails.innerHTML = `
+                    <div><strong>Name:</strong> ${file.name}</div>
+                    <div><strong>Size:</strong> ${sizeMB} MB</div>
+                    <div><strong>Type:</strong> ${file.type || 'text/csv'}</div>
+                    ${analysisHtml}
+                `;
+            }
+        };
+        
+        // Read first 50KB of file
+        const blob = file.slice(0, 50000);
+        reader.readAsText(blob);
+        
+    } catch (error) {
+        console.error('File analysis error:', error);
+        // Don't show error to user, just skip auto-fill
+    }
+}
+
+// Upload button handler
+uploadBtn.addEventListener('click', async () => {
+    if (selectedFiles.length === 0) {
+        showError('Please select at least one file');
+        return;
+    }
+    
+    // Get form values
+    const county = document.getElementById('county-select').value;
+    const year = document.getElementById('election-year').value;
+    const electionType = document.getElementById('election-type').value;
+    const electionDate = document.getElementById('election-date').value;
+    const votingMethod = document.getElementById('voting-method-select').value;
+    const primaryParty = document.getElementById('primary-party').value;
+    
+    // Validate required fields
+    if (!county) {
+        showError('Please select a county');
+        return;
+    }
+    
+    if (!electionType) {
+        showError('Please select an election type');
+        return;
+    }
+    
+    if (!electionDate) {
+        showError('Please enter an election date');
+        return;
+    }
+    
+    if (!votingMethod) {
+        showError('Please select a voting method (Early Voting or Election Day)');
+        return;
+    }
+    
+    // Check for duplicates first
+    try {
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = 'Checking for duplicates...';
+        
+        const filesMetadata = selectedFiles.map(file => ({
+            filename: file.name,
+            county: county,
+            year: year,
+            election_type: electionType,
+            election_date: electionDate,
+            voting_method: votingMethod
+        }));
+        
+        const checkResponse = await fetch('/admin/check-duplicates', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ files: filesMetadata }),
+            credentials: 'include'
+        });
+        
+        const checkData = await checkResponse.json();
+        
+        if (checkData.has_duplicates) {
+            // Show duplicate warning modal
+            showDuplicateWarning(checkData.duplicates, county, year, electionType, electionDate, votingMethod, primaryParty);
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = 'Upload and Process';
+            return;
+        }
+        
+        // No duplicates, proceed with upload
+        await performUpload('ignore', county, year, electionType, electionDate, votingMethod, primaryParty);
+        
+    } catch (error) {
+        showError('Failed to check for duplicates. Please try again.');
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = 'Upload and Process';
+    }
+});
+
+// Perform the actual upload
+async function performUpload(duplicateAction, county, year, electionType, electionDate, votingMethod, primaryParty) {
+    const formData = new FormData();
+    
+    // Append all files
+    selectedFiles.forEach(file => {
+        formData.append('files', file);
+    });
+    
+    // Get processing speed
+    const processingSpeed = document.getElementById('processing-speed').value;
+    
+    // Append metadata (same for all files)
+    formData.append('county', county);
+    formData.append('year', year);
+    formData.append('election_type', electionType);
+    formData.append('election_date', electionDate);
+    formData.append('voting_method', votingMethod);
+    formData.append('primary_party', primaryParty);
+    formData.append('duplicate_action', duplicateAction);
+    formData.append('processing_speed', processingSpeed);
+    
+    try {
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = 'Uploading...';
+        
+        const response = await fetch('/admin/upload', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            const jobCount = data.jobs ? data.jobs.length : 1;
+            const skippedCount = data.skipped ? data.skipped.length : 0;
+            
+            let message = `${jobCount} file(s) uploaded successfully. Processing started...`;
+            if (skippedCount > 0) {
+                message += ` (${skippedCount} skipped as duplicates)`;
+            }
+            showSuccess(message);
+            
+            if (data.errors && data.errors.length > 0) {
+                showError(`Some files failed: ${data.errors.join(', ')}`);
+            }
+            
+            progressSection.classList.add('show');
+            
+            // Start polling for status
+            startStatusPolling();
+            
+            // Hide upload section
+            fileInfo.classList.remove('show');
+            uploadBtn.classList.remove('show');
+            selectedFiles = [];
+            fileInput.value = '';
+        } else {
+            showError(data.errors ? data.errors.join(', ') : (data.error || 'Upload failed'));
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = 'Upload and Process';
+        }
+    } catch (error) {
+        showError('Upload failed. Please try again.');
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = 'Upload and Process';
+    }
+}
+
+// Start polling for processing status
+function startStatusPolling() {
+    if (statusPollInterval) {
+        clearInterval(statusPollInterval);
+    }
+    
+    statusPollInterval = setInterval(async () => {
+        try {
+            const response = await fetch('/admin/status', {
+                credentials: 'include'
+            });
+            
+            // Handle authentication errors
+            if (response.status === 401) {
+                clearInterval(statusPollInterval);
+                statusPollInterval = null;
+                showError('Session expired. Please log in again.');
+                setTimeout(() => {
+                    window.location.href = '/admin/login';
+                }, 2000);
+                return;
+            }
+            
+            const data = await response.json();
+            
+            // Update UI with all jobs
+            updateJobsDisplay(data.jobs);
+            
+            // Stop polling if no active jobs
+            if (data.active_count === 0 && data.queue_length === 0 && data.jobs.length === 0) {
+                clearInterval(statusPollInterval);
+                statusPollInterval = null;
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Upload and Process';
+                
+                // Reload upload history to show new datasets
+                loadUploadHistory();
+            }
+        } catch (error) {
+            console.error('Status polling error:', error);
+        }
+    }, 2000); // Poll every 2 seconds
+}
+
+// Update jobs display with multiple job cards
+function updateJobsDisplay(jobs) {
+    if (!jobs || jobs.length === 0) {
+        progressSection.classList.remove('show');
+        return;
+    }
+    
+    progressSection.classList.add('show');
+    
+    // Create HTML for all jobs
+    let html = '<h2 style="margin-bottom: 20px;">Processing Status</h2><div class="jobs-container">';
+    
+    jobs.forEach(job => {
+        const statusClass = job.status === 'completed' ? 'success' : 
+                           job.status === 'failed' ? 'error' : 
+                           job.status === 'running' ? 'running' : 'queued';
+        
+        const progress = Math.round((job.progress || 0) * 100);
+        
+        // Calculate time estimate for running jobs
+        let timeEstimate = '';
+        if (job.status === 'running' && job.processed_records > 0 && job.total_records > 0) {
+            const remaining = job.total_records - job.processed_records;
+            if (remaining > 0 && job.started_at) {
+                const startTime = new Date(job.started_at);
+                const now = new Date();
+                const elapsedMs = now - startTime;
+                const elapsedSec = elapsedMs / 1000;
+                const rate = job.processed_records / elapsedSec; // records per second
+                
+                if (rate > 0) {
+                    const remainingSec = remaining / rate;
+                    const hours = Math.floor(remainingSec / 3600);
+                    const minutes = Math.floor((remainingSec % 3600) / 60);
+                    const seconds = Math.floor(remainingSec % 60);
+                    
+                    if (hours > 0) {
+                        timeEstimate = `<div style="font-size: 12px; color: #666; margin-top: 5px;">⏱️ Est. ${hours}h ${minutes}m ${seconds}s remaining</div>`;
+                    } else if (minutes > 0) {
+                        timeEstimate = `<div style="font-size: 12px; color: #666; margin-top: 5px;">⏱️ Est. ${minutes}m ${seconds}s remaining</div>`;
+                    } else {
+                        timeEstimate = `<div style="font-size: 12px; color: #666; margin-top: 5px;">⏱️ Est. ${seconds}s remaining</div>`;
+                    }
+                }
+            }
+        }
+        
+        html += `
+            <div class="job-card ${statusClass}">
+                <div class="job-header">
+                    <strong>${escapeHtml(job.original_filename || 'Unknown')}</strong>
+                    <span class="job-status">${job.status}</span>
+                </div>
+                <div class="job-info">
+                    <span>${job.county} County - ${job.year} ${job.election_type}</span>
+                    ${timeEstimate}
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${progress}%">
+                        ${progress}%
+                    </div>
+                </div>
+                <div class="job-stats">
+                    <span>Total: ${job.total_records || 0}</span>
+                    <span>Processed: ${job.processed_records || 0}</span>
+                    <span>Geocoded: ${job.geocoded_count || 0}</span>
+                    <span>Failed: ${job.failed_count || 0}</span>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    
+    // Replace progress section content
+    progressSection.innerHTML = html;
+}
+
+// Update status display (legacy - kept for compatibility)
+function updateStatus(data) {
+    if (!data || data.status === 'idle') {
+        return;
+    }
+    
+    // Update progress bar
+    const progress = Math.round((data.progress || 0) * 100);
+    progressFill.style.width = `${progress}%`;
+    progressFill.textContent = `${progress}%`;
+    
+    // Update status text
+    if (data.status) {
+        statusText.textContent = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+    }
+    
+    // Update record counts
+    totalRecords.textContent = data.total_records || 0;
+    processedRecords.textContent = data.processed_records || 0;
+    geocodedCount.textContent = data.geocoded_count || 0;
+    failedCount.textContent = data.failed_count || 0;
+    
+    // Update log
+    if (data.log_messages && data.log_messages.length > 0) {
+        logViewer.innerHTML = data.log_messages.map(log => {
+            const timestamp = new Date(log.timestamp).toLocaleTimeString();
+            return `<div class="log-entry"><span class="log-timestamp">[${timestamp}]</span> ${log.message}</div>`;
+        }).join('');
+        
+        // Auto-scroll to bottom
+        logViewer.scrollTop = logViewer.scrollHeight;
+    }
+}
+
+// Download errors button handler
+downloadErrorsBtn.addEventListener('click', () => {
+    window.location.href = '/admin/download/errors';
+});
+
+// Logout function
+async function logout() {
+    try {
+        await fetch('/admin/logout', {
+            method: 'POST',
+            credentials: 'include'
+        });
+        window.location.href = '/admin/login';
+    } catch (error) {
+        console.error('Logout error:', error);
+        window.location.href = '/admin/login';
+    }
+}
+
+// Re-geocode data function
+async function reGeocodeData(mapDataFile, county, year, electionType, electionDate, votingMethod) {
+    if (!confirm(`Re-geocode all addresses for ${county} County ${year} ${electionType}?\n\nThis will re-process all addresses and may take a while.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/admin/regeocode', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                map_data_file: mapDataFile,
+                county: county,
+                year: year,
+                election_type: electionType,
+                election_date: electionDate,
+                voting_method: votingMethod
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showSuccess('Re-geocoding started! Processing in background...');
+            progressSection.classList.add('show');
+            startStatusPolling();
+        } else {
+            showError(data.error || 'Re-geocoding failed');
+        }
+    } catch (error) {
+        showError('Re-geocoding request failed. Please try again.');
+        console.error('Re-geocode error:', error);
+    }
+}
+
+// Delete data function
+async function deleteData(mapDataFile, metadataFile, description) {
+    if (!confirm(`Delete ${description}?\n\nThis will permanently delete:\n- ${mapDataFile}\n- ${metadataFile}\n\nThis action cannot be undone!`)) {
+        return;
+    }
+    
+    try {
+        console.log('Deleting files:', { mapDataFile, metadataFile });
+        
+        const response = await fetch('/admin/delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                map_data_file: mapDataFile,
+                metadata_file: metadataFile
+            })
+        });
+        
+        console.log('Delete response status:', response.status);
+        
+        const data = await response.json();
+        console.log('Delete response data:', data);
+        
+        if (response.ok && data.success) {
+            showSuccess(`Data deleted successfully! Deleted ${data.deleted_files ? data.deleted_files.length : 0} files.`);
+            // Reload upload history
+            setTimeout(() => {
+                loadUploadHistory();
+            }, 1000);
+        } else {
+            showError(data.error || 'Delete failed');
+            console.error('Delete failed:', data);
+        }
+    } catch (error) {
+        showError('Delete request failed. Please try again.');
+        console.error('Delete error:', error);
+    }
+}
+
+// Preview data modal variables
+let previewData_global = [];
+let filteredData_global = [];
+let currentPage = 1;
+const rowsPerPage = 10;
+
+// Preview data function
+async function previewData(mapDataFile, description) {
+    try {
+        const response = await fetch(`/data/${mapDataFile}`);
+        
+        if (!response.ok) {
+            showError('Failed to load data file');
+            return;
+        }
+        
+        const geojson = await response.json();
+        
+        if (!geojson.features || geojson.features.length === 0) {
+            showError('No data found in file');
+            return;
+        }
+        
+        // Extract properties from features
+        previewData_global = geojson.features.map(f => f.properties);
+        filteredData_global = [...previewData_global];
+        currentPage = 1;
+        
+        // Set modal title
+        document.getElementById('modal-title').textContent = `Data Preview: ${description} (${previewData_global.length} records)`;
+        
+        // Clear search
+        document.getElementById('search-input').value = '';
+        
+        // Render table
+        renderPreviewTable();
+        
+        // Show modal
+        document.getElementById('preview-modal').style.display = 'block';
+        
+    } catch (error) {
+        showError('Failed to preview data');
+        console.error('Preview error:', error);
+    }
+}
+
+// Render preview table
+function renderPreviewTable() {
+    const thead = document.getElementById('preview-thead');
+    const tbody = document.getElementById('preview-tbody');
+    
+    if (filteredData_global.length === 0) {
+        thead.innerHTML = '';
+        tbody.innerHTML = '<tr><td colspan="100" style="text-align: center; padding: 20px; color: #999;">No data to display</td></tr>';
+        updatePaginationInfo();
+        return;
+    }
+    
+    // Get all unique column names
+    const columns = new Set();
+    filteredData_global.forEach(row => {
+        Object.keys(row).forEach(key => columns.add(key));
+    });
+    const columnArray = Array.from(columns).sort();
+    
+    // Render header
+    thead.innerHTML = '<tr>' + columnArray.map(col => `<th>${col}</th>`).join('') + '</tr>';
+    
+    // Calculate pagination
+    const startIdx = (currentPage - 1) * rowsPerPage;
+    const endIdx = Math.min(startIdx + rowsPerPage, filteredData_global.length);
+    const pageData = filteredData_global.slice(startIdx, endIdx);
+    
+    // Render rows
+    tbody.innerHTML = pageData.map(row => {
+        return '<tr>' + columnArray.map(col => {
+            const value = row[col] !== undefined && row[col] !== null ? row[col] : '';
+            return `<td>${escapeHtml(String(value))}</td>`;
+        }).join('') + '</tr>';
+    }).join('');
+    
+    updatePaginationInfo();
+}
+
+// Update pagination info
+function updatePaginationInfo() {
+    const totalPages = Math.ceil(filteredData_global.length / rowsPerPage);
+    const startIdx = (currentPage - 1) * rowsPerPage + 1;
+    const endIdx = Math.min(currentPage * rowsPerPage, filteredData_global.length);
+    
+    document.getElementById('pagination-info').textContent = 
+        `Showing ${startIdx}-${endIdx} of ${filteredData_global.length} records (Page ${currentPage} of ${totalPages})`;
+    
+    document.getElementById('prev-btn').disabled = currentPage === 1;
+    document.getElementById('next-btn').disabled = currentPage >= totalPages;
+}
+
+// Search functionality
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            
+            if (searchTerm === '') {
+                filteredData_global = [...previewData_global];
+            } else {
+                filteredData_global = previewData_global.filter(row => {
+                    return Object.values(row).some(value => {
+                        return String(value).toLowerCase().includes(searchTerm);
+                    });
+                });
+            }
+            
+            currentPage = 1;
+            renderPreviewTable();
+        });
+    }
+});
+
+// Pagination functions
+function previousPage() {
+    if (currentPage > 1) {
+        currentPage--;
+        renderPreviewTable();
+    }
+}
+
+function nextPage() {
+    const totalPages = Math.ceil(filteredData_global.length / rowsPerPage);
+    if (currentPage < totalPages) {
+        currentPage++;
+        renderPreviewTable();
+    }
+}
+
+// Close modal
+function closePreviewModal() {
+    document.getElementById('preview-modal').style.display = 'none';
+}
+
+// Show duplicate warning modal
+function showDuplicateWarning(duplicates, county, year, electionType, electionDate, votingMethod, primaryParty) {
+    const modal = document.getElementById('duplicate-modal');
+    const content = document.getElementById('duplicate-content');
+    
+    // Store upload data for later use
+    pendingUploadData = { county, year, electionType, electionDate, votingMethod, primaryParty };
+    
+    // Build duplicate list
+    let html = '<p style="margin-bottom: 15px;">The following files match existing datasets:</p>';
+    html += '<div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 15px; margin-bottom: 15px;">';
+    
+    duplicates.forEach(dup => {
+        const lastUpdated = dup.last_updated ? new Date(dup.last_updated).toLocaleString() : 'Unknown';
+        html += `
+            <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #ddd;">
+                <div style="font-weight: 600; margin-bottom: 5px;">📄 ${escapeHtml(dup.filename)}</div>
+                <div style="font-size: 13px; color: #666; margin-left: 20px;">
+                    <div>Matches: ${dup.county} County - ${dup.year} ${dup.election_type}</div>
+                    <div>Existing file: ${escapeHtml(dup.existing_filename)}</div>
+                    <div>Last updated: ${lastUpdated}</div>
+                    <div>Records: ${dup.total_records.toLocaleString()}</div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    
+    content.innerHTML = html;
+    modal.style.display = 'block';
+}
+
+// Close duplicate modal
+function closeDuplicateModal() {
+    document.getElementById('duplicate-modal').style.display = 'none';
+    pendingUploadData = null;
+}
+
+// Handle duplicate action
+async function handleDuplicateAction(action) {
+    if (!pendingUploadData) {
+        showError('No pending upload data');
+        return;
+    }
+    
+    closeDuplicateModal();
+    
+    const { county, year, electionType, electionDate, votingMethod, primaryParty } = pendingUploadData;
+    
+    await performUpload(action, county, year, electionType, electionDate, votingMethod, primaryParty);
+    
+    pendingUploadData = null;
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const previewModal = document.getElementById('preview-modal');
+    const duplicateModal = document.getElementById('duplicate-modal');
+    
+    if (event.target == previewModal) {
+        closePreviewModal();
+    }
+    if (event.target == duplicateModal) {
+        closeDuplicateModal();
+    }
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modal = document.getElementById('preview-modal');
+    if (event.target === modal) {
+        closePreviewModal();
+    }
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Load upload history
+async function loadUploadHistory() {
+    try {
+        const historyContainer = document.getElementById('upload-history');
+        
+        // Call the backend API to get the list of datasets
+        // Add cache-busting parameter to ensure fresh data
+        const response = await fetch(`/admin/list-datasets?_=${Date.now()}`, {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success || !data.datasets || data.datasets.length === 0) {
+            historyContainer.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No upload history found</p>';
+            return;
+        }
+        
+        const datasets = data.datasets;
+        
+        // Sort by last_updated (most recent first)
+        datasets.sort((a, b) => {
+            const dateA = new Date(a.lastUpdated || 0);
+            const dateB = new Date(b.lastUpdated || 0);
+            return dateB - dateA;
+        });
+        
+        // Build table
+        let html = '<div class="table-wrapper"><table class="history-table">';
+        html += '<thead><tr>';
+        html += '<th>Upload Date</th>';
+        html += '<th>Filename</th>';
+        html += '<th>County</th>';
+        html += '<th>Year</th>';
+        html += '<th>Election Type</th>';
+        html += '<th>Voting Method</th>';
+        html += '<th>Total Records</th>';
+        html += '<th>Geocoded</th>';
+        html += '<th>Failed</th>';
+        html += '<th>Success Rate</th>';
+        html += '<th>Actions</th>';
+        html += '</tr></thead>';
+        html += '<tbody>';
+        
+        for (const dataset of datasets) {
+            // Fetch the full metadata to get all details
+            const metadataResponse = await fetch(`/data/${dataset.metadataFile}`);
+            if (!metadataResponse.ok) continue;
+            
+            const m = await metadataResponse.json();
+            const uploadDate = new Date(m.last_updated);
+            
+            // Format date more compactly
+            const dateStr = uploadDate.toLocaleDateString('en-US', { 
+                month: '2-digit', 
+                day: '2-digit', 
+                year: 'numeric' 
+            });
+            const timeStr = uploadDate.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: true 
+            });
+            
+            const successRate = m.total_addresses > 0 
+                ? ((m.successfully_geocoded / m.total_addresses) * 100).toFixed(1)
+                : '0.0';
+            
+            let badge = 'badge-success';
+            if (parseFloat(successRate) < 90) badge = 'badge-warning';
+            if (parseFloat(successRate) < 70) badge = 'badge-danger';
+            
+            // Format voting method
+            const votingMethod = m.voting_method || 'early-voting';
+            const votingMethodLabel = votingMethod === 'election-day' ? 'Election Day' : 'Early Voting';
+            const votingMethodBadge = votingMethod === 'election-day' ? 'badge-info' : 'badge-success';
+            
+            // Truncate filename for display
+            const filename = m.original_filename || 'N/A';
+            const displayFilename = filename.length > 35 ? filename.substring(0, 32) + '...' : filename;
+            
+            // Get the map data filename
+            const mapDataFile = dataset.mapDataFile;
+            const metadataFile = dataset.metadataFile;
+            
+            html += '<tr>';
+            html += `<td><div style="font-size: 12px;">${dateStr}</div><div style="font-size: 11px; color: #999;">${timeStr}</div></td>`;
+            html += `<td title="${escapeHtml(filename)}">${escapeHtml(displayFilename)}</td>`;
+            html += `<td>${m.county || 'Unknown'}</td>`;
+            html += `<td><span class="badge badge-info">${m.year || 'N/A'}</span></td>`;
+            html += `<td style="text-transform: capitalize;">${m.election_type || 'N/A'}</td>`;
+            html += `<td><span class="badge ${votingMethodBadge}">${votingMethodLabel}</span></td>`;
+            html += `<td>${(m.total_addresses || 0).toLocaleString()}</td>`;
+            html += `<td>${(m.successfully_geocoded || 0).toLocaleString()}</td>`;
+            html += `<td>${(m.failed_addresses || 0).toLocaleString()}</td>`;
+            html += `<td><span class="badge ${badge}">${successRate}%</span></td>`;
+            html += `<td>
+                <button class="preview-btn" onclick="previewData('${mapDataFile}', '${m.county} ${m.year} ${m.election_type}')">Preview</button>
+                <button class="regeocode-btn" onclick="reGeocodeData('${mapDataFile}', '${m.county}', '${m.year}', '${m.election_type}', '${m.election_date}', '${votingMethod}')">Re-geocode</button>
+                <button class="delete-btn" onclick="deleteData('${mapDataFile}', '${metadataFile}', '${m.county} ${m.year} ${m.election_type}')">Delete</button>
+            </td>`;
+            html += '</tr>';
+        }
+        
+        html += '</tbody></table></div>';
+        historyContainer.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Error loading upload history:', error);
+        document.getElementById('upload-history').innerHTML = 
+            '<p style="color: #c33; text-align: center; padding: 20px;">Error loading upload history</p>';
+    }
+}
+
+// Load upload history on page load
+document.addEventListener('DOMContentLoaded', () => {
+    loadUploadHistory();
+    
+    // Check for active jobs and resume polling if any exist
+    checkAndResumePolling();
+});
+
+// Check for active jobs and resume polling
+async function checkAndResumePolling() {
+    try {
+        const response = await fetch('/admin/status', {
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            
+            // If there are active jobs or queued jobs, start polling
+            if (data.jobs && data.jobs.length > 0) {
+                const hasActiveJobs = data.jobs.some(job => 
+                    job.status === 'running' || job.status === 'queued'
+                );
+                
+                if (hasActiveJobs) {
+                    console.log('Resuming polling for active jobs');
+                    progressSection.classList.add('show');
+                    updateJobsDisplay(data.jobs);
+                    startStatusPolling();
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Failed to check for active jobs:', error);
+    }
+}
+
+// Helper functions
+function showError(message) {
+    errorMessage.textContent = message;
+    errorMessage.classList.add('show');
+    successMessage.classList.remove('show');
+}
+
+function hideError() {
+    errorMessage.classList.remove('show');
+}
+
+function showSuccess(message) {
+    successMessage.textContent = message;
+    successMessage.classList.add('show');
+    errorMessage.classList.remove('show');
+}
+
+// Check for existing processing job on page load
+window.addEventListener('load', async () => {
+    try {
+        const response = await fetch('/admin/status', {
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.status !== 'idle') {
+            progressSection.classList.add('show');
+            updateStatus(data);
+            
+            if (data.status === 'running') {
+                startStatusPolling();
+            }
+        }
+    } catch (error) {
+        console.error('Initial status check error:', error);
+    }
+});
+    </script>
+</body>
+</html>

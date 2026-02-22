@@ -1,0 +1,28 @@
+{
+  "name": "whovoted",
+  "version": "1.0.0",
+  "description": "WhoVoted map application with dataset selection and party filtering",
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/unit",
+    "test:property": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/property",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch"
+  },
+  "devDependencies": {
+    "fast-check": "^3.15.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "transform": {},
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "public/**/*.js",
+      "!public/config.js"
+    ]
+  }
+}

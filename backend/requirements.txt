@@ -1,0 +1,11 @@
+Flask==3.0.0
+Flask-CORS==4.0.0
+python-dotenv==1.0.0
+requests==2.31.0
+pandas>=2.0.0
+Werkzeug==3.0.1
+openpyxl>=3.1.0
+xlrd>=2.0.0
+
+# AWS Location Service (for best geocoding accuracy)
+boto3>=1.26.0
