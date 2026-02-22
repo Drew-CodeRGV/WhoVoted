@@ -6,6 +6,12 @@ async function loadMapData() {
     try {
         console.log('Starting loadMapData...');
         
+        // Show loading indicator
+        const loadingIndicator = document.getElementById('map-loading-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'flex';
+        }
+        
         // First, discover all available datasets
         availableDatasets = await discoverDatasets();
         console.log('Available datasets:', availableDatasets);
@@ -34,6 +40,12 @@ async function loadMapData() {
     } catch (error) {
         console.error('Error loading data:', error);
         console.error('Error stack:', error.stack);
+    } finally {
+        // Hide loading indicator
+        const loadingIndicator = document.getElementById('map-loading-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'none';
+        }
     }
 }
 
@@ -199,6 +211,13 @@ function populateDatasetSelector() {
 async function loadDataset(dataset) {
     try {
         console.log('Loading dataset:', dataset);
+        
+        // Show loading indicator
+        const loadingIndicator = document.getElementById('map-loading-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'flex';
+        }
+        
         currentDataset = dataset;
         
         // If dataset has multiple map data files (DEM + REP), merge them
@@ -250,6 +269,12 @@ async function loadDataset(dataset) {
     } catch (error) {
         console.error('Error loading dataset:', error);
         alert(`Failed to load dataset: ${error.message}`);
+    } finally {
+        // Hide loading indicator
+        const loadingIndicator = document.getElementById('map-loading-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'none';
+        }
     }
 }
 
@@ -420,6 +445,12 @@ function initializeDataLayers() {
     
     // Update map view to show appropriate layer
     updateMapView();
+    
+    // Hide loading indicator after data layers are initialized
+    const loadingIndicator = document.getElementById('map-loading-indicator');
+    if (loadingIndicator) {
+        loadingIndicator.style.display = 'none';
+    }
 }
 
 async function detectAvailableYears() {
