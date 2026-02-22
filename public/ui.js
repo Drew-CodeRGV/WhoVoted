@@ -429,6 +429,7 @@ class DatasetSelector {
     /**
      * Populate dropdown with dataset options
      * Groups datasets by year, election type, and voting method
+     * Deduplicates primary elections (combines Republican and Democratic into single entry)
      * @param {Array} datasets - Array of dataset objects
      */
     populateDropdown(datasets) {
@@ -449,13 +450,24 @@ class DatasetSelector {
             return;
         }
         
-        // Group datasets by year (descending), then by election type, then by voting method
-        const grouped = this.groupDatasets(datasets);
+        // Deduplicate datasets - for primaries, combine Republican and Democratic into one entry
+        const uniqueDatasets = [];
+        const seenKeys = new Set();
         
-        // Populate dropdown with grouped options
         datasets.forEach((dataset, index) => {
+            // Create key without party affiliation for deduplication
+            const key = `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}`;
+            
+            if (!seenKeys.has(key)) {
+                seenKeys.add(key);
+                uniqueDatasets.push({ dataset, originalIndex: index });
+            }
+        });
+        
+        // Populate dropdown with unique datasets
+        uniqueDatasets.forEach(({ dataset, originalIndex }) => {
             const option = document.createElement('option');
-            option.value = index;
+            option.value = originalIndex;
             
             // Format label with metadata
             const votingMethodLabel = dataset.votingMethod === 'election-day' ? 'Election Day' : 'Early Voting';
