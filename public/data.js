@@ -343,6 +343,9 @@ function initializeDataLayers() {
     
     // Add markers for each voter
     features.forEach(feature => {
+        // Skip features with no geometry (unmatched early vote records)
+        if (!feature.geometry || !feature.geometry.coordinates) return;
+        
         const coords = feature.geometry.coordinates;
         const props = feature.properties;
         

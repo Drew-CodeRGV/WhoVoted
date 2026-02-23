@@ -1284,6 +1284,8 @@ class ProcessingJob:
                 unmatched += 1
             
             results.append(record)
+            self.processed_records += 1
+            self.progress = 0.2 + (0.6 * (self.processed_records / self.total_records))
         
         self.log(f"VUID resolution: {matched} matched, {unmatched} unmatched")
         self.geocoded_count = matched

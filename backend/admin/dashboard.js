@@ -59,8 +59,10 @@ function handleFileSelect(file) {
     if (!file) return;
     
     // Validate file type
-    if (!file.name.endsWith('.csv')) {
-        showError('Only CSV files are accepted');
+    const validExtensions = ['.csv', '.xlsx', '.xls'];
+    const hasValidExt = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+    if (!hasValidExt) {
+        showError('Only CSV and Excel (.xlsx, .xls) files are accepted');
         return;
     }
     
@@ -171,12 +173,21 @@ function startStatusPolling() {
             
             updateStatus(data);
             
+            // Get the most recent job status
+            let jobStatus = data.status;
+            let jobErrors = data.errors;
+            if (data.jobs && data.jobs.length > 0) {
+                const lastJob = data.jobs[data.jobs.length - 1];
+                jobStatus = lastJob.status;
+                jobErrors = lastJob.errors;
+            }
+            
             // Stop polling if completed or failed
-            if (data.status === 'completed' || data.status === 'failed') {
+            if (jobStatus === 'completed' || jobStatus === 'failed') {
                 clearInterval(statusPollInterval);
                 statusPollInterval = null;
                 
-                if (data.status === 'completed') {
+                if (jobStatus === 'completed') {
                     showSuccess('Processing completed successfully!');
                     uploadBtn.disabled = false;
                     uploadBtn.textContent = 'Upload and Process';
@@ -187,7 +198,7 @@ function startStatusPolling() {
                 }
                 
                 // Show download errors button if there are errors
-                if (data.errors && data.errors.length > 0) {
+                if (jobErrors && jobErrors.length > 0) {
                     downloadErrorsBtn.classList.add('show');
                 }
             }
@@ -199,38 +210,51 @@ function startStatusPolling() {
 
 // Update status display
 function updateStatus(data) {
-    if (data.status === 'idle') {
+    // Handle both flat format and jobs array format
+    let jobData = data;
+    if (data.jobs && data.jobs.length > 0) {
+        // Use the most recent job (last in array)
+        jobData = data.jobs[data.jobs.length - 1];
+    }
+    
+    if (jobData.status === 'idle') {
         return;
     }
     
+    // Make sure progress section is visible
+    progressSection.classList.add('show');
+    
     // DEBUG: Log received data
     console.log('[DEBUG] Received status data:', {
-        cache_hits: data.cache_hits,
-        processed_records: data.processed_records,
-        total_records: data.total_records,
-        geocoded_count: data.geocoded_count
+        status: jobData.status,
+        cache_hits: jobData.cache_hits,
+        processed_records: jobData.processed_records,
+        total_records: jobData.total_records,
+        geocoded_count: jobData.geocoded_count,
+        failed_count: jobData.failed_count,
+        progress: jobData.progress
     });
     
     // Get values from data
-    const cacheHits = data.cache_hits || 0;
-    const processedRecords = data.processed_records || 0;
-    const totalRecords = data.total_records || 1; // Avoid division by zero
+    const cacheHits = jobData.cache_hits || 0;
+    const processedRecs = jobData.processed_records || 0;
+    const totalRecs = jobData.total_records || 1; // Avoid division by zero
     
     // Calculate how many were newly geocoded (processed minus cached)
-    const newGeocoded = processedRecords - cacheHits;
+    const newGeocoded = processedRecs - cacheHits;
     
     // DEBUG: Log calculations
     console.log('[DEBUG] Calculations:', {
         cacheHits,
-        processedRecords,
+        processedRecs,
         newGeocoded,
-        totalRecords
+        totalRecs
     });
     
     // Calculate percentages based on TOTAL records (not processed)
-    const cachedPercent = Math.round((cacheHits / totalRecords) * 100);
-    const newPercent = Math.round((newGeocoded / totalRecords) * 100);
-    const totalPercent = Math.round((processedRecords / totalRecords) * 100);
+    const cachedPercent = Math.round((cacheHits / totalRecs) * 100);
+    const newPercent = Math.round((newGeocoded / totalRecs) * 100);
+    const totalPercent = Math.round((processedRecs / totalRecs) * 100);
     
     // DEBUG: Log percentages
     console.log('[DEBUG] Percentages:', {
@@ -264,17 +288,17 @@ function updateStatus(data) {
     progressFill.style.width = `${totalPercent}%`;
     
     // Update status text
-    statusText.textContent = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+    statusText.textContent = jobData.status.charAt(0).toUpperCase() + jobData.status.slice(1);
     
     // Update record counts
-    document.getElementById('total-records').textContent = data.total_records || 0;
-    document.getElementById('processed-records').textContent = data.processed_records || 0;
-    document.getElementById('geocoded-count').textContent = data.geocoded_count || 0;
-    document.getElementById('failed-count').textContent = data.failed_count || 0;
+    document.getElementById('total-records').textContent = jobData.total_records || 0;
+    document.getElementById('processed-records').textContent = jobData.processed_records || 0;
+    document.getElementById('geocoded-count').textContent = jobData.geocoded_count || 0;
+    document.getElementById('failed-count').textContent = jobData.failed_count || 0;
     
     // Update log
-    if (data.log_messages && data.log_messages.length > 0) {
-        logViewer.innerHTML = data.log_messages.map(log => {
+    if (jobData.log_messages && jobData.log_messages.length > 0) {
+        logViewer.innerHTML = jobData.log_messages.map(log => {
             const timestamp = new Date(log.timestamp).toLocaleTimeString();
             return `<div class="log-entry"><span class="log-timestamp">[${timestamp}]</span> ${log.message}</div>`;
         }).join('');
@@ -329,11 +353,17 @@ window.addEventListener('load', async () => {
         
         const data = await response.json();
         
-        if (data.status !== 'idle') {
+        // Get the most recent job status
+        let jobStatus = data.status;
+        if (data.jobs && data.jobs.length > 0) {
+            jobStatus = data.jobs[data.jobs.length - 1].status;
+        }
+        
+        if (jobStatus && jobStatus !== 'idle') {
             progressSection.classList.add('show');
             updateStatus(data);
             
-            if (data.status === 'running') {
+            if (jobStatus === 'running' || jobStatus === 'queued') {
                 startStatusPolling();
             }
         }
