@@ -2231,8 +2231,8 @@ async function loadUploadHistory() {
         html += '<th>Election Type</th>';
         html += '<th>Voting Method</th>';
         html += '<th>Total Records</th>';
-        html += '<th>Geocoded</th>';
-        html += '<th>Failed</th>';
+        html += '<th>Matched</th>';
+        html += '<th>Unmatched</th>';
         html += '<th>Success Rate</th>';
         html += '<th>Actions</th>';
         html += '</tr></thead>';
@@ -2259,8 +2259,14 @@ async function loadUploadHistory() {
             });
             
             const successRate = m.total_addresses > 0 
-                ? ((m.successfully_geocoded / m.total_addresses) * 100).toFixed(1)
+                ? (m.is_early_voting 
+                    ? (((m.matched_vuids || 0) / m.total_addresses) * 100).toFixed(1)
+                    : ((m.successfully_geocoded / m.total_addresses) * 100).toFixed(1))
                 : '0.0';
+            
+            // For early vote: matched/unmatched; for regular: geocoded/failed
+            const matchedCount = m.is_early_voting ? (m.matched_vuids || 0) : (m.successfully_geocoded || 0);
+            const unmatchedCount = m.is_early_voting ? (m.unmatched_vuids || 0) : (m.failed_addresses || 0);
             
             let badge = 'badge-success';
             if (parseFloat(successRate) < 90) badge = 'badge-warning';
@@ -2287,8 +2293,8 @@ async function loadUploadHistory() {
             html += `<td style="text-transform: capitalize;">${m.election_type || 'N/A'}</td>`;
             html += `<td><span class="badge ${votingMethodBadge}">${votingMethodLabel}</span></td>`;
             html += `<td>${(m.total_addresses || 0).toLocaleString()}</td>`;
-            html += `<td>${(m.successfully_geocoded || 0).toLocaleString()}</td>`;
-            html += `<td>${(m.failed_addresses || 0).toLocaleString()}</td>`;
+            html += `<td>${matchedCount.toLocaleString()}</td>`;
+            html += `<td>${unmatchedCount.toLocaleString()}</td>`;
             html += `<td><span class="badge ${badge}">${successRate}%</span></td>`;
             html += `<td>
                 <button class="preview-btn" onclick="previewData('${mapDataFile}', '${m.county} ${m.year} ${m.election_type}')">Preview</button>
