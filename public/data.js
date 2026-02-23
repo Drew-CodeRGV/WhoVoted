@@ -919,16 +919,9 @@ class DatasetManager {
                 this.selectedDatasetIndex = parseInt(savedIndex, 10);
             }
             
-            const savedFilter = localStorage.getItem('partyFilter');
-            if (savedFilter && ['all', 'republican', 'democratic'].includes(savedFilter)) {
-                this.partyFilter = savedFilter;
-            } else {
-                // Default to 'all' if no valid saved filter
-                this.partyFilter = 'all';
-            }
+            // Always default to 'all' on page load
+            this.partyFilter = 'all';
         } catch (error) {
-            // localStorage may be unavailable
-            // Use default values and continue without persistence
             console.warn('Failed to load state from localStorage:', error.message);
             this.selectedDatasetIndex = null;
             this.partyFilter = 'all';

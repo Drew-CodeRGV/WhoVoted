@@ -757,40 +757,14 @@ class PartyFilter {
     
     /**
      * Restore saved filter selection from localStorage
-     * Defaults to "all" if no saved selection exists
+     * Always defaults to "all" on page load
      */
     restoreSavedFilter() {
-        try {
-            const savedFilter = localStorage.getItem('partyFilter');
-            
-            if (savedFilter !== null) {
-                const validFilters = ['all', 'republican', 'democratic'];
-                
-                if (validFilters.includes(savedFilter)) {
-                    console.log(`PartyFilter: Restoring saved filter: ${savedFilter}`);
-                    this.currentFilter = savedFilter;
-                    this.updateButtonStates(savedFilter);
-                    return savedFilter;
-                } else {
-                    console.warn(`PartyFilter: Invalid saved filter value: ${savedFilter}, using default`);
-                    localStorage.removeItem('partyFilter');
-                }
-            }
-            
-            // Default to "all"
-            console.log('PartyFilter: No saved filter, using default "all"');
-            this.currentFilter = 'all';
-            this.updateButtonStates('all');
-            return 'all';
-            
-        } catch (error) {
-            console.warn('PartyFilter: Error restoring saved filter:', error);
-            
-            // Fallback to default
-            this.currentFilter = 'all';
-            this.updateButtonStates('all');
-            return 'all';
-        }
+        // Always start with "all" — user picks a party each session
+        console.log('PartyFilter: Defaulting to "all"');
+        this.currentFilter = 'all';
+        this.updateButtonStates('all');
+        return 'all';
     }
     
     /**
