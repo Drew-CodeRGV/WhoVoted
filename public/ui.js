@@ -223,153 +223,70 @@ function toggleLayerPanel() {
 // ============================================================================
 
 /**
- * ColorLegend class displays the marker color coding system
+ * ColorLegend class displays a small info icon that shows marker color coding on click
  */
 class ColorLegend {
     constructor() {
-        this.isCollapsed = true; // Start collapsed
-        this.createLegend();
-        this.makeDraggable();
+        this.isOpen = false;
+        this.createIcon();
     }
     
-    createLegend() {
-        const legend = document.createElement('div');
-        legend.id = 'colorLegend';
-        legend.className = 'color-legend collapsed'; // Start with collapsed class
-        legend.innerHTML = `
-            <div class="legend-header">
-                <h3>Marker Legend</h3>
-                <button class="legend-toggle" onclick="toggleLegend()">
-                    <i class="fas fa-chevron-up"></i>
-                </button>
-            </div>
-            <div class="legend-content" id="legendContent" style="display: none;">
+    createIcon() {
+        // Info icon button
+        const btn = document.createElement('button');
+        btn.id = 'legendInfoBtn';
+        btn.className = 'legend-info-btn';
+        btn.title = 'Marker Legend';
+        btn.innerHTML = '<i class="fas fa-info-circle"></i>';
+        document.body.appendChild(btn);
+
+        // Popup panel
+        const popup = document.createElement('div');
+        popup.id = 'legendPopup';
+        popup.className = 'legend-popup';
+        popup.innerHTML = `
+            <div class="legend-popup-content">
                 <div class="legend-section">
-                    <h4>Voted (Filled Circles)</h4>
-                    <div class="legend-item">
-                        <span class="legend-marker filled red"></span>
-                        <span>Republican</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-marker filled blue"></span>
-                        <span>Democratic</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-marker filled purple"></span>
-                        <span>Switched to Democratic</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-marker filled maroon"></span>
-                        <span>Switched to Republican</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-marker filled green"></span>
-                        <span>Unknown Affiliation</span>
-                    </div>
+                    <h4>Voted (Filled)</h4>
+                    <div class="legend-item"><span class="legend-marker filled red"></span><span>Republican</span></div>
+                    <div class="legend-item"><span class="legend-marker filled blue"></span><span>Democratic</span></div>
+                    <div class="legend-item"><span class="legend-marker filled purple"></span><span>Switched to Democratic</span></div>
+                    <div class="legend-item"><span class="legend-marker filled maroon"></span><span>Switched to Republican</span></div>
+                    <div class="legend-item"><span class="legend-marker filled green"></span><span>Unknown</span></div>
                 </div>
-                
                 <div class="legend-section">
-                    <h4>Registered, Not Voted (Hollow)</h4>
-                    <div class="legend-item">
-                        <span class="legend-marker hollow red"></span>
-                        <span>Republican</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-marker hollow blue"></span>
-                        <span>Democratic</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-marker hollow gray"></span>
-                        <span>Unknown Party</span>
-                    </div>
-                </div>
-                
-                <div class="legend-section">
-                    <h4>Not Registered</h4>
-                    <div class="legend-item">
-                        <span class="legend-marker hollow black"></span>
-                        <span>No Registered Voters</span>
-                    </div>
+                    <h4>Registered, Not Voted</h4>
+                    <div class="legend-item"><span class="legend-marker hollow red"></span><span>Republican</span></div>
+                    <div class="legend-item"><span class="legend-marker hollow blue"></span><span>Democratic</span></div>
+                    <div class="legend-item"><span class="legend-marker hollow gray"></span><span>Unknown</span></div>
                 </div>
             </div>
         `;
-        
-        document.body.appendChild(legend);
-    }
-    
-    makeDraggable() {
-        const legend = document.getElementById('colorLegend');
-        const header = legend.querySelector('.legend-header');
-        
-        let isDragging = false;
-        let currentX;
-        let currentY;
-        let initialX;
-        let initialY;
-        let xOffset = 0;
-        let yOffset = 0;
-        
-        header.addEventListener('mousedown', dragStart);
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('mouseup', dragEnd);
-        
-        function dragStart(e) {
-            if (e.target.classList.contains('legend-toggle') || 
-                e.target.closest('.legend-toggle')) {
-                return;
+        document.body.appendChild(popup);
+
+        // Toggle on click
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.isOpen = !this.isOpen;
+            popup.classList.toggle('open', this.isOpen);
+            btn.classList.toggle('active', this.isOpen);
+        });
+
+        // Close when clicking elsewhere
+        document.addEventListener('click', () => {
+            if (this.isOpen) {
+                this.isOpen = false;
+                popup.classList.remove('open');
+                btn.classList.remove('active');
             }
-            
-            initialX = e.clientX - xOffset;
-            initialY = e.clientY - yOffset;
-            
-            if (e.target === header || header.contains(e.target)) {
-                isDragging = true;
-                legend.style.cursor = 'grabbing';
-            }
-        }
-        
-        function drag(e) {
-            if (isDragging) {
-                e.preventDefault();
-                
-                currentX = e.clientX - initialX;
-                currentY = e.clientY - initialY;
-                
-                xOffset = currentX;
-                yOffset = currentY;
-                
-                setTranslate(currentX, currentY, legend);
-            }
-        }
-        
-        function dragEnd(e) {
-            initialX = currentX;
-            initialY = currentY;
-            
-            isDragging = false;
-            legend.style.cursor = 'grab';
-        }
-        
-        function setTranslate(xPos, yPos, el) {
-            el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
-        }
+        });
+
+        popup.addEventListener('click', (e) => e.stopPropagation());
     }
 }
 
 function toggleLegend() {
-    const content = document.getElementById('legendContent');
-    const toggle = document.querySelector('.legend-toggle i');
-    const legend = document.getElementById('colorLegend');
-    
-    if (content.style.display === 'none') {
-        content.style.display = 'block';
-        toggle.className = 'fas fa-chevron-down';
-        legend.classList.remove('collapsed');
-    } else {
-        content.style.display = 'none';
-        toggle.className = 'fas fa-chevron-up';
-        legend.classList.add('collapsed');
-    }
+    // Legacy stub — no longer used
 }
 
 // ============================================================================
