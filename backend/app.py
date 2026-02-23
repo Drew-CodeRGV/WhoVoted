@@ -144,9 +144,13 @@ def admin_dashboard():
 
 @app.route('/admin/dashboard.js')
 def admin_dashboard_js():
-    """Serve admin dashboard JavaScript."""
+    """Serve admin dashboard JavaScript with no-cache headers."""
     admin_dir = Path(__file__).parent / 'admin'
-    return send_from_directory(admin_dir, 'dashboard.js', mimetype='application/javascript')
+    response = send_from_directory(admin_dir, 'dashboard.js', mimetype='application/javascript')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/admin/check-duplicates', methods=['POST'])
 @require_auth
@@ -524,11 +528,28 @@ def get_status():
                 'completed_at': job.completed_at.isoformat() if hasattr(job, 'completed_at') and job.completed_at else None
             })
     
-    return jsonify({
+    result = {
         'jobs': jobs_status,
         'queue_length': len(job_queue),
         'active_count': sum(1 for j in jobs_status if j['status'] == 'running')
-    })
+    }
+    
+    # Add flat fields from most recent job for backward compatibility
+    if jobs_status:
+        latest = jobs_status[-1]
+        result['status'] = latest['status']
+        result['total_records'] = latest['total_records']
+        result['processed_records'] = latest['processed_records']
+        result['geocoded_count'] = latest['geocoded_count']
+        result['failed_count'] = latest['failed_count']
+        result['cache_hits'] = latest['cache_hits']
+        result['log_messages'] = latest['log_messages']
+        result['errors'] = latest['errors']
+        result['progress'] = latest['progress']
+    else:
+        result['status'] = 'idle'
+    
+    return jsonify(result)
 
 @app.route('/admin/job/<job_id>')
 @require_auth
