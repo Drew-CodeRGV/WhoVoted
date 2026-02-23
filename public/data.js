@@ -311,14 +311,19 @@ async function loadDataset(dataset) {
 /**
  * Update the dataset stats box below the logo
  */
-function updateDatasetStatsBox(features, demCount, repCount) {
+function updateDatasetStatsBox() {
     const el = document.getElementById('dataset-stats-content');
     if (!el) return;
     
-    const total = features.length;
+    const allFeatures = window.mapData ? window.mapData.features : [];
+    if (!allFeatures.length) {
+        el.innerHTML = 'No data loaded';
+        return;
+    }
+    
     const ds = window.currentDataset || currentDataset;
     
-    // Build title from dataset info
+    // Build title
     let title = '';
     if (ds) {
         const parts = [];
@@ -328,28 +333,75 @@ function updateDatasetStatsBox(features, demCount, repCount) {
         title = parts.join(' · ');
     }
     
-    // Count from all features (unfiltered) for accurate DEM/REP totals
-    let allDem = 0, allRep = 0;
-    const allFeatures = window.mapData ? window.mapData.features : features;
+    // Count party totals from all features
+    let allDem = 0, allRep = 0, flippedToBlue = 0, flippedToRed = 0;
     allFeatures.forEach(f => {
-        const p = f.properties?.party_affiliation_current;
-        if (p) {
-            const pl = p.toLowerCase();
-            if (pl.includes('democrat')) allDem++;
-            else if (pl.includes('republican')) allRep++;
+        const p = f.properties;
+        if (!p) return;
+        const cur = (p.party_affiliation_current || '').toLowerCase();
+        const prev = (p.party_affiliation_previous || '').toLowerCase();
+        if (cur.includes('democrat')) allDem++;
+        else if (cur.includes('republican')) allRep++;
+        
+        if (prev && cur) {
+            const prevRep = prev.includes('republican');
+            const prevDem = prev.includes('democrat');
+            const curRep = cur.includes('republican');
+            const curDem = cur.includes('democrat');
+            if (prevRep && curDem) flippedToBlue++;
+            if (prevDem && curRep) flippedToRed++;
         }
     });
     
     const totalAll = allFeatures.length;
+    const flipFilter = typeof flippedVotersFilter !== 'undefined' ? flippedVotersFilter : 'none';
+    const datasetManager = getDatasetManager();
+    const partyFilter = datasetManager ? datasetManager.getPartyFilter() : 'all';
     
-    el.innerHTML = `
-        <div class="stats-title">${title || 'Dataset'}</div>
-        <div class="stats-row">
-            <span class="stat-item">📊 <span class="stat-value">${totalAll.toLocaleString()}</span> voters</span>
-            <span class="stat-item stat-dem">🔵 <span class="stat-value">${allDem.toLocaleString()}</span></span>
-            <span class="stat-item stat-rep">🔴 <span class="stat-value">${allRep.toLocaleString()}</span></span>
-        </div>
-    `;
+    let statsHtml = '';
+    
+    if (flipFilter === 'to-blue') {
+        statsHtml = `
+            <div class="stats-title">${title || 'Dataset'} — Flipped R→D</div>
+            <div class="stats-row">
+                <span class="stat-item" style="color:#9370DB">🟣 <span class="stat-value">${flippedToBlue.toLocaleString()}</span> voters flipped R→D</span>
+            </div>
+            <div class="stats-row" style="font-size:11px;color:#888;margin-top:2px;">of ${totalAll.toLocaleString()} total</div>`;
+    } else if (flipFilter === 'to-red') {
+        statsHtml = `
+            <div class="stats-title">${title || 'Dataset'} — Flipped D→R</div>
+            <div class="stats-row">
+                <span class="stat-item" style="color:#800000">🔴 <span class="stat-value">${flippedToRed.toLocaleString()}</span> voters flipped D→R</span>
+            </div>
+            <div class="stats-row" style="font-size:11px;color:#888;margin-top:2px;">of ${totalAll.toLocaleString()} total</div>`;
+    } else if (partyFilter === 'democratic') {
+        statsHtml = `
+            <div class="stats-title">${title || 'Dataset'} — Democrats</div>
+            <div class="stats-row">
+                <span class="stat-item stat-dem">🔵 <span class="stat-value">${allDem.toLocaleString()}</span> Democratic voters</span>
+            </div>
+            <div class="stats-row" style="font-size:11px;color:#888;margin-top:2px;">of ${totalAll.toLocaleString()} total</div>`;
+    } else if (partyFilter === 'republican') {
+        statsHtml = `
+            <div class="stats-title">${title || 'Dataset'} — Republicans</div>
+            <div class="stats-row">
+                <span class="stat-item stat-rep">🔴 <span class="stat-value">${allRep.toLocaleString()}</span> Republican voters</span>
+            </div>
+            <div class="stats-row" style="font-size:11px;color:#888;margin-top:2px;">of ${totalAll.toLocaleString()} total</div>`;
+    } else {
+        // Default: show all
+        const totalFlipped = flippedToBlue + flippedToRed;
+        statsHtml = `
+            <div class="stats-title">${title || 'Dataset'}</div>
+            <div class="stats-row">
+                <span class="stat-item">📊 <span class="stat-value">${totalAll.toLocaleString()}</span> voters</span>
+                <span class="stat-item stat-dem">🔵 <span class="stat-value">${allDem.toLocaleString()}</span></span>
+                <span class="stat-item stat-rep">🔴 <span class="stat-value">${allRep.toLocaleString()}</span></span>
+            </div>
+            ${totalFlipped > 0 ? `<div class="stats-row" style="font-size:11px;color:#888;margin-top:2px;">🔄 ${totalFlipped.toLocaleString()} flipped (${flippedToBlue} R→D, ${flippedToRed} D→R)</div>` : ''}`;
+    }
+    
+    el.innerHTML = statsHtml;
 }
 
 function initializeDataLayers() {
@@ -481,6 +533,12 @@ function initializeDataLayers() {
             group.forEach(v => {
                 if (v.props.name) popupContent += `${v.props.name}`;
                 if (v.props.party_affiliation_current) popupContent += ` (${v.props.party_affiliation_current})`;
+                if (v.props.party_affiliation_previous && v.props.party_affiliation_previous !== v.props.party_affiliation_current) {
+                    const prev = v.props.party_affiliation_previous;
+                    const cur = v.props.party_affiliation_current;
+                    const color = cur.toLowerCase().includes('democrat') ? '#9370DB' : '#800000';
+                    popupContent += `<br><span style="color:${color};font-size:11px;">↩ Was ${prev}</span>`;
+                }
                 popupContent += `<br>`;
             });
             marker.bindPopup(popupContent);
@@ -501,6 +559,13 @@ function initializeDataLayers() {
                 if (v.props.name) popupContent += `<strong>Name:</strong> ${v.props.name}<br>`;
                 if (v.props.precinct) popupContent += `<strong>Precinct:</strong> ${v.props.precinct}<br>`;
                 if (v.props.party_affiliation_current) popupContent += `<strong>Party:</strong> ${v.props.party_affiliation_current}<br>`;
+                if (v.props.party_affiliation_previous && v.props.party_affiliation_previous !== v.props.party_affiliation_current) {
+                    const prev = v.props.party_affiliation_previous;
+                    const cur = v.props.party_affiliation_current;
+                    const flipLabel = cur.toLowerCase().includes('democrat') ? 'R→D' : 'D→R';
+                    const color = cur.toLowerCase().includes('democrat') ? '#9370DB' : '#800000';
+                    popupContent += `<strong style="color:${color}">Flipped:</strong> <span style="color:${color}">${prev} → ${cur} (${flipLabel})</span><br>`;
+                }
                 if (v.props.check_in) popupContent += `<strong>Voted:</strong> ${v.props.check_in}<br>`;
                 
                 marker.bindPopup(popupContent);
@@ -517,7 +582,7 @@ function initializeDataLayers() {
     console.log('Heatmap mode:', window.heatmapMode);
     
     // Update the stats box below the logo
-    updateDatasetStatsBox(features, heatmapDataDemocratic.length, heatmapDataRepublican.length);
+    updateDatasetStatsBox();
     
     // Update heatmap layers with new data
     // CRITICAL: Remove layers from map BEFORE calling setLatLngs to avoid errors
