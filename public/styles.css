@@ -1549,6 +1549,59 @@ body {
     pointer-events: none;
 }
 
+/* Dataset Stats Box - below logo */
+.dataset-stats-box {
+    position: fixed;
+    top: 110px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(6px);
+    border-radius: 8px;
+    padding: 8px 16px;
+    z-index: 999;
+    font-size: 12px;
+    color: #333;
+    text-align: center;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.15);
+    max-width: 340px;
+    min-width: 200px;
+    line-height: 1.5;
+    pointer-events: none;
+}
+
+.dataset-stats-box .stats-title {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 4px;
+    color: #222;
+}
+
+.dataset-stats-box .stats-row {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.dataset-stats-box .stat-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.dataset-stats-box .stat-value {
+    font-weight: 700;
+}
+
+.dataset-stats-box .stat-dem {
+    color: #1E90FF;
+}
+
+.dataset-stats-box .stat-rep {
+    color: #DC143C;
+}
+
 /* Header Background Fade */
 .header-background {
     position: fixed;

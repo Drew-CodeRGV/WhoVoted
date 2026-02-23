@@ -308,6 +308,50 @@ async function loadDataset(dataset) {
     }
 }
 
+/**
+ * Update the dataset stats box below the logo
+ */
+function updateDatasetStatsBox(features, demCount, repCount) {
+    const el = document.getElementById('dataset-stats-content');
+    if (!el) return;
+    
+    const total = features.length;
+    const ds = window.currentDataset || currentDataset;
+    
+    // Build title from dataset info
+    let title = '';
+    if (ds) {
+        const parts = [];
+        if (ds.county) parts.push(ds.county + ' County');
+        if (ds.year) parts.push(ds.year);
+        if (ds.electionType) parts.push(ds.electionType.charAt(0).toUpperCase() + ds.electionType.slice(1));
+        title = parts.join(' · ');
+    }
+    
+    // Count from all features (unfiltered) for accurate DEM/REP totals
+    let allDem = 0, allRep = 0;
+    const allFeatures = window.mapData ? window.mapData.features : features;
+    allFeatures.forEach(f => {
+        const p = f.properties?.party_affiliation_current;
+        if (p) {
+            const pl = p.toLowerCase();
+            if (pl.includes('democrat')) allDem++;
+            else if (pl.includes('republican')) allRep++;
+        }
+    });
+    
+    const totalAll = allFeatures.length;
+    
+    el.innerHTML = `
+        <div class="stats-title">${title || 'Dataset'}</div>
+        <div class="stats-row">
+            <span class="stat-item">📊 <span class="stat-value">${totalAll.toLocaleString()}</span> voters</span>
+            <span class="stat-item stat-dem">🔵 <span class="stat-value">${allDem.toLocaleString()}</span></span>
+            <span class="stat-item stat-rep">🔴 <span class="stat-value">${allRep.toLocaleString()}</span></span>
+        </div>
+    `;
+}
+
 function initializeDataLayers() {
     if (!window.mapData || !window.mapData.features) {
         console.warn('No map data available');
@@ -471,6 +515,9 @@ function initializeDataLayers() {
     console.log('Created', heatmapDataRepublican.length, 'Republican heatmap points');
     console.log('Party filter:', partyFilter);
     console.log('Heatmap mode:', window.heatmapMode);
+    
+    // Update the stats box below the logo
+    updateDatasetStatsBox(features, heatmapDataDemocratic.length, heatmapDataRepublican.length);
     
     // Update heatmap layers with new data
     // CRITICAL: Remove layers from map BEFORE calling setLatLngs to avoid errors
