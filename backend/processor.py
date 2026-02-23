@@ -1217,7 +1217,11 @@ class ProcessingJob:
         # Resolve each VUID
         matched = 0
         unmatched = 0
-        roster_date = self.election_date or datetime.now().strftime('%Y-%m-%d')
+        
+        # Extract roster date from the filename timestamp (e.g. _202602221003529256 → 2026-02-22)
+        # This is the date the file was generated, NOT the election date
+        roster_date = self._extract_roster_date_from_filename()
+        self.log(f"Roster date from filename: {roster_date}")
         primary_party = self.primary_party or ''
         
         # Prepare output columns
@@ -1288,6 +1292,44 @@ class ProcessingJob:
         self.completed_at = datetime.now()
         processing_time = (self.completed_at - self.started_at).total_seconds()
         self.log(f"Early vote processing completed in {processing_time:.1f}s")
+
+    def _extract_roster_date_from_filename(self) -> str:
+        """Extract the roster date from the original filename's timestamp suffix.
+        
+        Filenames like 'EV DEM Roster March 3, 2026 (Cumulative)_202602221003529256'
+        have a timestamp suffix where the first 8 digits are YYYYMMDD — the date
+        the file was generated/updated, which is the roster date.
+        
+        Falls back to today's date if no timestamp is found.
+        """
+        import re
+        filename = self.original_filename or ''
+        # Remove extension
+        name = re.sub(r'\.(csv|CSV)$', '', filename)
+        
+        # Look for timestamp suffix: underscore followed by 14-20 digits at end
+        match = re.search(r'_(\d{14,20})$', name)
+        if match:
+            ts = match.group(1)
+            try:
+                # First 8 digits = YYYYMMDD
+                return f"{ts[0:4]}-{ts[4:6]}-{ts[6:8]}"
+            except (IndexError, ValueError):
+                pass
+        
+        # Fallback: try to find any 8-digit date-like sequence at the end
+        match = re.search(r'_(\d{8})$', name)
+        if match:
+            ds = match.group(1)
+            try:
+                datetime.strptime(ds, '%Y%m%d')
+                return f"{ds[0:4]}-{ds[4:6]}-{ds[6:8]}"
+            except ValueError:
+                pass
+        
+        # Last resort: today's date
+        self.log("Warning: Could not extract roster date from filename, using today's date")
+        return datetime.now().strftime('%Y-%m-%d')
 
     def generate_early_vote_outputs(self, df: pd.DataFrame, matched: int, unmatched: int, roster_date: str):
         """Generate GeoJSON day snapshot and cumulative files for early vote data."""
