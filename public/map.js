@@ -812,6 +812,9 @@ async function loadPrecinctBoundaries(dataUrl = 'data/precinct_boundaries_combin
         // Create labels layer for precinct numbers
         precinctLabelsLayer = L.layerGroup();
         
+        // Store label metadata for zoom-responsive resizing
+        const precinctLabelData = [];
+        
         const precinctLayer = L.geoJSON(geojsonData, {
             style: function(feature) {
                 return {
@@ -832,29 +835,21 @@ async function loadPrecinctBoundaries(dataUrl = 'data/precinct_boundaries_combin
                 
                 if (labelText && layer.getBounds) {
                     const center = layer.getBounds().getCenter();
-                    
-                    // Calculate approximate size based on bounds
                     const bounds = layer.getBounds();
-                    const latSpan = bounds.getNorth() - bounds.getSouth();
-                    const lngSpan = bounds.getEast() - bounds.getWest();
-                    const avgSpan = (latSpan + lngSpan) / 2;
-                    
-                    // Scale font size based on precinct area — large bold text to fill the precinct
-                    const fontSize = Math.max(18, Math.min(48, Math.round(avgSpan * 2000)));
-                    const iconW = Math.max(100, fontSize * 3);
-                    const iconH = Math.max(40, fontSize * 1.4);
                     
                     const label = L.marker(center, {
                         icon: L.divIcon({
                             className: 'precinct-label',
-                            html: `<div style="font-size: ${fontSize}px;">${labelText}</div>`,
-                            iconSize: [iconW, iconH],
-                            iconAnchor: [iconW / 2, iconH / 2]
+                            html: `<div>${labelText}</div>`,
+                            iconSize: [10, 10],
+                            iconAnchor: [5, 5]
                         }),
                         interactive: false,
                         zIndexOffset: -1000
                     });
                     
+                    // Store bounds so we can compute pixel width on zoom
+                    precinctLabelData.push({ label, bounds, text: labelText });
                     precinctLabelsLayer.addLayer(label);
                 }
                 
@@ -878,7 +873,49 @@ async function loadPrecinctBoundaries(dataUrl = 'data/precinct_boundaries_combin
             }
         });
         
-        console.log('Created', precinctLabelsLayer.getLayers().length, 'precinct labels');
+        console.log('Created', precinctLabelData.length, 'precinct labels');
+        
+        // Zoom-responsive label sizing
+        function updatePrecinctLabelSizes() {
+            if (!map || !map.hasLayer(precinctLabelsLayer)) return;
+            
+            precinctLabelData.forEach(({ label, bounds, text }) => {
+                // Convert precinct bounds to pixel coordinates
+                const nw = map.latLngToContainerPoint(bounds.getNorthWest());
+                const se = map.latLngToContainerPoint(bounds.getSouthEast());
+                const pixelWidth = Math.abs(se.x - nw.x);
+                const pixelHeight = Math.abs(se.y - nw.y);
+                
+                // Font size = fraction of the precinct's pixel width, capped
+                // Use ~40% of the smaller dimension so text fits inside
+                const charCount = text.length;
+                const maxByWidth = (pixelWidth * 0.7) / (charCount * 0.6);
+                const maxByHeight = pixelHeight * 0.5;
+                const fontSize = Math.max(0, Math.min(60, Math.floor(Math.min(maxByWidth, maxByHeight))));
+                
+                // Hide labels that would be too small to read
+                const iconW = Math.max(fontSize * charCount * 0.7, 10);
+                const iconH = Math.max(fontSize * 1.2, 10);
+                
+                label.setIcon(L.divIcon({
+                    className: 'precinct-label',
+                    html: `<div style="font-size:${fontSize}px;${fontSize < 8 ? 'display:none;' : ''}">${text}</div>`,
+                    iconSize: [iconW, iconH],
+                    iconAnchor: [iconW / 2, iconH / 2]
+                }));
+            });
+        }
+        
+        // Update on zoom and when layer is added
+        map.on('zoomend', updatePrecinctLabelSizes);
+        map.on('layeradd', function(e) {
+            if (e.layer === precinctLabelsLayer) {
+                updatePrecinctLabelSizes();
+            }
+        });
+        
+        // Initial sizing
+        updatePrecinctLabelSizes();
         
         return precinctLayer;
         
