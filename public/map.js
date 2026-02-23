@@ -1997,33 +1997,31 @@ async function captureScreenshot() {
     }
 
     try {
-        const mapEl = document.getElementById('map');
-        if (!mapEl) throw new Error('Map element not found');
-
-        // Capture the map container at browser window size
-        const W = window.innerWidth;
-        const H = window.innerHeight;
-
-        const capture = await html2canvas(mapEl, {
+        // Capture the entire document body (includes logo, stats box, map, everything)
+        const capture = await html2canvas(document.body, {
             useCORS: true,
             allowTaint: true,
             logging: false,
             scale: 1,
-            width: W,
-            height: H,
+            width: window.innerWidth,
+            height: window.innerHeight,
             backgroundColor: '#f0f0f0'
         });
 
-        // Create final canvas at window size
+        const W = capture.width;
+        const H = capture.height;
+
+        // Create final canvas with room for bottom bar
+        const barH = 44;
         const canvas = document.createElement('canvas');
         canvas.width = W;
-        canvas.height = H;
+        canvas.height = H + barH;
         const ctx = canvas.getContext('2d');
 
-        // Draw captured map
-        ctx.drawImage(capture, 0, 0, W, H);
+        // Draw captured page
+        ctx.drawImage(capture, 0, 0);
 
-        // Load logo for center watermark
+        // Large centered logo watermark (semi-transparent)
         const logo = new Image();
         logo.crossOrigin = 'anonymous';
         logo.src = 'assets/politiquera.png';
@@ -2033,27 +2031,28 @@ async function captureScreenshot() {
             logo.onerror = () => resolve();
         });
 
-        // Draw large centered logo watermark (semi-transparent)
         if (logo.naturalWidth) {
             const logoMaxW = Math.min(W * 0.4, 500);
             const aspect = logo.naturalWidth / logo.naturalHeight;
             const logoW = logoMaxW;
             const logoH = logoW / aspect;
             const logoX = (W - logoW) / 2;
-            const logoY = (H - logoH) / 2 - 20;
-            ctx.globalAlpha = 0.25;
+            const logoY = (H - logoH) / 2;
+            ctx.globalAlpha = 0.2;
             ctx.drawImage(logo, logoX, logoY, logoW, logoH);
             ctx.globalAlpha = 1.0;
         }
 
-        // Text watermark below logo
+        // Black bar at bottom with text
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fillRect(0, H, W, barH);
+
         const text = 'Data Visualizations by Politiquera.com';
-        ctx.font = '600 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.font = '600 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-        ctx.fillText(text, W / 2 + 1, H / 2 + 61);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.fillText(text, W / 2, H / 2 + 60);
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(text, W / 2, H + barH / 2);
 
         // Convert to blob and trigger download
         canvas.toBlob(blob => {
