@@ -367,7 +367,7 @@ function updateDatasetStatsBox() {
         statsHtml = `
             <div class="stats-title">${title || 'Dataset'} — Flipped R→D</div>
             <div class="stats-row">
-                <span class="stat-item" style="color:#9370DB">🟣 <span class="stat-value">${flippedToBlue.toLocaleString()}</span> voters flipped R→D</span>
+                <span class="stat-item" style="color:#7B2FBE">🟣 <span class="stat-value">${flippedToBlue.toLocaleString()}</span> voters flipped R→D</span>
             </div>
             <div class="stats-row" style="font-size:11px;color:#888;margin-top:2px;">of ${totalAll.toLocaleString()} total</div>`;
     } else if (flipFilter === 'to-red') {
@@ -540,7 +540,7 @@ function initializeDataLayers() {
                 if (v.props.party_affiliation_previous && v.props.party_affiliation_previous !== v.props.party_affiliation_current) {
                     const prev = v.props.party_affiliation_previous;
                     const cur = v.props.party_affiliation_current;
-                    const color = cur.toLowerCase().includes('democrat') ? '#9370DB' : '#800000';
+                    const color = cur.toLowerCase().includes('democrat') ? '#7B2FBE' : '#800000';
                     popupContent += `<br><span style="color:${color};font-size:11px;">↩ Was ${prev}</span>`;
                 }
                 popupContent += `<br>`;
@@ -568,7 +568,7 @@ function initializeDataLayers() {
                     const prev = v.props.party_affiliation_previous;
                     const cur = v.props.party_affiliation_current;
                     const flipLabel = cur.toLowerCase().includes('democrat') ? 'R→D' : 'D→R';
-                    const color = cur.toLowerCase().includes('democrat') ? '#9370DB' : '#800000';
+                    const color = cur.toLowerCase().includes('democrat') ? '#7B2FBE' : '#800000';
                     popupContent += `<strong style="color:${color}">Flipped:</strong> <span style="color:${color}">${prev} → ${cur} (${flipLabel})</span><br>`;
                 }
                 if (v.props.check_in) popupContent += `<strong>Voted:</strong> ${v.props.check_in}<br>`;
@@ -678,7 +678,7 @@ function initializeDataLayers() {
                 // Set gradient color based on active filter
                 const gradient = flippedVotersFilter === 'to-red'
                     ? { 0.4: '#800000', 0.65: '#800000', 1: '#800000' }
-                    : { 0.4: '#9370DB', 0.65: '#9370DB', 1: '#9370DB' };
+                    : { 0.4: '#7B2FBE', 0.65: '#7B2FBE', 1: '#7B2FBE' };
                 flippedHeatmapLayer.options.gradient = gradient;
                 flippedHeatmapLayer.setLatLngs(heatmapDataFlipped);
                 console.log('Updated flipped heatmap layer with', heatmapDataFlipped.length, 'points');

@@ -91,7 +91,7 @@ function initMap() {
         max: 1.0,
         minOpacity: 0.3,
         maxOpacity: 0.8,
-        gradient: { 0.4: '#9370DB', 0.65: '#9370DB', 1: '#9370DB' }
+        gradient: { 0.4: '#7B2FBE', 0.65: '#7B2FBE', 1: '#7B2FBE' }
     });
 
     // Track which heatmap mode is active
@@ -1070,7 +1070,7 @@ function getMarkerFillColor(colorCode) {
     const colors = {
         'red': '#DC143C',      // Republican
         'blue': '#1E90FF',     // Democratic
-        'purple': '#9370DB',   // Flipped: Republican → Democratic
+        'purple': '#7B2FBE',   // Flipped: Republican → Democratic
         'maroon': '#800000',   // Flipped: Democratic → Republican
         'green': '#32CD32'     // Unknown/Other
     };
