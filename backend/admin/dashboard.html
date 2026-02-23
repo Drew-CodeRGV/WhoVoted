@@ -1543,9 +1543,10 @@ async function analyzeFile(file) {
                 
                 analysisHtml += '</div>';
                 
+                const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
                 fileDetails.innerHTML = `
                     <div><strong>Name:</strong> ${file.name}</div>
-                    <div><strong>Size:</strong> ${sizeMB} MB</div>
+                    <div><strong>Size:</strong> ${fileSizeMB} MB</div>
                     <div><strong>Type:</strong> ${file.type || 'text/csv'}</div>
                     ${analysisHtml}
                 `;
@@ -1721,7 +1722,8 @@ function startStatusPolling() {
         clearInterval(statusPollInterval);
     }
     
-    statusPollInterval = setInterval(async () => {
+    // Poll immediately, then every 2 seconds
+    const pollOnce = async () => {
         try {
             const response = await fetch('/admin/status', {
                 credentials: 'include'
@@ -1773,7 +1775,12 @@ function startStatusPolling() {
         } catch (error) {
             console.error('Status polling error:', error);
         }
-    }, 2000); // Poll every 2 seconds
+    };
+
+    // Run first poll immediately
+    pollOnce();
+    // Then poll every 2 seconds
+    statusPollInterval = setInterval(pollOnce, 2000);
 }
 
 // Update jobs display with multiple job cards
