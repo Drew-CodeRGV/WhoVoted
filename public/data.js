@@ -352,6 +352,9 @@ function initializeDataLayers() {
         const lat = coords[1];
         const lng = coords[0];
         
+        // Skip features with null/invalid coordinates
+        if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) return;
+        
         // Add to traditional heatmap
         heatmapData.push([lat, lng, 1]);
         
