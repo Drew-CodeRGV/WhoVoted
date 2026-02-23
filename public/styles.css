@@ -1058,6 +1058,22 @@ body {
     filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
 
+/* Precinct Label Styles */
+.precinct-label {
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(80, 80, 80, 0.45);
+    text-align: center;
+    white-space: nowrap;
+    pointer-events: none;
+    text-shadow: 
+        0 0 3px rgba(255, 255, 255, 0.8),
+        0 0 6px rgba(255, 255, 255, 0.5);
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
     .time-filter-control {
@@ -1240,8 +1256,8 @@ body {
 }
 
 .map-icon-btn {
-    bottom: 76px;
-    right: 20px;
+    bottom: 20px;
+    right: 76px;
 }
 
 .data-icon-btn {
@@ -1268,7 +1284,7 @@ body {
 }
 
 .map-options-popup {
-    bottom: 134px;
+    bottom: 78px;
 }
 
 .data-options-popup {
@@ -1477,8 +1493,8 @@ body {
     }
     
     .map-icon-btn {
-        bottom: 68px;
-        right: 12px;
+        bottom: 16px;
+        right: 64px;
     }
     
     .data-icon-btn {
@@ -1493,7 +1509,7 @@ body {
     }
     
     .map-options-popup {
-        bottom: 120px;
+        bottom: 68px;
     }
     
     .data-options-popup {

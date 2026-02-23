@@ -3,6 +3,7 @@ let map, markerClusterGroup, heatmapLayer, heatmapLayerDemocratic, heatmapLayerR
 let yearLayers = {}; // Store layers by year
 let activeYears = new Set(); // Track which years are active
 let precinctBoundariesLayer = null; // Precinct boundaries layer
+let precinctLabelsLayer = null; // Precinct number labels layer
 let countyOutlinesLayer = null; // County outlines layer (separate from precincts)
 let pollingPlacesLayer = null; // Polling places layer
 let layerControlPanel = null; // Layer control panel instance
@@ -808,6 +809,9 @@ async function loadPrecinctBoundaries(dataUrl = 'data/precinct_boundaries_combin
         
         const geojsonData = await response.json();
         
+        // Create labels layer for precinct numbers
+        precinctLabelsLayer = L.layerGroup();
+        
         const precinctLayer = L.geoJSON(geojsonData, {
             style: function(feature) {
                 return {
@@ -820,10 +824,41 @@ async function loadPrecinctBoundaries(dataUrl = 'data/precinct_boundaries_combin
                 };
             },
             onEachFeature: function(feature, layer) {
+                // Create a label at the centroid of each precinct
+                const props = feature.properties;
+                const precinctId = props.precinct_id || props.precinct || '';
+                // Strip leading zeros for cleaner display
+                const labelText = precinctId.replace(/^0+/, '') || precinctId;
+                
+                if (labelText && layer.getBounds) {
+                    const center = layer.getBounds().getCenter();
+                    
+                    // Calculate approximate size based on bounds
+                    const bounds = layer.getBounds();
+                    const latSpan = bounds.getNorth() - bounds.getSouth();
+                    const lngSpan = bounds.getEast() - bounds.getWest();
+                    const avgSpan = (latSpan + lngSpan) / 2;
+                    
+                    // Scale font size based on precinct area (larger precincts get bigger text)
+                    // Base size 12px, scale up for larger precincts
+                    const fontSize = Math.max(10, Math.min(22, Math.round(avgSpan * 600)));
+                    
+                    const label = L.marker(center, {
+                        icon: L.divIcon({
+                            className: 'precinct-label',
+                            html: `<div style="font-size: ${fontSize}px;">${labelText}</div>`,
+                            iconSize: [80, 30],
+                            iconAnchor: [40, 15]
+                        }),
+                        interactive: false,
+                        zIndexOffset: -1000
+                    });
+                    
+                    precinctLabelsLayer.addLayer(label);
+                }
+                
                 // Add click handler to show precinct info
                 layer.on('click', function(e) {
-                    const props = feature.properties;
-                    const precinctId = props.precinct_id || props.precinct || 'Unknown';
                     const turnoutPct = props.turnout_percentage || 'N/A';
                     const totalVoters = props.total_voters || 'N/A';
                     const votedCount = props.voted_count || 'N/A';
@@ -841,6 +876,8 @@ async function loadPrecinctBoundaries(dataUrl = 'data/precinct_boundaries_combin
                 });
             }
         });
+        
+        console.log('Created', precinctLabelsLayer.getLayers().length, 'precinct labels');
         
         return precinctLayer;
         
@@ -1580,13 +1617,19 @@ function initializeMapOptionsPanel() {
                 if (e.target.checked) {
                     if (!map.hasLayer(precinctBoundariesLayer)) {
                         map.addLayer(precinctBoundariesLayer);
-                        console.log('Precinct boundaries shown');
                     }
+                    if (precinctLabelsLayer && !map.hasLayer(precinctLabelsLayer)) {
+                        map.addLayer(precinctLabelsLayer);
+                    }
+                    console.log('Precinct boundaries and labels shown');
                 } else {
                     if (map.hasLayer(precinctBoundariesLayer)) {
                         map.removeLayer(precinctBoundariesLayer);
-                        console.log('Precinct boundaries hidden');
                     }
+                    if (precinctLabelsLayer && map.hasLayer(precinctLabelsLayer)) {
+                        map.removeLayer(precinctLabelsLayer);
+                    }
+                    console.log('Precinct boundaries and labels hidden');
                 }
             } else {
                 console.warn('Precinct boundaries layer not available');
