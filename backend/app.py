@@ -521,6 +521,8 @@ def get_status():
                 'year': job.year,
                 'election_type': job.election_type,
                 'voting_method': job.voting_method,
+                'primary_party': getattr(job, 'primary_party', ''),
+                'is_early_voting': job.voting_method == 'early-voting' and not hasattr(job, '_is_standard_geocode'),
                 'original_filename': job.original_filename,
                 'log_messages': job.log_messages[-20:] if hasattr(job, 'log_messages') else [],
                 'errors': job.errors[:5] if hasattr(job, 'errors') else [],

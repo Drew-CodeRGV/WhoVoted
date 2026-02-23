@@ -1683,6 +1683,10 @@ async function performUpload(duplicateAction, county, year, electionType, electi
             if (skippedCount > 0) {
                 message += ` (${skippedCount} skipped as duplicates)`;
             }
+            console.log('[Upload]', message);
+            if (data.jobs) {
+                data.jobs.forEach(j => console.log('[Upload] Job started:', j.job_id, j.filename));
+            }
             showSuccess(message);
             
             if (data.errors && data.errors.length > 0) {
@@ -1736,15 +1740,32 @@ function startStatusPolling() {
             
             const data = await response.json();
             
+            // Log status updates to console
+            if (data.jobs && data.jobs.length > 0) {
+                data.jobs.forEach(j => {
+                    const pct = Math.round((j.progress || 0) * 100);
+                    if (j.status === 'completed') {
+                        console.log(`[Status] ✅ ${j.original_filename}: COMPLETED — Total: ${j.total_records}, Matched: ${j.geocoded_count}, Unmatched: ${j.failed_count}`);
+                    } else if (j.status === 'failed') {
+                        console.log(`[Status] ❌ ${j.original_filename}: FAILED`, j.errors);
+                    } else {
+                        console.log(`[Status] ${j.original_filename}: ${j.status} ${pct}% (${j.processed_records}/${j.total_records})`);
+                    }
+                });
+            }
+            
             // Update UI with all jobs
             updateJobsDisplay(data.jobs);
             
             // Stop polling if no active jobs
-            if (data.active_count === 0 && data.queue_length === 0 && data.jobs.length === 0) {
+            if (data.active_count === 0 && data.queue_length === 0) {
                 clearInterval(statusPollInterval);
                 statusPollInterval = null;
                 uploadBtn.disabled = false;
                 uploadBtn.textContent = 'Upload and Process';
+                
+                // Keep showing the completed job cards
+                updateJobsDisplay(data.jobs);
                 
                 // Reload upload history to show new datasets
                 loadUploadHistory();
@@ -1809,7 +1830,7 @@ function updateJobsDisplay(jobs) {
                     <span class="job-status">${job.status}</span>
                 </div>
                 <div class="job-info">
-                    <span>${job.county} County - ${job.year} ${job.election_type}</span>
+                    <span>${job.county} County - ${job.year} ${job.election_type}${job.primary_party ? ' (' + job.primary_party + ')' : ''}</span>
                     ${timeEstimate}
                 </div>
                 <div class="progress-bar">
@@ -1820,9 +1841,44 @@ function updateJobsDisplay(jobs) {
                 <div class="job-stats">
                     <span>Total: ${job.total_records || 0}</span>
                     <span>Processed: ${job.processed_records || 0}</span>
-                    <span>Geocoded: ${job.geocoded_count || 0}</span>
-                    <span>Failed: ${job.failed_count || 0}</span>
+                    ${job.is_early_voting 
+                        ? `<span style="color:#2e7d32">Matched: ${job.geocoded_count || 0}</span><span style="color:#c62828">Unmatched: ${job.failed_count || 0}</span>`
+                        : `<span>Geocoded: ${job.geocoded_count || 0}</span><span>Failed: ${job.failed_count || 0}</span>`
+                    }
                 </div>
+                ${job.status === 'completed' ? `
+                <div style="margin-top:10px;padding:10px;background:#e8f5e9;border-radius:6px;border:1px solid #a5d6a7;">
+                    <strong style="color:#2e7d32;">✅ Processing Complete</strong>
+                    ${job.is_early_voting 
+                        ? `<div style="margin-top:6px;font-size:13px;">
+                            <div>📊 <strong>${job.total_records || 0}</strong> voters processed</div>
+                            <div>✅ <strong>${job.geocoded_count || 0}</strong> matched to existing voter records</div>
+                            <div>❌ <strong>${job.failed_count || 0}</strong> unmatched (new voters not in previous files)</div>
+                            <div>📈 Match rate: <strong>${job.total_records > 0 ? Math.round((job.geocoded_count / job.total_records) * 100) : 0}%</strong></div>
+                           </div>`
+                        : `<div style="margin-top:6px;font-size:13px;">
+                            <div>📊 <strong>${job.total_records || 0}</strong> records processed</div>
+                            <div>✅ <strong>${job.geocoded_count || 0}</strong> geocoded</div>
+                            <div>❌ <strong>${job.failed_count || 0}</strong> failed</div>
+                            <div>💾 Cache hits: <strong>${job.cache_hits || 0}</strong></div>
+                           </div>`
+                    }
+                </div>` : ''}
+                ${job.status === 'failed' ? `
+                <div style="margin-top:10px;padding:10px;background:#ffebee;border-radius:6px;border:1px solid #ef9a9a;">
+                    <strong style="color:#c62828;">❌ Processing Failed</strong>
+                    ${job.errors && job.errors.length > 0 ? `<div style="margin-top:6px;font-size:13px;">${job.errors.map(e => `<div>${escapeHtml(typeof e === 'string' ? e : e.message || JSON.stringify(e))}</div>`).join('')}</div>` : ''}
+                </div>` : ''}
+                ${job.log_messages && job.log_messages.length > 0 ? `
+                <details style="margin-top:8px;">
+                    <summary style="cursor:pointer;font-size:12px;color:#666;">Show log (${job.log_messages.length} messages)</summary>
+                    <div style="max-height:200px;overflow-y:auto;background:#1a1a2e;color:#e0e0e0;padding:8px;border-radius:4px;font-family:monospace;font-size:11px;margin-top:4px;">
+                        ${job.log_messages.map(log => {
+                            const ts = new Date(log.timestamp).toLocaleTimeString();
+                            return `<div><span style="color:#888;">[${ts}]</span> ${escapeHtml(log.message)}</div>`;
+                        }).join('')}
+                    </div>
+                </details>` : ''}
             </div>
         `;
     });
