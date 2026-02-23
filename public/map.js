@@ -221,6 +221,27 @@ function updateMapView() {
         }
         console.log('Showing markers, cluster has', markerClusterGroup.getLayers().length, 'markers');
     } else {
+        // Hide heatmap when showing flipped voters - only show markers
+        if (showFlippedVoters) {
+            // Remove all heatmap layers
+            if (map.hasLayer(heatmapLayer)) {
+                map.removeLayer(heatmapLayer);
+            }
+            if (map.hasLayer(heatmapLayerDemocratic)) {
+                map.removeLayer(heatmapLayerDemocratic);
+            }
+            if (map.hasLayer(heatmapLayerRepublican)) {
+                map.removeLayer(heatmapLayerRepublican);
+            }
+            
+            // Show markers instead
+            if (!map.hasLayer(markerClusterGroup)) {
+                map.addLayer(markerClusterGroup);
+            }
+            console.log('Flipped voters mode: showing markers only, no heatmap');
+            return;
+        }
+        
         // Show heatmap at low zoom
         if (map.hasLayer(markerClusterGroup)) {
             map.removeLayer(markerClusterGroup);
