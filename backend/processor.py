@@ -67,6 +67,235 @@ class ValidationResult:
         return len(self.errors) == 0
 
 
+class CrossReferenceEngine:
+    """Cross-references voters across election datasets to detect party switches."""
+
+    def __init__(self, county: str, current_election_date: str, data_dir: Path):
+        """
+        Args:
+            county: County name to filter datasets (e.g., "Hidalgo")
+            current_election_date: Election date of the dataset being processed (YYYY-MM-DD)
+            data_dir: Path to the data directory containing GeoJSON and metadata files
+        """
+        self.county = county
+        self.current_election_date = current_election_date
+        self.data_dir = Path(data_dir)
+
+    def find_earlier_datasets(self) -> list:
+        """
+        Scan data_dir for metadata files matching the same county with earlier election dates.
+
+        Returns:
+            List of dicts with keys: metadata_path, map_data_path, election_date,
+            sorted by election_date descending (most recent first).
+            Skips malformed/unreadable files with a logged warning.
+        """
+        earlier = []
+
+        for metadata_path in self.data_dir.glob('metadata_*.json'):
+            try:
+                with open(metadata_path, 'r') as f:
+                    meta = json.load(f)
+
+                county = meta.get('county', '')
+                election_date = meta.get('election_date', '')
+
+                if not county or not election_date:
+                    logger.warning(f"Skipping malformed metadata file (missing county or election_date): {metadata_path}")
+                    continue
+
+                # County must match (case-insensitive)
+                if county.lower() != self.county.lower():
+                    continue
+
+                # Election date must be strictly before current
+                if election_date >= self.current_election_date:
+                    continue
+
+                # Derive map_data_path by replacing metadata_ prefix with map_data_
+                map_data_filename = 'map_data_' + metadata_path.name[len('metadata_'):]
+                map_data_path = self.data_dir / map_data_filename
+
+                earlier.append({
+                    'metadata_path': metadata_path,
+                    'map_data_path': map_data_path,
+                    'election_date': election_date
+                })
+
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning(f"Skipping malformed metadata file {metadata_path}: {e}")
+                continue
+
+        # Sort by election_date descending (most recent first)
+        earlier.sort(key=lambda d: d['election_date'], reverse=True)
+        return earlier
+
+    def load_voter_lookup(self, map_data_path: Path) -> dict:
+        """
+        Load a GeoJSON file and build lookup dicts for voter matching.
+
+        Args:
+            map_data_path: Path to the GeoJSON map data file.
+
+        Returns:
+            Dict with 'vuid_lookup' (keyed by VUID string -> party string)
+            and 'name_coord_lookup' (keyed by (lastname, firstname, round(lat,4), round(lng,4)) -> party string).
+        """
+        vuid_lookup = {}
+        name_coord_lookup = {}
+
+        try:
+            with open(map_data_path, 'r') as f:
+                geojson = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to load GeoJSON file {map_data_path}: {e}")
+            return {'vuid_lookup': vuid_lookup, 'name_coord_lookup': name_coord_lookup}
+
+        features = geojson.get('features', [])
+        for feature in features:
+            props = feature.get('properties', {})
+            geometry = feature.get('geometry', {})
+            coords = geometry.get('coordinates', [])
+
+            party = props.get('party_affiliation_current', '')
+            vuid = str(props.get('vuid', '')).strip()
+            lastname = str(props.get('lastname', '')).strip().upper()
+            firstname = str(props.get('firstname', '')).strip().upper()
+
+            # Build VUID lookup (skip empty VUIDs)
+            if vuid:
+                vuid_lookup[vuid] = party
+
+            # Build name+coord lookup
+            if len(coords) >= 2 and lastname and firstname:
+                lng = coords[0]
+                lat = coords[1]
+                key = (lastname, firstname, round(lat, 4), round(lng, 4))
+                name_coord_lookup[key] = party
+
+        return {'vuid_lookup': vuid_lookup, 'name_coord_lookup': name_coord_lookup}
+
+    @staticmethod
+    def _extract_current_party_from_row(voter_row) -> str:
+        """Extract current party affiliation from a voter row (DataFrame row or dict).
+
+        Checks 'party_affiliation_current' first, then falls back to ballot_style / party columns.
+        """
+        # Direct field
+        pac = voter_row.get('party_affiliation_current', '')
+        if pac and str(pac).strip():
+            return str(pac).strip()
+
+        # Fallback: party column
+        party_val = voter_row.get('party', '')
+        if party_val and str(party_val).strip():
+            code = str(party_val).strip().upper()
+            if code in ('D', 'DEM', 'DEMOCRAT', 'DEMOCRATIC'):
+                return 'Democratic'
+            if code in ('R', 'REP', 'REPUBLICAN'):
+                return 'Republican'
+            return code
+
+        # Fallback: ballot_style
+        ballot = voter_row.get('ballot_style', '')
+        if ballot and str(ballot).strip():
+            b = str(ballot).strip().upper()
+            if 'REP' in b or 'REPUBLICAN' in b:
+                return 'Republican'
+            if 'DEM' in b or 'DEMOCRAT' in b:
+                return 'Democratic'
+
+        return ''
+
+    def get_previous_party(self, voter_row, vuid_lookup: dict, name_coord_lookup: dict) -> str:
+        """
+        Look up a voter in the earlier dataset.
+
+        1. Try VUID match first.
+        2. If no VUID match, try (lastname, firstname, lat, lng) match.
+        3. If match found and party differs from current, return earlier party.
+        4. If match found but same party, no match, or earlier party is empty, return empty string.
+
+        Args:
+            voter_row: A pandas Series or dict-like with keys: vuid, lastname, firstname, lat, lng, etc.
+            vuid_lookup: Dict mapping VUID -> party string from earlier dataset.
+            name_coord_lookup: Dict mapping (lastname, firstname, lat, lng) -> party string from earlier dataset.
+
+        Returns:
+            Earlier party string if different from current, empty string otherwise.
+        """
+        current_party = self._extract_current_party_from_row(voter_row)
+        earlier_party = ''
+
+        # Try VUID match first
+        vuid = str(voter_row.get('vuid', '')).strip()
+        if vuid and vuid in vuid_lookup:
+            earlier_party = vuid_lookup[vuid]
+        else:
+            # Fallback: name + coordinates
+            lastname = str(voter_row.get('lastname', '')).strip().upper()
+            firstname = str(voter_row.get('firstname', '')).strip().upper()
+            try:
+                lat = float(voter_row.get('lat', 0))
+                lng = float(voter_row.get('lng', 0))
+            except (TypeError, ValueError):
+                lat = 0.0
+                lng = 0.0
+
+            if lastname and firstname:
+                key = (lastname, firstname, round(lat, 4), round(lng, 4))
+                if key in name_coord_lookup:
+                    earlier_party = name_coord_lookup[key]
+
+        # Return earlier party only if it's non-empty and different from current
+        if earlier_party and earlier_party != current_party:
+            return earlier_party
+
+        return ''
+
+    def cross_reference(self, df: pd.DataFrame) -> pd.Series:
+        """
+        Main entry point. For each voter in df, determine party_affiliation_previous.
+
+        Calls find_earlier_datasets(), loads the most recent earlier dataset via
+        load_voter_lookup(), then calls get_previous_party() for each row.
+
+        Args:
+            df: DataFrame of current voters with columns like vuid, lastname, firstname, lat, lng, etc.
+
+        Returns:
+            A pandas Series of previous party strings aligned with df index.
+        """
+        earlier_datasets = self.find_earlier_datasets()
+
+        if not earlier_datasets:
+            logger.info(f"No earlier datasets found for county '{self.county}' before {self.current_election_date}")
+            return pd.Series([''] * len(df), index=df.index)
+
+        # Use the most recent earlier dataset (first in the descending-sorted list)
+        most_recent = earlier_datasets[0]
+        logger.info(
+            f"Cross-referencing against earlier dataset: {most_recent['map_data_path'].name} "
+            f"(election_date={most_recent['election_date']})"
+        )
+
+        lookups = self.load_voter_lookup(most_recent['map_data_path'])
+        vuid_lookup = lookups['vuid_lookup']
+        name_coord_lookup = lookups['name_coord_lookup']
+
+        logger.info(
+            f"Loaded {len(vuid_lookup)} VUID entries and {len(name_coord_lookup)} name+coord entries "
+            f"from earlier dataset"
+        )
+
+        results = []
+        for _, row in df.iterrows():
+            prev = self.get_previous_party(row, vuid_lookup, name_coord_lookup)
+            results.append(prev)
+
+        return pd.Series(results, index=df.index)
+
+
 class ProcessingJob:
     """Background job for processing voter roll CSV."""
     
@@ -622,13 +851,17 @@ class ProcessingJob:
         # Calculate household voter counts by grouping by coordinates
         household_counts = df.groupby(['lat', 'lng']).size().to_dict()
 
+        # Cross-reference voters against earlier datasets for party switching detection
+        engine = CrossReferenceEngine(self.county, self.election_date or '', Config.DATA_DIR)
+        previous_parties = engine.cross_reference(df)
+
         # Generate map_data.json
         map_data = {
             'type': 'FeatureCollection',
             'features': []
         }
 
-        for _, row in df.iterrows():
+        for idx, row in df.iterrows():
             # Calculate party affiliation fields
             party_affiliation_current = self._extract_current_party(row)
             party_history = self._extract_party_history(row)
@@ -649,6 +882,7 @@ class ProcessingJob:
 
                 # Party affiliation fields
                 'party_affiliation_current': party_affiliation_current,
+                'party_affiliation_previous': previous_parties.get(idx, ''),
                 'party_history': party_history,
                 'has_switched_parties': has_switched_parties,
                 'election_dates_participated': election_dates_participated,

@@ -307,6 +307,7 @@ function initializeDataLayers() {
     const heatmapData = [];
     const heatmapDataDemocratic = [];
     const heatmapDataRepublican = [];
+    const heatmapDataFlipped = [];
     const bounds = L.latLngBounds();
     
     // Add markers for each voter
@@ -343,6 +344,16 @@ function initializeDataLayers() {
         
         // Determine marker color based on party affiliation
         const markerColor = determineMarkerColor(props);
+        
+        // Collect flipped voter data for flipped heatmap
+        if (markerColor === 'purple' || markerColor === 'maroon') {
+            heatmapDataFlipped.push([lat, lng, 1]);
+        }
+        
+        // Skip filtered-out voters (determineMarkerColor returns null when voter doesn't match active filter)
+        if (markerColor === null) {
+            return; // Skip this feature in forEach
+        }
         
         // Create marker with party color
         const marker = L.circleMarker([lat, lng], {
@@ -438,6 +449,26 @@ function initializeDataLayers() {
             map.removeLayer(heatmapLayerRepublican);
         }
         console.log('Republican heatmap has no data, cleared from map');
+    }
+    
+    // Update flipped voters heatmap layer
+    if (flippedHeatmapLayer) {
+        if (map && map.hasLayer(flippedHeatmapLayer)) {
+            map.removeLayer(flippedHeatmapLayer);
+        }
+        setTimeout(() => {
+            try {
+                // Set gradient color based on active filter
+                const gradient = flippedVotersFilter === 'to-red'
+                    ? { 0.4: '#800000', 0.65: '#800000', 1: '#800000' }
+                    : { 0.4: '#9370DB', 0.65: '#9370DB', 1: '#9370DB' };
+                flippedHeatmapLayer.options.gradient = gradient;
+                flippedHeatmapLayer.setLatLngs(heatmapDataFlipped);
+                console.log('Updated flipped heatmap layer with', heatmapDataFlipped.length, 'points');
+            } catch (error) {
+                console.error('Error updating flipped heatmap:', error);
+            }
+        }, 10);
     }
     
     // Don't auto-zoom to fit data bounds - keep focused on Hidalgo County

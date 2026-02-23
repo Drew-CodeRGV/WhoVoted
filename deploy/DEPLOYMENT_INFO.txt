@@ -1,0 +1,109 @@
+=== WhoVoted Lightsail Deployment Information ===
+
+Instance Name: whovoted-app
+Public IP: 54.164.71.129
+Region: us-east-1
+Cost: $10/month (1 GB RAM, 2 vCPUs, 60 GB SSD)
+
+SSH Key: WhoVoted/deploy/whovoted-key.pem
+
+=== Access URLs ===
+
+Main Application: http://54.164.71.129
+Admin Dashboard: http://54.164.71.129/admin
+
+Admin Credentials:
+  Username: admin
+  Password: admin2026!
+
+=== SSH Access ===
+
+From Windows PowerShell (from WhoVoted/deploy directory):
+  ssh -i whovoted-key.pem ubuntu@54.164.71.129
+
+=== Current Status ===
+
+✓ Instance created and running
+✓ Application deployed successfully
+✓ Port 80 open for HTTP traffic
+✓ App is LIVE and accessible
+
+The application is running but needs AWS credentials configured to enable geocoding.
+
+=== Configure AWS Credentials ===
+
+1. SSH into the instance:
+   ssh -i whovoted-key.pem ubuntu@54.164.71.129
+
+2. Run the configuration script:
+   cd /opt/whovoted/deploy
+   chmod +x configure-env.sh
+   ./configure-env.sh
+
+   You will need:
+   - AWS Access Key ID
+   - AWS Secret Access Key
+   - AWS Region (default: us-east-1)
+
+3. The script will automatically restart the application
+
+=== Management Commands ===
+
+Restart application:
+  ssh -i whovoted-key.pem ubuntu@54.164.71.129 "sudo supervisorctl restart whovoted"
+
+View logs:
+  ssh -i whovoted-key.pem ubuntu@54.164.71.129 "tail -f /opt/whovoted/logs/gunicorn-error.log"
+
+Check status:
+  ssh -i whovoted-key.pem ubuntu@54.164.71.129 "sudo supervisorctl status whovoted"
+
+Check memory usage:
+  ssh -i whovoted-key.pem ubuntu@54.164.71.129 "free -h"
+
+Update from GitHub:
+  ssh -i whovoted-key.pem ubuntu@54.164.71.129 "cd /opt/whovoted && git pull origin main && source venv/bin/activate && pip install -r backend/requirements.txt && sudo supervisorctl restart whovoted"
+
+=== File Locations ===
+
+Application: /opt/whovoted/
+Data files: /opt/whovoted/data/
+Logs: /opt/whovoted/logs/
+Environment: /opt/whovoted/.env
+Nginx config: /etc/nginx/sites-available/whovoted
+Supervisor config: /etc/supervisor/conf.d/whovoted.conf
+
+=== Troubleshooting ===
+
+If the application stops working:
+
+1. Check if it's running:
+   ssh -i whovoted-key.pem ubuntu@54.164.71.129 "sudo supervisorctl status whovoted"
+
+2. Check logs for errors:
+   ssh -i whovoted-key.pem ubuntu@54.164.71.129 "tail -50 /opt/whovoted/logs/gunicorn-error.log"
+
+3. Check memory usage (should have plenty with 1GB):
+   ssh -i whovoted-key.pem ubuntu@54.164.71.129 "free -h"
+
+4. Restart the app:
+   ssh -i whovoted-key.pem ubuntu@54.164.71.129 "sudo supervisorctl restart whovoted"
+
+=== Cost Management ===
+
+Monthly cost: $10/month
+
+To stop charges, delete the instance:
+  aws lightsail delete-instance --instance-name whovoted-app --region us-east-1
+
+To stop the instance temporarily (still charges for storage):
+  aws lightsail stop-instance --instance-name whovoted-app --region us-east-1
+
+To start a stopped instance:
+  aws lightsail start-instance --instance-name whovoted-app --region us-east-1
+
+=== Deployment Complete ===
+
+Your WhoVoted application is now live at: http://54.164.71.129
+
+Next step: Configure AWS credentials to enable geocoding functionality.

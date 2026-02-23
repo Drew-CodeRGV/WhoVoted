@@ -1,5 +1,5 @@
 // Map initialization and management
-let map, markerClusterGroup, heatmapLayer, heatmapLayerDemocratic, heatmapLayerRepublican;
+let map, markerClusterGroup, heatmapLayer, heatmapLayerDemocratic, heatmapLayerRepublican, flippedHeatmapLayer;
 let yearLayers = {}; // Store layers by year
 let activeYears = new Set(); // Track which years are active
 let precinctBoundariesLayer = null; // Precinct boundaries layer
@@ -81,6 +81,17 @@ function initMap() {
         }
     });
     
+    // Flipped voters heatmap layer
+    flippedHeatmapLayer = L.heatLayer([], {
+        radius: 25,
+        blur: 35,
+        maxZoom: config.HEATMAP_MAX_ZOOM,
+        max: 1.0,
+        minOpacity: 0.3,
+        maxOpacity: 0.8,
+        gradient: { 0.4: '#9370DB', 0.65: '#9370DB', 1: '#9370DB' }
+    });
+
     // Track which heatmap mode is active
     window.heatmapMode = 'traditional'; // 'traditional' or 'party'
     
@@ -215,15 +226,18 @@ function updateMapView() {
         if (map.hasLayer(heatmapLayerRepublican)) {
             map.removeLayer(heatmapLayerRepublican);
         }
+        if (flippedHeatmapLayer && map.hasLayer(flippedHeatmapLayer)) {
+            map.removeLayer(flippedHeatmapLayer);
+        }
         
         if (!map.hasLayer(markerClusterGroup)) {
             map.addLayer(markerClusterGroup);
         }
         console.log('Showing markers, cluster has', markerClusterGroup.getLayers().length, 'markers');
     } else {
-        // Hide heatmap when showing flipped voters - only show markers
+        // Flipped voters mode: show flipped heatmap at low zoom
         if (flippedVotersFilter !== 'none') {
-            // Remove all heatmap layers
+            // Remove all standard heatmap layers
             if (map.hasLayer(heatmapLayer)) {
                 map.removeLayer(heatmapLayer);
             }
@@ -234,12 +248,22 @@ function updateMapView() {
                 map.removeLayer(heatmapLayerRepublican);
             }
             
-            // Show markers instead
-            if (!map.hasLayer(markerClusterGroup)) {
-                map.addLayer(markerClusterGroup);
+            // Remove markers at low zoom
+            if (map.hasLayer(markerClusterGroup)) {
+                map.removeLayer(markerClusterGroup);
             }
-            console.log('Flipped voters mode: showing markers only, no heatmap');
+            
+            // Show flipped heatmap layer
+            if (flippedHeatmapLayer && !map.hasLayer(flippedHeatmapLayer)) {
+                map.addLayer(flippedHeatmapLayer);
+            }
+            console.log('Flipped voters mode: showing flipped heatmap');
             return;
+        }
+        
+        // Ensure flipped heatmap is removed when not in flipped mode
+        if (flippedHeatmapLayer && map.hasLayer(flippedHeatmapLayer)) {
+            map.removeLayer(flippedHeatmapLayer);
         }
         
         // Show heatmap at low zoom
@@ -1662,9 +1686,12 @@ function updatePanelPositions() {
     }
     
     const gap = 10; // Gap between panels
-    const infoStripHeight = 60; // Height of bottom info strip
     
-    // Start from bottom with data options
+    // Check if info strip is visible (it may be hidden)
+    const infoStrip = document.querySelector('.info-strip');
+    const infoStripHeight = (infoStrip && window.getComputedStyle(infoStrip).display !== 'none') ? 60 : 10;
+    
+    // Start from bottom
     let currentBottom = infoStripHeight;
     
     // Position data options at bottom
