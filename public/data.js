@@ -490,7 +490,10 @@ function initializeDataLayers() {
                 if (!map.hasLayer(heatmapLayer)) {
                     map.addLayer(heatmapLayer);
                 }
-                heatmapLayer.setLatLngs(heatmapData);
+                // Guard: ensure layer has valid map reference before updating
+                if (heatmapLayer._map) {
+                    heatmapLayer.setLatLngs(heatmapData);
+                }
                 // Remove again - updateMapView will decide what to show
                 if (map.hasLayer(heatmapLayer)) {
                     map.removeLayer(heatmapLayer);
