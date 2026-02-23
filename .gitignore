@@ -7,3 +7,29 @@ coverage/
 
 # Jest cache
 .jest-cache/
+
+# Generated data files (large, server-specific)
+data/map_data_*.json
+data/metadata_*.json
+data/geocoding_cache.tmp
+data/geocoding_cache_backup*.json
+data/geocoded_addresses.json
+data/sessions.json
+public/data/map_data_*.json
+public/data/metadata_*.json
+public/data/precinct_boundaries*.json
+public/data/map_data.json
+public/data/metadata.json
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Logs
+logs/
+
+# Uploads
+uploads/
+
+# Virtual environment
+venv/
