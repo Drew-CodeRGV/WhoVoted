@@ -1154,6 +1154,41 @@ body {
     transform: translateX(2px);
 }
 
+/* Flipped Voters Buttons */
+.flipped-voters-btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 8px 12px !important;
+    border-radius: 6px !important;
+    cursor: pointer !important;
+    font-size: 13px !important;
+    text-align: center !important;
+    transition: all 0.2s ease;
+    background: white !important;
+    border: 2px solid #ddd !important;
+    color: #333 !important;
+    font-weight: 500 !important;
+}
+
+.flipped-voters-btn:hover {
+    border-color: #667eea !important;
+    background: #f8f9ff !important;
+    transform: translateX(2px);
+}
+
+.flipped-voters-btn.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    border-color: #667eea !important;
+    font-weight: 600 !important;
+}
+
+.flipped-voters-btn.active:hover {
+    background: linear-gradient(135deg, #5568d3 0%, #653a8b 100%) !important;
+    transform: translateX(2px);
+}
+
 .map-options-header {
     /* Styles moved to uniform section above */
 }

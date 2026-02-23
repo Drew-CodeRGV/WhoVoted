@@ -7,7 +7,7 @@ let pollingPlacesLayer = null; // Polling places layer
 let layerControlPanel = null; // Layer control panel instance
 let datasetSelector = null; // Dataset selector instance
 let partyFilter = null; // Party filter instance
-let showFlippedVoters = false; // Track flipped voters display mode
+let flippedVotersFilter = 'none'; // Track flipped voters filter: 'none', 'to-blue', 'to-red'
 
 function initMap() {
     // Initialize Leaflet map with OpenStreetMap tiles and Canvas renderer for performance
@@ -222,7 +222,7 @@ function updateMapView() {
         console.log('Showing markers, cluster has', markerClusterGroup.getLayers().length, 'markers');
     } else {
         // Hide heatmap when showing flipped voters - only show markers
-        if (showFlippedVoters) {
+        if (flippedVotersFilter !== 'none') {
             // Remove all heatmap layers
             if (map.hasLayer(heatmapLayer)) {
                 map.removeLayer(heatmapLayer);
@@ -490,8 +490,8 @@ function determineMarkerColor(voterData) {
 
     const currentParty = voterData.party_affiliation_current.toLowerCase();
     
-    // Check for party flip if flipped voters mode is enabled
-    if (showFlippedVoters && voterData.party_affiliation_previous) {
+    // Check for party flip if flipped voters filter is active
+    if (flippedVotersFilter !== 'none' && voterData.party_affiliation_previous) {
         const previousParty = voterData.party_affiliation_previous.toLowerCase();
         
         const isCurrentRep = currentParty.includes('republican') || currentParty.includes('rep');
@@ -501,13 +501,29 @@ function determineMarkerColor(voterData) {
         
         // Red to Blue (Republican to Democratic) = Purple
         if (isPreviousRep && isCurrentDem) {
+            // If filtering for "to-red" only, skip this voter
+            if (flippedVotersFilter === 'to-red') {
+                return null; // Skip this voter
+            }
             return 'purple';
         }
         
         // Blue to Red (Democratic to Republican) = Maroon
         if (isPreviousDem && isCurrentRep) {
+            // If filtering for "to-blue" only, skip this voter
+            if (flippedVotersFilter === 'to-blue') {
+                return null; // Skip this voter
+            }
             return 'maroon';
         }
+        
+        // If flipped voters filter is active but voter didn't flip, skip them
+        if (flippedVotersFilter !== 'none') {
+            return null; // Skip non-flipped voters when filter is active
+        }
+    } else if (flippedVotersFilter !== 'none') {
+        // If flipped voters filter is active but no previous party data, skip this voter
+        return null;
     }
 
     // Republican - red
@@ -606,7 +622,7 @@ function calculateHouseholdPartyDistribution(voters) {
     
     voters.forEach(voter => {
         const color = determineMarkerColor(voter);
-        if (distribution.hasOwnProperty(color)) {
+        if (color && distribution.hasOwnProperty(color)) {
             distribution[color]++;
         }
     });
@@ -964,6 +980,12 @@ function getMarkerFillColor(colorCode) {
  */
 function renderVoterMarker(voterData, lat, lng, badge = null) {
     const colorCode = determineMarkerColor(voterData);
+    
+    // Skip this voter if color is null (filtered out)
+    if (!colorCode) {
+        return null;
+    }
+    
     const styleCode = determineMarkerStyle(voterData);
     const fillColor = getMarkerFillColor(colorCode);
     
@@ -1028,6 +1050,12 @@ function createHouseholdPopup(voters) {
     
     voters.forEach((voter, index) => {
         const colorCode = determineMarkerColor(voter);
+        
+        // Skip filtered voters
+        if (!colorCode) {
+            return;
+        }
+        
         const styleCode = determineMarkerStyle(voter);
         const votedStatus = voter.voted_in_current_election ? 'Voted' : 'Not Voted';
         const partyLabel = voter.party_affiliation_current || 'Unknown';
@@ -1590,19 +1618,24 @@ function initializeMapOptionsPanel() {
         });
     }
     
-    // Flipped voters toggle
-    const flippedToggle = document.getElementById('flippedVotersToggle');
-    if (flippedToggle) {
-        flippedToggle.addEventListener('change', (e) => {
-            showFlippedVoters = e.target.checked;
-            console.log('Flipped voters mode:', showFlippedVoters ? 'enabled' : 'disabled');
+    // Flipped voters buttons
+    const flippedButtons = document.querySelectorAll('.flipped-voters-btn');
+    flippedButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            const flipValue = e.currentTarget.dataset.flip;
+            flippedVotersFilter = flipValue;
+            console.log('Flipped voters filter:', flipValue);
+            
+            // Update active state
+            flippedButtons.forEach(btn => btn.classList.remove('active'));
+            e.currentTarget.classList.add('active');
             
             // Reload markers to apply change
             if (window.mapData && window.mapData.features) {
                 initializeDataLayers();
             }
         });
-    }
+    });
     
     // Initialize global flag for numeric badges
     window.showNumericBadges = numericToggle ? numericToggle.checked : true;

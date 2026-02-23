@@ -252,22 +252,12 @@
             </div>
 
             <!-- County Boundaries -->
-            <div class="map-option-section" style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
+            <!-- County Boundaries -->
+            <div class="map-option-section" style="margin-bottom: 0; padding-bottom: 0;">
                 <label class="map-option-checkbox" style="display: flex; align-items: center; cursor: pointer; font-size: 14px; color: #333;">
                     <input type="checkbox" id="countyBoundariesToggle" style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
                     <span>Show County Boundaries</span>
                 </label>
-            </div>
-
-            <!-- Show Flipped Voters -->
-            <div class="map-option-section" style="margin-bottom: 0; padding-bottom: 0;">
-                <label class="map-option-checkbox" style="display: flex; align-items: center; cursor: pointer; font-size: 14px; color: #333;">
-                    <input type="checkbox" id="flippedVotersToggle" style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
-                    <span>Show Flipped Voters</span>
-                </label>
-                <div style="font-size: 11px; color: #666; margin-top: 4px; margin-left: 28px;">
-                    Purple: R→D | Maroon: D→R
-                </div>
             </div>
         </div>
     </div>
@@ -293,7 +283,7 @@
             </div>
 
             <!-- Party Filter -->
-            <div class="party-filter-section" id="partyFilterSection" style="display: none;">
+            <div class="party-filter-section" id="partyFilterSection" style="display: none; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
                 <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">Party Filter:</label>
                 <div class="party-filter-buttons-inline" style="display: flex; flex-direction: column; gap: 6px;">
                     <button class="party-filter-btn-inline active" data-filter="all">
@@ -306,6 +296,24 @@
                     <button class="party-filter-btn-inline" data-filter="democratic">
                         <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #1E90FF; margin-right: 6px;"></span>
                         Democratic Only
+                    </button>
+                </div>
+            </div>
+
+            <!-- Flipped Voters Filter -->
+            <div class="flipped-voters-section" style="margin-bottom: 0; padding-bottom: 0;">
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">Flipped Voters:</label>
+                <div class="flipped-voters-buttons" style="display: flex; flex-direction: column; gap: 6px;">
+                    <button class="flipped-voters-btn active" data-flip="none">
+                        Show All
+                    </button>
+                    <button class="flipped-voters-btn" data-flip="to-blue">
+                        <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #9370DB; margin-right: 6px;"></span>
+                        Flipped Blue (R→D)
+                    </button>
+                    <button class="flipped-voters-btn" data-flip="to-red">
+                        <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #800000; margin-right: 6px;"></span>
+                        Flipped Red (D→R)
                     </button>
                 </div>
             </div>
