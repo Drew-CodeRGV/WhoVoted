@@ -308,6 +308,7 @@ function initializeDataLayers() {
     const heatmapDataDemocratic = [];
     const heatmapDataRepublican = [];
     const heatmapDataFlipped = [];
+    const addressGroups = {}; // Group voters by coordinate for numeric badges
     const bounds = L.latLngBounds();
     
     // Add markers for each voter
@@ -355,25 +356,77 @@ function initializeDataLayers() {
             return; // Skip this feature in forEach
         }
         
-        // Create marker with party color
-        const marker = L.circleMarker([lat, lng], {
-            radius: 8,
-            fillColor: getMarkerFillColor(markerColor),
-            color: '#fff',
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.8
-        });
+        // Group by coordinate key for household badges
+        const coordKey = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+        if (!addressGroups[coordKey]) {
+            addressGroups[coordKey] = [];
+        }
+        addressGroups[coordKey].push({ lat, lng, markerColor, props });
+    });
+    
+    // Now create markers, grouping by address for numeric badges
+    Object.values(addressGroups).forEach(group => {
+        const { lat, lng } = group[0];
+        const count = group.length;
+        const showBadge = window.showNumericBadges && count > 1;
         
-        // Create popup content
-        let popupContent = `<strong>Address:</strong> ${props.address || 'N/A'}<br>`;
-        if (props.name) popupContent += `<strong>Name:</strong> ${props.name}<br>`;
-        if (props.precinct) popupContent += `<strong>Precinct:</strong> ${props.precinct}<br>`;
-        if (props.party_affiliation_current) popupContent += `<strong>Party:</strong> ${props.party_affiliation_current}<br>`;
-        if (props.check_in) popupContent += `<strong>Voted:</strong> ${props.check_in}<br>`;
+        // Use the first voter's color as the representative marker color
+        const markerColor = group[0].markerColor;
         
-        marker.bindPopup(popupContent);
-        markerClusterGroup.addLayer(marker);
+        if (showBadge) {
+            // Create a DivIcon marker with a numeric badge
+            const fillColor = getMarkerFillColor(markerColor);
+            const badgeIcon = L.divIcon({
+                className: 'household-marker',
+                html: `<div style="
+                    width: 20px; height: 20px; border-radius: 50%;
+                    background: ${fillColor}; border: 2px solid #fff;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+                    position: relative;
+                "><span style="
+                    position: absolute; top: -10px; right: -10px;
+                    background: rgba(0,0,0,0.75); color: #fff;
+                    border-radius: 50%; width: 18px; height: 18px;
+                    display: flex; align-items: center; justify-content: center;
+                    font-size: 11px; font-weight: bold; border: 1px solid #fff;
+                ">${count > 9 ? '9+' : count}</span></div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+            const marker = L.marker([lat, lng], { icon: badgeIcon });
+            
+            // Build popup with all voters at this address
+            let popupContent = `<strong>Address:</strong> ${group[0].props.address || 'N/A'}<br>`;
+            popupContent += `<strong>${count} voters at this address:</strong><br><hr style="margin:4px 0">`;
+            group.forEach(v => {
+                if (v.props.name) popupContent += `${v.props.name}`;
+                if (v.props.party_affiliation_current) popupContent += ` (${v.props.party_affiliation_current})`;
+                popupContent += `<br>`;
+            });
+            marker.bindPopup(popupContent);
+            markerClusterGroup.addLayer(marker);
+        } else {
+            // Create individual markers for each voter
+            group.forEach(v => {
+                const marker = L.circleMarker([v.lat, v.lng], {
+                    radius: 8,
+                    fillColor: getMarkerFillColor(v.markerColor),
+                    color: '#fff',
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                });
+                
+                let popupContent = `<strong>Address:</strong> ${v.props.address || 'N/A'}<br>`;
+                if (v.props.name) popupContent += `<strong>Name:</strong> ${v.props.name}<br>`;
+                if (v.props.precinct) popupContent += `<strong>Precinct:</strong> ${v.props.precinct}<br>`;
+                if (v.props.party_affiliation_current) popupContent += `<strong>Party:</strong> ${v.props.party_affiliation_current}<br>`;
+                if (v.props.check_in) popupContent += `<strong>Voted:</strong> ${v.props.check_in}<br>`;
+                
+                marker.bindPopup(popupContent);
+                markerClusterGroup.addLayer(marker);
+            });
+        }
     });
     
     console.log('Added', markerClusterGroup.getLayers().length, 'markers to cluster group');

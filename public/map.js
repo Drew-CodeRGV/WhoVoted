@@ -807,11 +807,12 @@ async function loadPrecinctBoundaries(dataUrl = 'data/precinct_boundaries_combin
         const precinctLayer = L.geoJSON(geojsonData, {
             style: function(feature) {
                 return {
-                    color: '#ccc',           // Even lighter gray stroke
-                    weight: 1,               // Thinner lines
-                    opacity: 0.25,           // More subtle - 25% opacity
-                    fillColor: '#fff',
-                    fillOpacity: 0.01        // Very light fill
+                    color: '#333',
+                    weight: 2,
+                    opacity: 0.6,
+                    fillColor: 'transparent',
+                    fillOpacity: 0,
+                    dashArray: '5, 5'
                 };
             },
             onEachFeature: function(feature, layer) {
@@ -873,11 +874,12 @@ async function loadCountyOutlines() {
         }, {
             style: function(feature) {
                 return {
-                    color: '#ccc',
-                    weight: 1,
-                    opacity: 0.25,           // More subtle - 25% opacity
-                    fillColor: '#fff',
-                    fillOpacity: 0.01
+                    color: '#333',
+                    weight: 2,
+                    opacity: 0.6,
+                    fillColor: 'transparent',
+                    fillOpacity: 0,
+                    dashArray: '5, 5'
                 };
             },
             onEachFeature: function(feature, layer) {
