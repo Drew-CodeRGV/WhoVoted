@@ -2000,54 +2000,60 @@ async function captureScreenshot() {
         const mapEl = document.getElementById('map');
         if (!mapEl) throw new Error('Map element not found');
 
-        // Capture the map container with html2canvas
+        // Capture the map container at browser window size
+        const W = window.innerWidth;
+        const H = window.innerHeight;
+
         const capture = await html2canvas(mapEl, {
             useCORS: true,
             allowTaint: true,
             logging: false,
-            scale: 2, // high-res capture
+            scale: 1,
+            width: W,
+            height: H,
             backgroundColor: '#f0f0f0'
         });
 
-        // Create final 1920x1080 canvas
-        const W = 1920, H = 1080;
+        // Create final canvas at window size
         const canvas = document.createElement('canvas');
         canvas.width = W;
         canvas.height = H;
         const ctx = canvas.getContext('2d');
 
-        // Draw captured map scaled to fill 1920x1080
+        // Draw captured map
         ctx.drawImage(capture, 0, 0, W, H);
 
-        // Watermark bar at bottom
-        const barH = 44;
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-        ctx.fillRect(0, H - barH, W, barH);
-
-        // Load logo and draw watermark
+        // Load logo for center watermark
         const logo = new Image();
         logo.crossOrigin = 'anonymous';
         logo.src = 'assets/politiquera.png';
 
-        await new Promise((resolve, reject) => {
+        await new Promise((resolve) => {
             logo.onload = resolve;
-            logo.onerror = () => resolve(); // continue without logo if it fails
+            logo.onerror = () => resolve();
         });
 
-        const logoH = 30;
-        const logoW = logo.naturalWidth ? (logo.naturalWidth / logo.naturalHeight) * logoH : 0;
-        const text = 'Data Visualizations by Politiquera.com';
-        ctx.font = '600 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        ctx.fillStyle = '#ffffff';
-        const textMetrics = ctx.measureText(text);
-        const totalW = (logoW > 0 ? logoW + 10 : 0) + textMetrics.width;
-        const startX = (W - totalW) / 2;
-        const barY = H - barH;
-
-        if (logoW > 0) {
-            ctx.drawImage(logo, startX, barY + (barH - logoH) / 2, logoW, logoH);
+        // Draw large centered logo watermark (semi-transparent)
+        if (logo.naturalWidth) {
+            const logoMaxW = Math.min(W * 0.4, 500);
+            const aspect = logo.naturalWidth / logo.naturalHeight;
+            const logoW = logoMaxW;
+            const logoH = logoW / aspect;
+            const logoX = (W - logoW) / 2;
+            const logoY = (H - logoH) / 2 - 20;
+            ctx.globalAlpha = 0.25;
+            ctx.drawImage(logo, logoX, logoY, logoW, logoH);
+            ctx.globalAlpha = 1.0;
         }
-        ctx.fillText(text, startX + (logoW > 0 ? logoW + 10 : 0), barY + barH / 2 + 6);
+
+        // Text watermark below logo
+        const text = 'Data Visualizations by Politiquera.com';
+        ctx.font = '600 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        ctx.fillText(text, W / 2 + 1, H / 2 + 61);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.fillText(text, W / 2, H / 2 + 60);
 
         // Convert to blob and trigger download
         canvas.toBlob(blob => {
