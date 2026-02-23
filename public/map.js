@@ -1997,22 +1997,58 @@ async function captureScreenshot() {
     }
 
     try {
-        // Capture the entire document body (includes logo, stats box, map, everything)
+        const W = window.innerWidth;
+        const H = window.innerHeight;
+
+        // Temporarily switch fixed-position overlays to absolute so html2canvas captures them
+        const fixedEls = [
+            document.querySelector('.header-background'),
+            document.querySelector('.overlay-image'),
+            document.getElementById('dataset-stats-box'),
+        ].filter(Boolean);
+
+        fixedEls.forEach(el => {
+            el.dataset.origPosition = el.style.position || '';
+            el.style.position = 'absolute';
+        });
+
+        // Also hide the icon buttons and popups so they don't appear in screenshot
+        const hideEls = document.querySelectorAll('.panel-icon-btn, .panel-popup, .welcome-popup, .info-strip');
+        hideEls.forEach(el => {
+            el.dataset.origDisplay = el.style.display || '';
+            el.style.display = 'none';
+        });
+
+        // Small delay for layout to settle
+        await new Promise(r => setTimeout(r, 50));
+
+        // Capture the full page
         const capture = await html2canvas(document.body, {
             useCORS: true,
             allowTaint: true,
             logging: false,
             scale: 1,
-            width: window.innerWidth,
-            height: window.innerHeight,
-            backgroundColor: '#f0f0f0'
+            width: W,
+            height: H,
+            scrollX: 0,
+            scrollY: 0,
+            windowWidth: W,
+            windowHeight: H,
+            backgroundColor: null
         });
 
-        const W = capture.width;
-        const H = capture.height;
+        // Restore original positions
+        fixedEls.forEach(el => {
+            el.style.position = el.dataset.origPosition;
+            delete el.dataset.origPosition;
+        });
+        hideEls.forEach(el => {
+            el.style.display = el.dataset.origDisplay;
+            delete el.dataset.origDisplay;
+        });
 
-        // Create final canvas with room for bottom bar
-        const barH = 44;
+        // Build final canvas: captured page + bottom bar
+        const barH = 48;
         const canvas = document.createElement('canvas');
         canvas.width = W;
         canvas.height = H + barH;
@@ -2025,41 +2061,49 @@ async function captureScreenshot() {
         const logo = new Image();
         logo.crossOrigin = 'anonymous';
         logo.src = 'assets/politiquera.png';
-
-        await new Promise((resolve) => {
-            logo.onload = resolve;
-            logo.onerror = () => resolve();
-        });
+        await new Promise(resolve => { logo.onload = resolve; logo.onerror = () => resolve(); });
 
         if (logo.naturalWidth) {
             const logoMaxW = Math.min(W * 0.4, 500);
             const aspect = logo.naturalWidth / logo.naturalHeight;
             const logoW = logoMaxW;
             const logoH = logoW / aspect;
-            const logoX = (W - logoW) / 2;
-            const logoY = (H - logoH) / 2;
             ctx.globalAlpha = 0.2;
-            ctx.drawImage(logo, logoX, logoY, logoW, logoH);
+            ctx.drawImage(logo, (W - logoW) / 2, (H - logoH) / 2, logoW, logoH);
             ctx.globalAlpha = 1.0;
         }
 
-        // Black bar at bottom with text
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        // Black bar across entire bottom
+        ctx.fillStyle = '#000000';
         ctx.fillRect(0, H, W, barH);
 
-        const text = 'Data Visualizations by Politiquera.com';
-        ctx.font = '600 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(text, W / 2, H + barH / 2);
+        // Small logo in the bar
+        if (logo.naturalWidth) {
+            const smallLogoH = 30;
+            const smallLogoW = (logo.naturalWidth / logo.naturalHeight) * smallLogoH;
+            const text = 'Data Visualizations by Politiquera.com';
+            ctx.font = '600 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            const textW = ctx.measureText(text).width;
+            const gap = 12;
+            const totalW = smallLogoW + gap + textW;
+            const startX = (W - totalW) / 2;
+            ctx.drawImage(logo, startX, H + (barH - smallLogoH) / 2, smallLogoW, smallLogoH);
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, startX + smallLogoW + gap, H + barH / 2);
+        } else {
+            const text = 'Data Visualizations by Politiquera.com';
+            ctx.font = '600 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, W / 2, H + barH / 2);
+        }
 
-        // Convert to blob and trigger download
+        // Trigger download
         canvas.toBlob(blob => {
-            if (!blob) {
-                alert('Failed to generate screenshot');
-                return;
-            }
+            if (!blob) { alert('Failed to generate screenshot'); return; }
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
