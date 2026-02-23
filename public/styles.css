@@ -1265,6 +1265,11 @@ body {
     right: 20px;
 }
 
+.screenshot-icon-btn {
+    bottom: 20px;
+    right: 132px;
+}
+
 /* Panel Popups */
 .panel-popup {
     position: fixed;
@@ -1500,6 +1505,11 @@ body {
     .data-icon-btn {
         bottom: 16px;
         right: 12px;
+    }
+    
+    .screenshot-icon-btn {
+        bottom: 16px;
+        right: 116px;
     }
     
     .panel-popup {

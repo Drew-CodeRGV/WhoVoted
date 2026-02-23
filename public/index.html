@@ -211,6 +211,11 @@
 
     <!-- Search is now created dynamically by search.js as a bottom-left popup -->
 
+    <!-- Screenshot Icon Button - Bottom Right -->
+    <button class="panel-icon-btn screenshot-icon-btn" id="screenshotBtn" title="Save Screenshot">
+        <i class="fas fa-camera"></i>
+    </button>
+
     <!-- Map Options Icon Button - Bottom Right -->
     <button class="panel-icon-btn map-icon-btn" id="mapIconBtn" title="Map Options">
         <i class="fas fa-map"></i>
@@ -387,6 +392,9 @@
     <div class="info-strip">
         Using publicly available data from <a href="https://www.hidalgocounty.us/3339/Unofficial-Early-Voting-Totals-Rosters" target="_blank">Hidalgo County</a> & <a href="https://cameroncountytx.gov/elections/results/" target="_blank">Cameron County</a> Elections Department. <span id="total-addresses">Loading...</span> out of <span id="total-voters">446,749</span> Hidalgo County voters (<span id="percentage">0.00</span>%) as of <span id="last-updated">Loading...</span>.
     </div>
+    
+    <!-- html2canvas for screenshot feature -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
     <!-- JavaScript Files -->
     <script src="map.js"></script>

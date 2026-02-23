@@ -1750,24 +1750,9 @@ function initializeMapOptionsPanel() {
 }
 
 // ============================================================================
-// PANEL POPUP CLOSE ON OUTSIDE CLICK
+// PANEL POPUP CLOSE ON OUTSIDE CLICK (REMOVED - panels are now persistent)
+// Panels stay open until user clicks the X button or toggles the icon button
 // ============================================================================
-
-document.addEventListener('click', () => {
-    const mapPopup = document.getElementById('mapOptionsPopup');
-    const dataPopup = document.getElementById('dataOptionsPopup');
-    const mapBtn = document.getElementById('mapIconBtn');
-    const dataBtn = document.getElementById('dataIconBtn');
-    
-    if (mapPopup && mapPopup.classList.contains('open')) {
-        mapPopup.classList.remove('open');
-        if (mapBtn) mapBtn.classList.remove('active');
-    }
-    if (dataPopup && dataPopup.classList.contains('open')) {
-        dataPopup.classList.remove('open');
-        if (dataBtn) dataBtn.classList.remove('active');
-    }
-});
 
 // ============================================================================
 // DATA OPTIONS PANEL
@@ -1995,4 +1980,124 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeMapOptionsPanel);
 } else {
     initializeMapOptionsPanel();
+}
+
+// ============================================================================
+// SCREENSHOT FEATURE
+// ============================================================================
+
+/**
+ * Capture the current map view as a 1920x1080 screenshot with watermark
+ */
+async function captureScreenshot() {
+    const btn = document.getElementById('screenshotBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    }
+
+    try {
+        const mapEl = document.getElementById('map');
+        if (!mapEl) throw new Error('Map element not found');
+
+        // Capture the map container with html2canvas
+        const capture = await html2canvas(mapEl, {
+            useCORS: true,
+            allowTaint: true,
+            logging: false,
+            scale: 2, // high-res capture
+            backgroundColor: '#f0f0f0'
+        });
+
+        // Create final 1920x1080 canvas
+        const W = 1920, H = 1080;
+        const canvas = document.createElement('canvas');
+        canvas.width = W;
+        canvas.height = H;
+        const ctx = canvas.getContext('2d');
+
+        // Draw captured map scaled to fill 1920x1080
+        ctx.drawImage(capture, 0, 0, W, H);
+
+        // Watermark bar at bottom
+        const barH = 44;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+        ctx.fillRect(0, H - barH, W, barH);
+
+        // Load logo and draw watermark
+        const logo = new Image();
+        logo.crossOrigin = 'anonymous';
+        logo.src = 'assets/politiquera.png';
+
+        await new Promise((resolve, reject) => {
+            logo.onload = resolve;
+            logo.onerror = () => resolve(); // continue without logo if it fails
+        });
+
+        const logoH = 30;
+        const logoW = logo.naturalWidth ? (logo.naturalWidth / logo.naturalHeight) * logoH : 0;
+        const text = 'Data Visualizations by Politiquera.com';
+        ctx.font = '600 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillStyle = '#ffffff';
+        const textMetrics = ctx.measureText(text);
+        const totalW = (logoW > 0 ? logoW + 10 : 0) + textMetrics.width;
+        const startX = (W - totalW) / 2;
+        const barY = H - barH;
+
+        if (logoW > 0) {
+            ctx.drawImage(logo, startX, barY + (barH - logoH) / 2, logoW, logoH);
+        }
+        ctx.fillText(text, startX + (logoW > 0 ? logoW + 10 : 0), barY + barH / 2 + 6);
+
+        // Convert to blob and trigger download
+        canvas.toBlob(blob => {
+            if (!blob) {
+                alert('Failed to generate screenshot');
+                return;
+            }
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const ds = window.currentDataset || currentDataset;
+            const datePart = new Date().toISOString().slice(0, 10);
+            const nameParts = [];
+            if (ds) {
+                if (ds.county) nameParts.push(ds.county);
+                if (ds.year) nameParts.push(ds.year);
+                if (ds.electionType) nameParts.push(ds.electionType);
+            }
+            nameParts.push(datePart);
+            a.download = `Politiquera_${nameParts.join('_')}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 'image/png');
+
+    } catch (err) {
+        console.error('Screenshot failed:', err);
+        alert('Screenshot failed: ' + err.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-camera"></i>';
+        }
+    }
+}
+
+// Initialize screenshot button
+function initializeScreenshotButton() {
+    const btn = document.getElementById('screenshotBtn');
+    if (btn) {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            captureScreenshot();
+        });
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeScreenshotButton);
+} else {
+    initializeScreenshotButton();
 }
