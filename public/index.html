@@ -206,13 +206,23 @@
 
     <!-- Search is now created dynamically by search.js as a bottom-left popup -->
 
-    <!-- Map Options Panel - Top Right -->
-    <div class="map-options-panel">
-        <div class="map-options-header">
+    <!-- Map Options Icon Button - Bottom Right -->
+    <button class="panel-icon-btn map-icon-btn" id="mapIconBtn" title="Map Options">
+        <i class="fas fa-map"></i>
+    </button>
+
+    <!-- Data Options Icon Button - Bottom Right -->
+    <button class="panel-icon-btn data-icon-btn" id="dataIconBtn" title="Data Options">
+        <i class="fas fa-database"></i>
+    </button>
+
+    <!-- Map Options Popup -->
+    <div class="panel-popup map-options-popup" id="mapOptionsPopup">
+        <div class="panel-popup-header">
             <h3>Map Options</h3>
-            <button class="map-options-toggle" id="mapOptionsToggle">▼</button>
+            <button class="panel-popup-close" id="mapOptionsClose">&times;</button>
         </div>
-        <div class="map-options-content" id="mapOptionsContent">
+        <div class="panel-popup-content" id="mapOptionsContent">
             <!-- Heatmap Type -->
             <div class="map-option-section" style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
                 <label class="map-option-label" style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">Heatmap Type:</label>
@@ -243,7 +253,6 @@
             </div>
 
             <!-- County Boundaries -->
-            <!-- County Boundaries -->
             <div class="map-option-section" style="margin-bottom: 0; padding-bottom: 0;">
                 <label class="map-option-checkbox" style="display: flex; align-items: center; cursor: pointer; font-size: 14px; color: #333;">
                     <input type="checkbox" id="countyBoundariesToggle" style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
@@ -253,13 +262,13 @@
         </div>
     </div>
 
-    <!-- Data Options Panel - Middle Right -->
-    <div class="data-options-panel">
-        <div class="data-options-header">
+    <!-- Data Options Popup -->
+    <div class="panel-popup data-options-popup" id="dataOptionsPopup">
+        <div class="panel-popup-header">
             <h3>Data Options</h3>
-            <button class="data-options-toggle" id="dataOptionsToggle">▼</button>
+            <button class="panel-popup-close" id="dataOptionsClose">&times;</button>
         </div>
-        <div class="data-options-content" id="dataOptionsContent">
+        <div class="panel-popup-content" id="dataOptionsContent">
             <!-- Dataset Selector -->
             <div class="data-option-section" style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
                 <label for="dataset-selector-inline" style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">Dataset:</label>

@@ -3,6 +3,7 @@ let map, markerClusterGroup, heatmapLayer, heatmapLayerDemocratic, heatmapLayerR
 let yearLayers = {}; // Store layers by year
 let activeYears = new Set(); // Track which years are active
 let precinctBoundariesLayer = null; // Precinct boundaries layer
+let countyOutlinesLayer = null; // County outlines layer (separate from precincts)
 let pollingPlacesLayer = null; // Polling places layer
 let layerControlPanel = null; // Layer control panel instance
 let datasetSelector = null; // Dataset selector instance
@@ -129,6 +130,10 @@ async function loadAdditionalLayers() {
         // Load precinct boundaries
         precinctBoundariesLayer = await loadPrecinctBoundaries();
         console.log('Precinct boundaries loaded:', precinctBoundariesLayer ? 'success' : 'failed');
+        
+        // Load county outlines (separate layer)
+        countyOutlinesLayer = await loadCountyOutlines();
+        console.log('County outlines loaded:', countyOutlinesLayer ? 'success' : 'failed');
         
         // Load polling places
         pollingPlacesLayer = await loadPollingPlaces();
@@ -797,9 +802,8 @@ async function loadPrecinctBoundaries(dataUrl = 'data/precinct_boundaries_combin
     try {
         const response = await fetch(dataUrl);
         if (!response.ok) {
-            console.warn('Precinct boundaries data not available, trying county outlines...');
-            // Fallback to county outlines
-            return await loadCountyOutlines();
+            console.warn('Precinct boundaries data not available');
+            return null;
         }
         
         const geojsonData = await response.json();
@@ -842,8 +846,7 @@ async function loadPrecinctBoundaries(dataUrl = 'data/precinct_boundaries_combin
         
     } catch (error) {
         console.error('Error loading precinct boundaries:', error);
-        // Fallback to county outlines
-        return await loadCountyOutlines();
+        return null;
     }
 }
 
@@ -1500,36 +1503,33 @@ if (document.readyState === 'loading') {
 function initializeMapOptionsPanel() {
     console.log('Initializing Map Options Panel...');
     
-    // Panel collapse/expand toggle
-    const header = document.querySelector('.map-options-header');
-    const toggle = document.getElementById('mapOptionsToggle');
-    const panel = document.querySelector('.map-options-panel');
+    // Icon button toggle
+    const mapIconBtn = document.getElementById('mapIconBtn');
+    const mapPopup = document.getElementById('mapOptionsPopup');
+    const mapClose = document.getElementById('mapOptionsClose');
     
-    // DEBUG: Check if elements exist and log their properties
-    console.log('Panel element found:', !!panel);
-    console.log('Header element found:', !!header);
-    console.log('Toggle element found:', !!toggle);
-    
-    if (panel) {
-        const styles = window.getComputedStyle(panel);
-        console.log('Panel computed styles:', {
-            display: styles.display,
-            visibility: styles.visibility,
-            opacity: styles.opacity,
-            position: styles.position,
-            top: styles.top,
-            right: styles.right,
-            zIndex: styles.zIndex,
-            width: styles.width,
-            height: styles.height
+    if (mapIconBtn && mapPopup) {
+        mapIconBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = mapPopup.classList.toggle('open');
+            mapIconBtn.classList.toggle('active', isOpen);
+            // Close data popup if open
+            const dataPopup = document.getElementById('dataOptionsPopup');
+            const dataBtn = document.getElementById('dataIconBtn');
+            if (dataPopup && dataPopup.classList.contains('open')) {
+                dataPopup.classList.remove('open');
+                if (dataBtn) dataBtn.classList.remove('active');
+            }
         });
-    }
-    
-    if (header && toggle && panel) {
-        header.addEventListener('click', () => {
-            panel.classList.toggle('collapsed');
-            console.log('Map options panel toggled');
-        });
+        
+        if (mapClose) {
+            mapClose.addEventListener('click', () => {
+                mapPopup.classList.remove('open');
+                mapIconBtn.classList.remove('active');
+            });
+        }
+        
+        mapPopup.addEventListener('click', (e) => e.stopPropagation());
     }
     
     // Heatmap type buttons
@@ -1620,22 +1620,16 @@ function initializeMapOptionsPanel() {
     const countyToggle = document.getElementById('countyBoundariesToggle');
     if (countyToggle) {
         countyToggle.addEventListener('change', (e) => {
-            // County boundaries are part of precinct boundaries fallback
-            // For now, we'll use the same layer
-            if (precinctBoundariesLayer) {
+            if (countyOutlinesLayer) {
                 if (e.target.checked) {
-                    if (!map.hasLayer(precinctBoundariesLayer)) {
-                        map.addLayer(precinctBoundariesLayer);
+                    if (!map.hasLayer(countyOutlinesLayer)) {
+                        map.addLayer(countyOutlinesLayer);
                         console.log('County boundaries shown');
                     }
                 } else {
-                    // Only hide if precinct lines are also off
-                    const precinctToggle = document.getElementById('precinctLinesToggle');
-                    if (!precinctToggle || !precinctToggle.checked) {
-                        if (map.hasLayer(precinctBoundariesLayer)) {
-                            map.removeLayer(precinctBoundariesLayer);
-                            console.log('County boundaries hidden');
-                        }
+                    if (map.hasLayer(countyOutlinesLayer)) {
+                        map.removeLayer(countyOutlinesLayer);
+                        console.log('County boundaries hidden');
                     }
                 }
             } else {
@@ -1670,84 +1664,24 @@ function initializeMapOptionsPanel() {
 }
 
 // ============================================================================
-// DYNAMIC PANEL POSITIONING
+// PANEL POPUP CLOSE ON OUTSIDE CLICK
 // ============================================================================
 
-/**
- * Recalculate and update panel positions so they stack without overlapping
- * Panels stack from bottom to top: Data Options -> Map Options
- * Legend is positioned independently on the left side
- */
-function updatePanelPositions() {
-    const dataOptions = document.querySelector('.data-options-panel');
-    const mapOptions = document.querySelector('.map-options-panel');
+document.addEventListener('click', () => {
+    const mapPopup = document.getElementById('mapOptionsPopup');
+    const dataPopup = document.getElementById('dataOptionsPopup');
+    const mapBtn = document.getElementById('mapIconBtn');
+    const dataBtn = document.getElementById('dataIconBtn');
     
-    if (!dataOptions || !mapOptions) {
-        console.warn('Not all panels found for positioning');
-        return;
+    if (mapPopup && mapPopup.classList.contains('open')) {
+        mapPopup.classList.remove('open');
+        if (mapBtn) mapBtn.classList.remove('active');
     }
-    
-    const gap = 10; // Gap between panels
-    
-    // Check if info strip is visible (it may be hidden)
-    const infoStrip = document.querySelector('.info-strip');
-    const infoStripHeight = (infoStrip && window.getComputedStyle(infoStrip).display !== 'none') ? 60 : 10;
-    
-    // Start from bottom
-    let currentBottom = infoStripHeight;
-    
-    // Position data options at bottom
-    dataOptions.style.bottom = currentBottom + 'px';
-    currentBottom += dataOptions.offsetHeight + gap;
-    
-    // Position map options above data options
-    mapOptions.style.bottom = currentBottom + 'px';
-    
-    console.log('Panel positions updated:', {
-        dataOptions: dataOptions.style.bottom,
-        mapOptions: mapOptions.style.bottom
-    });
-}
-
-/**
- * Initialize panel positioning system
- * Sets up observers and event listeners to maintain proper stacking
- */
-function initializePanelPositioning() {
-    // Initial positioning
-    setTimeout(updatePanelPositions, 100);
-    
-    // Update positions when panels are toggled
-    const headers = document.querySelectorAll('.map-options-header, .data-options-header');
-    headers.forEach(header => {
-        header.addEventListener('click', () => {
-            // Wait for collapse/expand animation to complete
-            setTimeout(updatePanelPositions, 350);
-        });
-    });
-    
-    // Update positions on window resize
-    window.addEventListener('resize', updatePanelPositions);
-    
-    // Use ResizeObserver to detect when panel content changes size
-    if (typeof ResizeObserver !== 'undefined') {
-        const resizeObserver = new ResizeObserver(() => {
-            updatePanelPositions();
-        });
-        
-        const panels = document.querySelectorAll('.data-options-panel, .map-options-panel');
-        panels.forEach(panel => resizeObserver.observe(panel));
+    if (dataPopup && dataPopup.classList.contains('open')) {
+        dataPopup.classList.remove('open');
+        if (dataBtn) dataBtn.classList.remove('active');
     }
-    
-    console.log('Panel positioning system initialized');
-}
-
-// Initialize panel positioning after DOM loads
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializePanelPositioning);
-} else {
-    initializePanelPositioning();
-}
+});
 
 // ============================================================================
 // DATA OPTIONS PANEL
@@ -1760,16 +1694,33 @@ if (document.readyState === 'loading') {
 function initializeDataOptionsPanel() {
     console.log('Initializing Data Options Panel...');
     
-    // Panel collapse/expand toggle
-    const header = document.querySelector('.data-options-header');
-    const toggle = document.getElementById('dataOptionsToggle');
-    const panel = document.querySelector('.data-options-panel');
+    // Icon button toggle
+    const dataIconBtn = document.getElementById('dataIconBtn');
+    const dataPopup = document.getElementById('dataOptionsPopup');
+    const dataClose = document.getElementById('dataOptionsClose');
     
-    if (header && toggle && panel) {
-        header.addEventListener('click', () => {
-            panel.classList.toggle('collapsed');
-            console.log('Data options panel toggled');
+    if (dataIconBtn && dataPopup) {
+        dataIconBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = dataPopup.classList.toggle('open');
+            dataIconBtn.classList.toggle('active', isOpen);
+            // Close map popup if open
+            const mapPopup = document.getElementById('mapOptionsPopup');
+            const mapBtn = document.getElementById('mapIconBtn');
+            if (mapPopup && mapPopup.classList.contains('open')) {
+                mapPopup.classList.remove('open');
+                if (mapBtn) mapBtn.classList.remove('active');
+            }
         });
+        
+        if (dataClose) {
+            dataClose.addEventListener('click', () => {
+                dataPopup.classList.remove('open');
+                dataIconBtn.classList.remove('active');
+            });
+        }
+        
+        dataPopup.addEventListener('click', (e) => e.stopPropagation());
     }
     
     // Initialize inline dataset selector
