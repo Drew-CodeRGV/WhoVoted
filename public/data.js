@@ -631,7 +631,17 @@ function initializeDataLayers() {
         // Defer the update to avoid internal Leaflet state issues
         setTimeout(() => {
             try {
-                heatmapLayerDemocratic.setLatLngs(heatmapDataDemocratic);
+                // Temporarily add to map so canvas is available
+                if (!map.hasLayer(heatmapLayerDemocratic)) {
+                    map.addLayer(heatmapLayerDemocratic);
+                }
+                if (heatmapLayerDemocratic._map) {
+                    heatmapLayerDemocratic.setLatLngs(heatmapDataDemocratic);
+                }
+                // Remove again - updateMapView will decide what to show
+                if (map.hasLayer(heatmapLayerDemocratic)) {
+                    map.removeLayer(heatmapLayerDemocratic);
+                }
                 console.log('Updated Democratic heatmap layer with', heatmapDataDemocratic.length, 'points');
             } catch (error) {
                 console.error('Error updating Democratic heatmap:', error);
@@ -654,7 +664,17 @@ function initializeDataLayers() {
         // Defer the update to avoid internal Leaflet state issues
         setTimeout(() => {
             try {
-                heatmapLayerRepublican.setLatLngs(heatmapDataRepublican);
+                // Temporarily add to map so canvas is available
+                if (!map.hasLayer(heatmapLayerRepublican)) {
+                    map.addLayer(heatmapLayerRepublican);
+                }
+                if (heatmapLayerRepublican._map) {
+                    heatmapLayerRepublican.setLatLngs(heatmapDataRepublican);
+                }
+                // Remove again - updateMapView will decide what to show
+                if (map.hasLayer(heatmapLayerRepublican)) {
+                    map.removeLayer(heatmapLayerRepublican);
+                }
                 console.log('Updated Republican heatmap layer with', heatmapDataRepublican.length, 'points');
             } catch (error) {
                 console.error('Error updating Republican heatmap:', error);
