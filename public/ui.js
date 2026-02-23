@@ -368,12 +368,18 @@ class DatasetSelector {
         }
         
         // Deduplicate datasets - for primaries, combine Republican and Democratic into one entry
+        // For early vote, skip day snapshots (only show cumulative)
         const uniqueDatasets = [];
         const seenKeys = new Set();
         
         datasets.forEach((dataset, index) => {
-            // Create key without party affiliation for deduplication
-            const key = `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}`;
+            // Skip individual early vote day snapshots — only show cumulative
+            if (dataset.isEarlyVoting && !dataset.isCumulative) return;
+            
+            // Create key without party affiliation for deduplication (non-early-vote only)
+            const key = dataset.isCumulative
+                ? `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}_cumulative_${dataset.primaryParty || ''}`
+                : `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}`;
             
             if (!seenKeys.has(key)) {
                 seenKeys.add(key);
@@ -389,8 +395,10 @@ class DatasetSelector {
             // Format label with metadata
             const votingMethodLabel = dataset.votingMethod === 'election-day' ? 'Election Day' : 'Early Voting';
             const electionTypeLabel = dataset.electionType.charAt(0).toUpperCase() + dataset.electionType.slice(1);
+            const partyLabel = dataset.primaryParty ? ` (${dataset.primaryParty.charAt(0).toUpperCase() + dataset.primaryParty.slice(1)})` : '';
+            const cumulativeLabel = dataset.isCumulative ? ' [Cumulative]' : '';
             
-            option.textContent = `${dataset.county} ${dataset.year} ${electionTypeLabel} - ${votingMethodLabel}`;
+            option.textContent = `${dataset.county} ${dataset.year} ${electionTypeLabel}${partyLabel} - ${votingMethodLabel}${cumulativeLabel}`;
             
             // Add metadata as data attributes for easy access
             option.dataset.county = dataset.county;
@@ -420,6 +428,7 @@ class DatasetSelector {
     
     /**
      * Group datasets by year, election type, and voting method
+     * Recognizes early vote cumulative datasets and groups them appropriately
      * @param {Array} datasets - Array of dataset objects
      * @returns {Object} Grouped datasets object
      */
@@ -430,6 +439,8 @@ class DatasetSelector {
             const year = dataset.year;
             const electionType = dataset.electionType;
             const votingMethod = dataset.votingMethod;
+            const isEV = dataset.isEarlyVoting || false;
+            const isCum = dataset.isCumulative || false;
             
             if (!grouped[year]) {
                 grouped[year] = {};
@@ -439,11 +450,14 @@ class DatasetSelector {
                 grouped[year][electionType] = {};
             }
             
-            if (!grouped[year][electionType][votingMethod]) {
-                grouped[year][electionType][votingMethod] = [];
+            // Sub-group early vote cumulative separately
+            const methodKey = isCum ? `${votingMethod}-cumulative` : votingMethod;
+            
+            if (!grouped[year][electionType][methodKey]) {
+                grouped[year][electionType][methodKey] = [];
             }
             
-            grouped[year][electionType][votingMethod].push(dataset);
+            grouped[year][electionType][methodKey].push(dataset);
         });
         
         return grouped;
@@ -822,5 +836,93 @@ class PartyFilter {
         this.restoreSavedFilter();
         
         console.log('PartyFilter: Initialized');
+    }
+}
+
+// ============================================================================
+// TIME-LAPSE INTEGRATION
+// ============================================================================
+
+let timeLapsePlayer = null;
+
+/**
+ * Initialize or show time-lapse controls for an early vote dataset
+ * @param {Object} dataset - The selected dataset object
+ * @param {Array} allDatasets - All available datasets for snapshot discovery
+ */
+async function initTimeLapse(dataset, allDatasets) {
+    const container = document.getElementById('timelapseSectionContainer');
+    const mount = document.getElementById('timelapse-mount');
+    
+    if (!container || !mount) return;
+    
+    // Check if this is an early vote / cumulative dataset
+    const isEarlyVote = dataset.isEarlyVoting || dataset.isCumulative || 
+        (dataset.votingMethod && dataset.votingMethod.includes('early'));
+    
+    if (!isEarlyVote) {
+        // Hide time-lapse controls
+        container.style.display = 'none';
+        if (timeLapsePlayer) {
+            timeLapsePlayer.destroy();
+            timeLapsePlayer = null;
+        }
+        return;
+    }
+    
+    // Show time-lapse section
+    container.style.display = 'block';
+    
+    // Clean up previous player
+    if (timeLapsePlayer) {
+        timeLapsePlayer.destroy();
+        timeLapsePlayer = null;
+    }
+    
+    // Create new player — hide standard heatmaps during playback
+    timeLapsePlayer = new TimeLapsePlayer(map, {
+        onDayChange: (info) => {
+            const countLabel = mount.querySelector('.tl-count-label');
+            if (countLabel) {
+                countLabel.textContent = `${info.cumulativeRenderable} voters mapped` + 
+                    (info.unmatchedCount > 0 ? ` (${info.unmatchedCount} unmatched)` : '');
+            }
+            
+            // Hide standard heatmap layers during time-lapse playback
+            if (typeof heatmapLayer !== 'undefined' && heatmapLayer && map.hasLayer(heatmapLayer)) {
+                map.removeLayer(heatmapLayer);
+            }
+            if (typeof heatmapLayerDemocratic !== 'undefined' && heatmapLayerDemocratic && map.hasLayer(heatmapLayerDemocratic)) {
+                map.removeLayer(heatmapLayerDemocratic);
+            }
+            if (typeof heatmapLayerRepublican !== 'undefined' && heatmapLayerRepublican && map.hasLayer(heatmapLayerRepublican)) {
+                map.removeLayer(heatmapLayerRepublican);
+            }
+        }
+    });
+    
+    // Mount controls
+    mount.innerHTML = '';
+    const controls = timeLapsePlayer.createControls();
+    mount.appendChild(controls);
+    
+    // Load snapshots
+    try {
+        const snapshots = await loadDaySnapshots(
+            allDatasets,
+            dataset.county,
+            dataset.year,
+            dataset.electionType,
+            dataset.primaryParty || ''
+        );
+        
+        if (snapshots.length > 0) {
+            timeLapsePlayer.setSnapshots(snapshots);
+            console.log(`TimeLapse: Loaded ${snapshots.length} day snapshots`);
+        } else {
+            console.log('TimeLapse: No day snapshots found');
+        }
+    } catch (e) {
+        console.warn('TimeLapse: Failed to load snapshots:', e);
     }
 }

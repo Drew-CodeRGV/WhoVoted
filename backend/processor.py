@@ -10,6 +10,10 @@ from typing import Optional
 
 from config import Config
 from geocoder import GeocodingCache, NominatimGeocoder
+from vuid_resolver import (
+    VUIDResolver, normalize_column_names, has_vuid_column,
+    has_address_column, parse_voter_name, COLUMN_ALIASES
+)
 
 logger = logging.getLogger(__name__)
 
@@ -381,6 +385,12 @@ class ProcessingJob:
             self.log("Step 2/5: Loading and cleaning addresses...")
             df = read_data_file(self.csv_path)
             self.total_records = len(df)
+            
+            # Check if this is an early vote roster (VUID but no address)
+            if self.detect_early_vote_roster(df):
+                self.process_early_vote_roster(df)
+                return
+            
             df = self.clean_addresses(df)
             self.log(f"Cleaned {len(df)} addresses")
             self.progress = 0.2
@@ -962,6 +972,12 @@ class ProcessingJob:
             error_csv_path = Config.DATA_DIR / 'processing_errors.csv'
             error_df = pd.DataFrame(self.errors)
             error_df.to_csv(error_csv_path, index=False)
+        
+        # Re-resolve unmatched VUIDs in early vote GeoJSONs
+        try:
+            self.re_resolve_unmatched()
+        except Exception as e:
+            logger.warning(f"Re-resolution of unmatched VUIDs failed: {e}")
 
     
     def deploy_outputs(self):
@@ -1149,3 +1165,346 @@ class ProcessingJob:
         
         # Default to True (assume registered if in voter roll)
         return True
+
+    # ================================================================
+    # EARLY VOTE ROSTER PROCESSING
+    # ================================================================
+
+    @staticmethod
+    def detect_early_vote_roster(df: pd.DataFrame) -> bool:
+        """Detect if a DataFrame is an early vote roster (has VUID but no ADDRESS)."""
+        return has_vuid_column(df) and not has_address_column(df)
+
+    def process_early_vote_roster(self, df: pd.DataFrame):
+        """Process an early vote roster through the VUID resolution pipeline.
+        
+        This replaces the standard geocoding pipeline for files that have
+        VUID but no address column.
+        """
+        self.log("Early vote roster detected — using VUID resolution pipeline")
+        
+        # Normalize column names
+        df = normalize_column_names(df)
+        
+        # Validate VUID column exists after normalization
+        if 'vuid' not in df.columns:
+            raise ValueError("VUID column is required for Early Vote Roster processing")
+        
+        # Drop rows with empty VUID
+        df = df.dropna(subset=['vuid'])
+        df = df[df['vuid'].astype(str).str.strip() != '']
+        
+        if len(df) == 0:
+            raise ValueError("File is empty or malformed")
+        
+        self.total_records = len(df)
+        self.log(f"Processing {self.total_records} early vote records")
+        
+        # Parse voter names
+        if 'voter_name' in df.columns:
+            names = df['voter_name'].apply(parse_voter_name)
+            df['lastname'] = names.apply(lambda x: x[0])
+            df['firstname'] = names.apply(lambda x: x[1])
+        else:
+            df['lastname'] = ''
+            df['firstname'] = ''
+        
+        # Build VUID lookup from existing datasets
+        resolver = VUIDResolver(self.county, Config.DATA_DIR)
+        lookup_count = resolver.build_lookup()
+        self.log(f"VUID lookup built with {lookup_count} known VUIDs")
+        
+        # Resolve each VUID
+        matched = 0
+        unmatched = 0
+        roster_date = self.election_date or datetime.now().strftime('%Y-%m-%d')
+        primary_party = self.primary_party or ''
+        
+        # Prepare output columns
+        results = []
+        for idx, row in df.iterrows():
+            raw_vuid = row.get('vuid', '')
+            normalized_vuid = VUIDResolver.normalize_vuid(raw_vuid)
+            
+            match = resolver.resolve(normalized_vuid)
+            
+            record = {
+                'vuid': normalized_vuid,
+                'lastname': row.get('lastname', ''),
+                'firstname': row.get('firstname', ''),
+                'precinct': str(row.get('precinct', '')).strip(),
+                'early_vote_day': roster_date,
+                'voted_in_current_election': True,
+                'is_registered': True,
+            }
+            
+            if match:
+                record['lat'] = match['lat']
+                record['lng'] = match['lng']
+                record['address'] = match['address']
+                record['display_name'] = match['display_name']
+                record['unmatched'] = False
+                
+                # Set party affiliation
+                existing_party = match.get('party_affiliation_current', '')
+                if primary_party:
+                    record['party_affiliation_current'] = primary_party.capitalize()
+                    if existing_party and existing_party.lower() != primary_party.lower():
+                        record['party_affiliation_previous'] = existing_party
+                        record['has_switched_parties'] = True
+                    else:
+                        record['party_affiliation_previous'] = ''
+                        record['has_switched_parties'] = False
+                else:
+                    record['party_affiliation_current'] = existing_party
+                    record['party_affiliation_previous'] = ''
+                    record['has_switched_parties'] = False
+                
+                matched += 1
+            else:
+                record['lat'] = None
+                record['lng'] = None
+                record['address'] = ''
+                record['display_name'] = ''
+                record['unmatched'] = True
+                record['party_affiliation_current'] = primary_party.capitalize() if primary_party else ''
+                record['party_affiliation_previous'] = ''
+                record['has_switched_parties'] = False
+                unmatched += 1
+            
+            results.append(record)
+        
+        self.log(f"VUID resolution: {matched} matched, {unmatched} unmatched")
+        self.geocoded_count = matched
+        self.failed_count = unmatched
+        
+        result_df = pd.DataFrame(results)
+        
+        # Generate outputs
+        self.generate_early_vote_outputs(result_df, matched, unmatched, roster_date)
+        
+        self.progress = 1.0
+        self.status = 'completed'
+        self.completed_at = datetime.now()
+        processing_time = (self.completed_at - self.started_at).total_seconds()
+        self.log(f"Early vote processing completed in {processing_time:.1f}s")
+
+    def generate_early_vote_outputs(self, df: pd.DataFrame, matched: int, unmatched: int, roster_date: str):
+        """Generate GeoJSON day snapshot and cumulative files for early vote data."""
+        Config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+        
+        # Build GeoJSON features
+        features = []
+        for _, row in df.iterrows():
+            if row.get('unmatched') or row.get('lat') is None:
+                geometry = None
+            else:
+                geometry = {
+                    'type': 'Point',
+                    'coordinates': [row['lng'], row['lat']]
+                }
+            
+            props = {
+                'vuid': row.get('vuid', ''),
+                'lastname': row.get('lastname', ''),
+                'firstname': row.get('firstname', ''),
+                'precinct': row.get('precinct', ''),
+                'address': row.get('address', ''),
+                'display_name': row.get('display_name', ''),
+                'original_address': '',
+                'party_affiliation_current': row.get('party_affiliation_current', ''),
+                'party_affiliation_previous': row.get('party_affiliation_previous', ''),
+                'early_vote_day': row.get('early_vote_day', ''),
+                'unmatched': bool(row.get('unmatched', False)),
+                'ballot_style': '',
+                'household_voter_count': 1,
+                'has_switched_parties': bool(row.get('has_switched_parties', False)),
+                'voted_in_current_election': True,
+                'is_registered': True,
+            }
+            
+            features.append({
+                'type': 'Feature',
+                'geometry': geometry,
+                'properties': props,
+            })
+        
+        map_data = {'type': 'FeatureCollection', 'features': features}
+        
+        # Day snapshot filename
+        date_str = roster_date.replace('-', '')
+        party_suffix = f'_{self.primary_party}' if self.primary_party else ''
+        snapshot_filename = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_{date_str}.json'
+        snapshot_path = Config.DATA_DIR / snapshot_filename
+        
+        with open(snapshot_path, 'w') as f:
+            json.dump(map_data, f, indent=2)
+        self.log(f"Day snapshot saved: {snapshot_filename}")
+        
+        # Day metadata
+        metadata = {
+            'year': self.year,
+            'county': self.county,
+            'election_type': self.election_type,
+            'election_date': roster_date,
+            'voting_method': self.voting_method or 'early-voting',
+            'primary_party': self.primary_party,
+            'early_vote_day': roster_date,
+            'is_early_voting': True,
+            'is_cumulative': False,
+            'original_filename': self.original_filename,
+            'last_updated': datetime.now().isoformat(),
+            'total_addresses': len(df),
+            'matched_vuids': matched,
+            'unmatched_vuids': unmatched,
+            'successfully_geocoded': 0,
+            'failed_addresses': 0,
+        }
+        
+        meta_filename = f'metadata_{self.county}_{self.year}_{self.election_type}{party_suffix}_{date_str}.json'
+        meta_path = Config.DATA_DIR / meta_filename
+        with open(meta_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        
+        # Generate cumulative file
+        self._generate_cumulative(party_suffix)
+        
+        # Deploy to public directory
+        self.deploy_outputs()
+
+    def _generate_cumulative(self, party_suffix: str):
+        """Merge all day snapshots for same county/election/party into cumulative file."""
+        pattern = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_*.json'
+        snapshot_files = sorted(Config.DATA_DIR.glob(pattern))
+        
+        # Exclude cumulative file itself
+        snapshot_files = [f for f in snapshot_files if 'cumulative' not in f.name]
+        
+        if not snapshot_files:
+            return
+        
+        # Merge all features, deduplicate by VUID (keep most recent)
+        all_features = {}
+        day_snapshots = []
+        
+        for filepath in snapshot_files:
+            try:
+                with open(filepath, 'r') as f:
+                    data = json.load(f)
+                
+                # Extract date from filename
+                date_part = filepath.stem.split('_')[-1]
+                day_snapshots.append(date_part)
+                
+                for feature in data.get('features', []):
+                    vuid = feature.get('properties', {}).get('vuid', '')
+                    if vuid:
+                        normalized = VUIDResolver.normalize_vuid(vuid)
+                        all_features[normalized] = feature
+            except Exception as e:
+                logger.warning(f"Error reading snapshot {filepath}: {e}")
+        
+        features_list = list(all_features.values())
+        cumulative_data = {'type': 'FeatureCollection', 'features': features_list}
+        
+        # Save cumulative file
+        cum_filename = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_cumulative.json'
+        cum_path = Config.DATA_DIR / cum_filename
+        with open(cum_path, 'w') as f:
+            json.dump(cumulative_data, f, indent=2)
+        
+        # Count matched/unmatched
+        cum_matched = sum(1 for f in features_list if not f.get('properties', {}).get('unmatched', False))
+        cum_unmatched = sum(1 for f in features_list if f.get('properties', {}).get('unmatched', False))
+        
+        # Cumulative metadata
+        cum_meta = {
+            'year': self.year,
+            'county': self.county,
+            'election_type': self.election_type,
+            'primary_party': self.primary_party,
+            'is_early_voting': True,
+            'is_cumulative': True,
+            'last_updated': datetime.now().isoformat(),
+            'total_addresses': len(features_list),
+            'matched_vuids': cum_matched,
+            'unmatched_vuids': cum_unmatched,
+            'day_snapshots': sorted(day_snapshots),
+        }
+        
+        cum_meta_filename = f'metadata_{self.county}_{self.year}_{self.election_type}{party_suffix}_cumulative.json'
+        cum_meta_path = Config.DATA_DIR / cum_meta_filename
+        with open(cum_meta_path, 'w') as f:
+            json.dump(cum_meta, f, indent=2)
+        
+        self.log(f"Cumulative file updated: {len(features_list)} total voters ({cum_matched} matched, {cum_unmatched} unmatched)")
+
+    def re_resolve_unmatched(self):
+        """After a full voter file is processed, re-resolve unmatched VUIDs in early vote GeoJSONs."""
+        # Build lookup from the newly processed data
+        resolver = VUIDResolver(self.county, Config.DATA_DIR)
+        resolver.build_lookup()
+        
+        if not resolver.vuid_lookup:
+            return
+        
+        # Find early vote GeoJSON files for this county
+        pattern = f'map_data_{self.county}_*_cumulative.json'
+        cum_files = list(Config.DATA_DIR.glob(pattern))
+        
+        # Also check individual day snapshots
+        pattern_all = f'map_data_{self.county}_*.json'
+        all_files = [f for f in Config.DATA_DIR.glob(pattern_all) if 'cumulative' not in f.name]
+        
+        files_to_check = cum_files + all_files
+        
+        for filepath in files_to_check:
+            try:
+                with open(filepath, 'r') as f:
+                    data = json.load(f)
+                
+                features = data.get('features', [])
+                updated = 0
+                
+                for feature in features:
+                    props = feature.get('properties', {})
+                    if not props.get('unmatched', False):
+                        continue
+                    
+                    vuid = props.get('vuid', '')
+                    if not vuid:
+                        continue
+                    
+                    match = resolver.resolve(vuid)
+                    if match and match.get('lat') is not None:
+                        feature['geometry'] = {
+                            'type': 'Point',
+                            'coordinates': [match['lng'], match['lat']]
+                        }
+                        props['address'] = match['address']
+                        props['display_name'] = match['display_name']
+                        props['unmatched'] = False
+                        updated += 1
+                
+                if updated > 0:
+                    with open(filepath, 'w') as f:
+                        json.dump(data, f, indent=2)
+                    
+                    # Update corresponding metadata
+                    meta_name = filepath.name.replace('map_data_', 'metadata_')
+                    meta_path = Config.DATA_DIR / meta_name
+                    if meta_path.exists():
+                        with open(meta_path, 'r') as f:
+                            meta = json.load(f)
+                        matched_count = sum(1 for feat in features if not feat.get('properties', {}).get('unmatched', False))
+                        unmatched_count = sum(1 for feat in features if feat.get('properties', {}).get('unmatched', False))
+                        meta['matched_vuids'] = matched_count
+                        meta['unmatched_vuids'] = unmatched_count
+                        meta['last_updated'] = datetime.now().isoformat()
+                        with open(meta_path, 'w') as f:
+                            json.dump(meta, f, indent=2)
+                    
+                    self.log(f"Re-resolved {updated} VUIDs in {filepath.name}")
+                    
+            except Exception as e:
+                logger.warning(f"Error re-resolving {filepath}: {e}")

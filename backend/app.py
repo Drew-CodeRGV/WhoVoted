@@ -674,14 +674,16 @@ def list_datasets():
                     with open(metadata_file, 'r') as f:
                         metadata = json.load(f)
                     
-                    # Create a unique key for this dataset (include party for primaries)
+                    # Create a unique key for this dataset (include party for primaries, early vote day for snapshots)
                     dataset_key = (
                         metadata.get('county', 'Unknown'),
                         metadata.get('year', 'Unknown'),
                         metadata.get('election_type', 'Unknown'),
                         metadata.get('election_date', 'Unknown'),
                         metadata.get('voting_method', 'Unknown'),
-                        metadata.get('primary_party', '')  # Include party to distinguish DEM/REP primaries
+                        metadata.get('primary_party', ''),  # Include party to distinguish DEM/REP primaries
+                        metadata.get('early_vote_day', ''),  # Include day for early vote snapshots
+                        metadata.get('is_cumulative', False)  # Distinguish cumulative from snapshots
                     )
                     
                     # Skip if we've already seen this dataset
@@ -705,7 +707,10 @@ def list_datasets():
                         'primaryParty': metadata.get('primary_party', ''),  # Include party for primaries
                         'lastUpdated': metadata.get('last_updated', ''),
                         'totalAddresses': metadata.get('total_addresses', 0),
-                        'originalFilename': metadata.get('original_filename', '')
+                        'originalFilename': metadata.get('original_filename', ''),
+                        'isEarlyVoting': metadata.get('is_early_voting', False),
+                        'isCumulative': metadata.get('is_cumulative', False),
+                        'earlyVoteDay': metadata.get('early_vote_day', '')
                     })
                 except Exception as e:
                     logger.warning(f"Could not read metadata file {metadata_file.name}: {e}")

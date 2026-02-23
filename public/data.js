@@ -134,13 +134,25 @@ async function discoverDatasets() {
             const groupedDatasets = new Map();
             
             data.datasets.forEach(dataset => {
-                // Create key without party (to group DEM/REP together)
-                const key = `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}_${dataset.electionDate}`;
+                // For early vote day snapshots, keep each as separate (for time-lapse)
+                // For cumulative early vote, keep separate too
+                // Only group non-early-vote DEM/REP primaries together
+                const isEV = dataset.isEarlyVoting || false;
+                const isCum = dataset.isCumulative || false;
+                
+                // Create key - early vote snapshots get unique keys per date/party
+                const key = isEV && !isCum
+                    ? `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}_${dataset.electionDate}_${dataset.primaryParty}_${dataset.earlyVoteDay || ''}`
+                    : isCum
+                    ? `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}_${dataset.electionDate}_${dataset.primaryParty}_cumulative`
+                    : `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}_${dataset.electionDate}`;
                 
                 if (!groupedDatasets.has(key)) {
                     // First dataset for this election - store it
                     groupedDatasets.set(key, {
                         ...dataset,
+                        isEarlyVoting: isEV,
+                        isCumulative: isCum,
                         parties: [dataset.primaryParty].filter(p => p), // Array of parties
                         mapDataFiles: [dataset.mapDataFile], // Array of map data files to merge
                         totalAddresses: dataset.totalAddresses
@@ -184,15 +196,33 @@ function populateDatasetSelector() {
         return;
     }
     
+    // Separate cumulative early vote datasets and regular datasets
+    // Hide individual day snapshots from dropdown (they're used by time-lapse only)
+    const displayDatasets = [];
+    
     availableDatasets.forEach((dataset, index) => {
+        // Skip individual day snapshots — only show cumulative or non-early-vote
+        if (dataset.isEarlyVoting && !dataset.isCumulative) return;
+        displayDatasets.push({ dataset, index });
+    });
+    
+    if (displayDatasets.length === 0) {
+        selector.innerHTML = '<option value="">No datasets available</option>';
+        selector.disabled = true;
+        return;
+    }
+    
+    displayDatasets.forEach(({ dataset, index }) => {
         const option = document.createElement('option');
         option.value = index;
         
         // Format label
         const votingMethodLabel = dataset.votingMethod === 'election-day' ? 'Election Day' : 'Early Voting';
         const electionTypeLabel = dataset.electionType.charAt(0).toUpperCase() + dataset.electionType.slice(1);
+        const partyLabel = dataset.primaryParty ? ` (${dataset.primaryParty.charAt(0).toUpperCase() + dataset.primaryParty.slice(1)})` : '';
+        const cumulativeLabel = dataset.isCumulative ? ' [Cumulative]' : '';
         
-        option.textContent = `${dataset.county} ${dataset.year} ${electionTypeLabel} - ${votingMethodLabel} (${dataset.totalAddresses.toLocaleString()} voters)`;
+        option.textContent = `${dataset.county} ${dataset.year} ${electionTypeLabel}${partyLabel} - ${votingMethodLabel}${cumulativeLabel} (${dataset.totalAddresses.toLocaleString()} voters)`;
         
         selector.appendChild(option);
     });
@@ -1044,3 +1074,91 @@ window.addEventListener('load', () => {
         }
     }, 5000); // Wait 5 seconds after page load
 });
+
+// ============================================================================
+// EARLY VOTE DATA UTILITIES
+// ============================================================================
+
+/**
+ * Deduplicate GeoJSON features by VUID, keeping the most recent early_vote_day
+ * @param {Array} features - Array of GeoJSON features
+ * @returns {Array} Deduplicated features
+ */
+function deduplicateByVUID(features) {
+    const byVuid = {};
+    features.forEach(f => {
+        const vuid = f.properties && f.properties.vuid;
+        if (!vuid) return;
+        const existing = byVuid[vuid];
+        if (!existing || (f.properties.early_vote_day || '') > (existing.properties.early_vote_day || '')) {
+            byVuid[vuid] = f;
+        }
+    });
+    return Object.values(byVuid);
+}
+
+/**
+ * Filter features for map rendering — exclude unmatched/null geometry
+ * @param {Array} features - Array of GeoJSON features
+ * @returns {Object} { renderable: features for map, total: all count, unmatched: unmatched count }
+ */
+function filterEarlyVoteFeatures(features) {
+    const renderable = features.filter(f => 
+        f.geometry && f.geometry.coordinates && !f.properties.unmatched
+    );
+    const unmatchedCount = features.filter(f => f.properties && f.properties.unmatched).length;
+    return { renderable, total: features.length, unmatched: unmatchedCount };
+}
+
+/**
+ * Load all day snapshot files for time-lapse playback
+ * @param {Array} datasets - Array of dataset objects from discoverDatasets
+ * @param {string} county - County name
+ * @param {string} year - Election year
+ * @param {string} electionType - Election type
+ * @param {string} party - Party (democratic/republican)
+ * @returns {Array} Sorted array of { date, features } objects
+ */
+async function loadDaySnapshots(datasets, county, year, electionType, party) {
+    // Find all day snapshot datasets (non-cumulative) matching criteria
+    const snapshots = [];
+    
+    for (const ds of datasets) {
+        if (ds.county !== county || ds.year !== year || ds.electionType !== electionType) continue;
+        if (ds.isCumulative) continue;
+        if (!ds.isEarlyVoting) continue;
+        
+        // Load the GeoJSON
+        const files = ds.mapDataFiles || [ds.mapDataFile];
+        for (const file of files) {
+            // Check party match from filename
+            const fileLower = file.toLowerCase();
+            if (party && !fileLower.includes(party.toLowerCase())) continue;
+            
+            try {
+                const response = await fetch(`data/${file}`);
+                if (!response.ok) continue;
+                const geojson = await response.json();
+                
+                // Extract date from filename (last part before .json)
+                const parts = file.replace('.json', '').split('_');
+                const datePart = parts[parts.length - 1];
+                // Convert YYYYMMDD to YYYY-MM-DD
+                const dateStr = datePart.length === 8 
+                    ? `${datePart.slice(0,4)}-${datePart.slice(4,6)}-${datePart.slice(6,8)}`
+                    : datePart;
+                
+                snapshots.push({
+                    date: dateStr,
+                    features: geojson.features || []
+                });
+            } catch (e) {
+                console.warn(`Failed to load snapshot ${file}:`, e);
+            }
+        }
+    }
+    
+    // Sort chronologically
+    snapshots.sort((a, b) => a.date.localeCompare(b.date));
+    return snapshots;
+}

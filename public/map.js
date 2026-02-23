@@ -397,6 +397,11 @@ async function initializeDatasetControls() {
             try {
                 await loadDataset(dataset);
                 
+                // Initialize time-lapse if early vote dataset
+                if (typeof initTimeLapse === 'function' && datasetSelector.datasets) {
+                    await initTimeLapse(dataset, datasetSelector.datasets);
+                }
+                
                 // Update party filter visibility based on election type
                 if (partyFilter) {
                     const isPrimary = datasetManager.isPrimaryElection();
