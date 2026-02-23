@@ -7,6 +7,7 @@ let pollingPlacesLayer = null; // Polling places layer
 let layerControlPanel = null; // Layer control panel instance
 let datasetSelector = null; // Dataset selector instance
 let partyFilter = null; // Party filter instance
+let showFlippedVoters = false; // Track flipped voters display mode
 
 function initMap() {
     // Initialize Leaflet map with OpenStreetMap tiles and Canvas renderer for performance
@@ -467,6 +468,26 @@ function determineMarkerColor(voterData) {
     }
 
     const currentParty = voterData.party_affiliation_current.toLowerCase();
+    
+    // Check for party flip if flipped voters mode is enabled
+    if (showFlippedVoters && voterData.party_affiliation_previous) {
+        const previousParty = voterData.party_affiliation_previous.toLowerCase();
+        
+        const isCurrentRep = currentParty.includes('republican') || currentParty.includes('rep');
+        const isCurrentDem = currentParty.includes('democrat') || currentParty.includes('dem');
+        const isPreviousRep = previousParty.includes('republican') || previousParty.includes('rep');
+        const isPreviousDem = previousParty.includes('democrat') || previousParty.includes('dem');
+        
+        // Red to Blue (Republican to Democratic) = Purple
+        if (isPreviousRep && isCurrentDem) {
+            return 'purple';
+        }
+        
+        // Blue to Red (Democratic to Republican) = Maroon
+        if (isPreviousDem && isCurrentRep) {
+            return 'maroon';
+        }
+    }
 
     // Republican - red
     if (currentParty.includes('republican') || currentParty.includes('rep')) {
@@ -903,6 +924,8 @@ function getMarkerFillColor(colorCode) {
     const colors = {
         'red': '#DC143C',      // Republican
         'blue': '#1E90FF',     // Democratic
+        'purple': '#9370DB',   // Flipped: Republican → Democratic
+        'maroon': '#800000',   // Flipped: Democratic → Republican
         'green': '#32CD32'     // Unknown/Other
     };
 
@@ -1542,6 +1565,20 @@ function initializeMapOptionsPanel() {
                 }
             } else {
                 console.warn('County boundaries layer not available');
+            }
+        });
+    }
+    
+    // Flipped voters toggle
+    const flippedToggle = document.getElementById('flippedVotersToggle');
+    if (flippedToggle) {
+        flippedToggle.addEventListener('change', (e) => {
+            showFlippedVoters = e.target.checked;
+            console.log('Flipped voters mode:', showFlippedVoters ? 'enabled' : 'disabled');
+            
+            // Reload markers to apply change
+            if (window.mapData && window.mapData.features) {
+                initializeDataLayers();
             }
         });
     }
