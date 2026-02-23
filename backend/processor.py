@@ -438,37 +438,43 @@ class ProcessingJob:
     def validate_csv(self) -> ValidationResult:
         """Validate CSV structure and content."""
         result = ValidationResult()
-        
+
         try:
             df = read_data_file(self.csv_path)
         except Exception as e:
             result.add_error(0, f"Failed to read file: {str(e)}")
             return result
-        
-        # Check required columns
+
+        # Early vote rosters have VUID but no ADDRESS — skip standard column checks
+        if has_vuid_column(df) and not has_address_column(df):
+            self.log("Detected early vote roster (VUID present, no ADDRESS column)")
+            result.valid_count = len(df)
+            return result
+
+        # Check required columns for standard voter files
         required_columns = ['ADDRESS', 'PRECINCT', 'BALLOT STYLE']
         missing_columns = [col for col in required_columns if col not in df.columns]
-        
+
         if missing_columns:
             result.add_error(0, f"Missing required columns: {', '.join(missing_columns)}")
             return result
-        
+
         # Check for recommended columns
         recommended_columns = [
             'ID', 'VUID', 'CERT', 'LASTNAME', 'FIRSTNAME', 
             'MIDDLENAME', 'SUFFIX', 'CHECK-IN', 'SITE', 'PARTY'
         ]
         missing_recommended = [col for col in recommended_columns if col not in df.columns]
-        
+
         if missing_recommended:
             self.log(f"INFO: Missing recommended columns: {', '.join(missing_recommended)}")
             self.log("These columns are optional but provide additional voter information.")
-        
+
         # Check for VUID or CERT column (required for cross-referencing)
         has_vuid = 'VUID' in df.columns
         has_cert = 'CERT' in df.columns
         has_id = 'ID' in df.columns
-        
+
         if not has_vuid and not has_cert:
             if has_id:
                 self.log("INFO: VUID and CERT columns not found. Will attempt to use ID column as VUID.")
@@ -477,29 +483,30 @@ class ProcessingJob:
                 result.add_warning(0, "VUID/CERT columns missing - cross-referencing disabled")
         elif not has_vuid and has_cert:
             self.log("INFO: VUID column not found. Using CERT column as VUID for cross-referencing.")
-        
+
         # Validate each row
         for idx, row in df.iterrows():
             row_num = idx + 2  # +2 for header and 0-indexing
-            
+
             # Check for empty address
             if pd.isna(row['ADDRESS']) or str(row['ADDRESS']).strip() == '':
                 result.add_error(row_num, "Empty address")
                 continue
-            
+
             # Check for malformed address (very basic check)
             address = str(row['ADDRESS']).strip()
             if len(address) < 5:
                 result.add_error(row_num, "Address too short")
                 continue
-            
+
             # Check for suspicious patterns
             if address.upper().startswith('PO BOX'):
                 result.add_warning(row_num, "PO Box address")
-            
+
             result.valid_count += 1
-        
+
         return result
+
     
     def clean_addresses(self, df: pd.DataFrame) -> pd.DataFrame:
         """Clean and normalize addresses with improved formatting for better geocoding."""
