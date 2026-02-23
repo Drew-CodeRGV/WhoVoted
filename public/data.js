@@ -397,7 +397,15 @@ function initializeDataLayers() {
         // Defer the update to avoid internal Leaflet state issues
         setTimeout(() => {
             try {
+                // Re-add to map briefly so canvas is available, then set data
+                if (!map.hasLayer(heatmapLayer)) {
+                    map.addLayer(heatmapLayer);
+                }
                 heatmapLayer.setLatLngs(heatmapData);
+                // Remove again - updateMapView will decide what to show
+                if (map.hasLayer(heatmapLayer)) {
+                    map.removeLayer(heatmapLayer);
+                }
                 console.log('Updated traditional heatmap layer with', heatmapData.length, 'points');
             } catch (error) {
                 console.error('Error updating traditional heatmap:', error);
@@ -474,8 +482,11 @@ function initializeDataLayers() {
     // Don't auto-zoom to fit data bounds - keep focused on Hidalgo County
     // Users can manually zoom/pan to see outlier data points
     
-    // Update map view to show appropriate layer
-    updateMapView();
+    // Defer updateMapView to run AFTER all heatmap setTimeout callbacks have fired
+    // This ensures heatmap layers have their data before we decide which to show
+    setTimeout(() => {
+        updateMapView();
+    }, 50);
     
     // Hide loading indicator after data layers are initialized
     const loadingIndicator = document.getElementById('map-loading-indicator');
