@@ -1043,11 +1043,11 @@ body {
 
 /* Initial positions - will be updated by JavaScript */
 .data-options-panel {
-    bottom: 60px;
+    bottom: 10px; /* Extended to bottom of page */
 }
 
 .map-options-panel {
-    bottom: 120px;
+    bottom: 10px; /* Extended to bottom of page */
 }
 
 /* Uniform Panel Headers */
@@ -1262,11 +1262,11 @@ body {
     }
     
     .data-options-panel {
-        bottom: 110px;
+        bottom: 10px; /* Extended to bottom of page */
     }
     
     .map-options-panel {
-        bottom: 170px;
+        bottom: 10px; /* Extended to bottom of page */
     }
     
     .map-options-header h3,
