@@ -1411,8 +1411,38 @@ class ProcessingJob:
         # Generate cumulative file
         self._generate_cumulative(party_suffix)
         
-        # Deploy to public directory
-        self.deploy_outputs()
+        # Deploy early vote files to public directory
+        self._deploy_early_vote_outputs(snapshot_filename, meta_filename, party_suffix)
+
+    def _deploy_early_vote_outputs(self, snapshot_filename: str, meta_filename: str, party_suffix: str):
+        """Deploy early vote snapshot, metadata, and cumulative files to public directory."""
+        import shutil
+        
+        public_data_dir = Config.PUBLIC_DIR / 'data'
+        public_data_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Deploy day snapshot + metadata
+        for filename in [snapshot_filename, meta_filename]:
+            src = Config.DATA_DIR / filename
+            dst = public_data_dir / filename
+            if src.exists():
+                shutil.copy2(src, dst)
+                self.log(f"Deployed {filename}")
+            else:
+                self.log(f"Warning: {filename} not found in data directory")
+        
+        # Deploy cumulative files
+        cum_map = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_cumulative.json'
+        cum_meta = f'metadata_{self.county}_{self.year}_{self.election_type}{party_suffix}_cumulative.json'
+        
+        for filename in [cum_map, cum_meta]:
+            src = Config.DATA_DIR / filename
+            dst = public_data_dir / filename
+            if src.exists():
+                shutil.copy2(src, dst)
+                self.log(f"Deployed {filename}")
+            else:
+                self.log(f"Warning: {filename} not found in data directory")
 
     def _generate_cumulative(self, party_suffix: str):
         """Merge all day snapshots for same county/election/party into cumulative file."""
@@ -1545,6 +1575,15 @@ class ProcessingJob:
                         meta['last_updated'] = datetime.now().isoformat()
                         with open(meta_path, 'w') as f:
                             json.dump(meta, f, indent=2)
+                    
+                    # Deploy updated files to public directory
+                    import shutil
+                    public_data_dir = Config.PUBLIC_DIR / 'data'
+                    if public_data_dir.exists():
+                        dst = public_data_dir / filepath.name
+                        shutil.copy2(filepath, dst)
+                        if meta_path.exists():
+                            shutil.copy2(meta_path, public_data_dir / meta_name)
                     
                     self.log(f"Re-resolved {updated} VUIDs in {filepath.name}")
                     
