@@ -669,23 +669,28 @@ function initializeDataLayers() {
     }
     
     // Update flipped voters heatmap layer
+    // Recreate the layer each time to ensure gradient color change takes effect
+    // (Leaflet.heat caches the gradient palette internally)
     if (flippedHeatmapLayer) {
         if (map && map.hasLayer(flippedHeatmapLayer)) {
             map.removeLayer(flippedHeatmapLayer);
         }
-        setTimeout(() => {
-            try {
-                // Set gradient color based on active filter
-                const gradient = flippedVotersFilter === 'to-red'
-                    ? { 0.4: '#C62828', 0.65: '#C62828', 1: '#C62828' }
-                    : { 0.4: '#6A1B9A', 0.65: '#6A1B9A', 1: '#6A1B9A' };
-                flippedHeatmapLayer.options.gradient = gradient;
-                flippedHeatmapLayer.setLatLngs(heatmapDataFlipped);
-                console.log('Updated flipped heatmap layer with', heatmapDataFlipped.length, 'points');
-            } catch (error) {
-                console.error('Error updating flipped heatmap:', error);
-            }
-        }, 10);
+    }
+    
+    if (heatmapDataFlipped.length > 0) {
+        const flipColor = flippedVotersFilter === 'to-red' ? '#C62828' : '#6A1B9A';
+        flippedHeatmapLayer = L.heatLayer(heatmapDataFlipped, {
+            radius: 25,
+            blur: 35,
+            maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
+            max: 1.0,
+            minOpacity: 0.3,
+            maxOpacity: 0.8,
+            gradient: { 0.4: flipColor, 0.65: flipColor, 1: flipColor }
+        });
+        console.log('Recreated flipped heatmap layer with', heatmapDataFlipped.length, 'points, color:', flipColor);
+    } else {
+        console.log('Flipped heatmap has no data');
     }
     
     // Don't auto-zoom to fit data bounds - keep focused on Hidalgo County
