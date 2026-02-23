@@ -141,10 +141,11 @@ async function discoverDatasets() {
                 const isCum = dataset.isCumulative || false;
                 
                 // Create key - early vote snapshots get unique keys per date/party
+                // Cumulative and non-EV datasets group DEM+REP together (no party in key)
                 const key = isEV && !isCum
                     ? `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}_${dataset.electionDate}_${dataset.primaryParty}_${dataset.earlyVoteDay || ''}`
                     : isCum
-                    ? `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}_${dataset.electionDate}_${dataset.primaryParty}_cumulative`
+                    ? `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}_cumulative`
                     : `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}_${dataset.electionDate}`;
                 
                 if (!groupedDatasets.has(key)) {
@@ -219,7 +220,9 @@ function populateDatasetSelector() {
         // Format label
         const votingMethodLabel = dataset.votingMethod === 'election-day' ? 'Election Day' : 'Early Voting';
         const electionTypeLabel = dataset.electionType.charAt(0).toUpperCase() + dataset.electionType.slice(1);
-        const partyLabel = dataset.primaryParty ? ` (${dataset.primaryParty.charAt(0).toUpperCase() + dataset.primaryParty.slice(1)})` : '';
+        // Only show party label if dataset has exactly one party (not merged DEM+REP)
+        const parties = dataset.parties || [];
+        const partyLabel = parties.length === 1 ? ` (${parties[0].charAt(0).toUpperCase() + parties[0].slice(1)})` : '';
         const cumulativeLabel = dataset.isCumulative ? ' [Cumulative]' : '';
         
         option.textContent = `${dataset.county} ${dataset.year} ${electionTypeLabel}${partyLabel} - ${votingMethodLabel}${cumulativeLabel} (${dataset.totalAddresses.toLocaleString()} voters)`;

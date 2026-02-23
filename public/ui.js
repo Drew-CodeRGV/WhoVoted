@@ -395,7 +395,7 @@ class DatasetSelector {
             // Format label with metadata
             const votingMethodLabel = dataset.votingMethod === 'election-day' ? 'Election Day' : 'Early Voting';
             const electionTypeLabel = dataset.electionType.charAt(0).toUpperCase() + dataset.electionType.slice(1);
-            const partyLabel = dataset.primaryParty ? ` (${dataset.primaryParty.charAt(0).toUpperCase() + dataset.primaryParty.slice(1)})` : '';
+            const partyLabel = (dataset.parties && dataset.parties.length === 1) ? ` (${dataset.parties[0].charAt(0).toUpperCase() + dataset.parties[0].slice(1)})` : '';
             const cumulativeLabel = dataset.isCumulative ? ' [Cumulative]' : '';
             
             option.textContent = `${dataset.county} ${dataset.year} ${electionTypeLabel}${partyLabel} - ${votingMethodLabel}${cumulativeLabel}`;
