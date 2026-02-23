@@ -1,5 +1,6 @@
 """Data processing pipeline for voter roll CSV files."""
 import json
+import math
 import uuid
 import logging
 import pandas as pd
@@ -16,6 +17,18 @@ from vuid_resolver import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_for_json(obj):
+    """Recursively replace NaN/Infinity values with None for valid JSON output."""
+    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return None
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_for_json(v) for v in obj]
+    return obj
+
 
 def read_data_file(filepath: str) -> pd.DataFrame:
     """
@@ -1347,25 +1360,33 @@ class ProcessingJob:
         # Build GeoJSON features
         features = []
         for _, row in df.iterrows():
-            if row.get('unmatched') or row.get('lat') is None:
+            lat = row.get('lat')
+            lng = row.get('lng')
+            if row.get('unmatched') or lat is None or lng is None or pd.isna(lat) or pd.isna(lng):
                 geometry = None
             else:
                 geometry = {
                     'type': 'Point',
-                    'coordinates': [row['lng'], row['lat']]
+                    'coordinates': [float(lng), float(lat)]
                 }
             
+            def _safe_str(val):
+                """Convert pandas value to string, treating NaN as empty string."""
+                if val is None or (isinstance(val, float) and pd.isna(val)):
+                    return ''
+                return str(val)
+            
             props = {
-                'vuid': row.get('vuid', ''),
-                'lastname': row.get('lastname', ''),
-                'firstname': row.get('firstname', ''),
-                'precinct': row.get('precinct', ''),
-                'address': row.get('address', ''),
-                'display_name': row.get('display_name', ''),
+                'vuid': _safe_str(row.get('vuid', '')),
+                'lastname': _safe_str(row.get('lastname', '')),
+                'firstname': _safe_str(row.get('firstname', '')),
+                'precinct': _safe_str(row.get('precinct', '')),
+                'address': _safe_str(row.get('address', '')),
+                'display_name': _safe_str(row.get('display_name', '')),
                 'original_address': '',
-                'party_affiliation_current': row.get('party_affiliation_current', ''),
-                'party_affiliation_previous': row.get('party_affiliation_previous', ''),
-                'early_vote_day': row.get('early_vote_day', ''),
+                'party_affiliation_current': _safe_str(row.get('party_affiliation_current', '')),
+                'party_affiliation_previous': _safe_str(row.get('party_affiliation_previous', '')),
+                'early_vote_day': _safe_str(row.get('early_vote_day', '')),
                 'unmatched': bool(row.get('unmatched', False)),
                 'ballot_style': '',
                 'household_voter_count': 1,
@@ -1380,7 +1401,7 @@ class ProcessingJob:
                 'properties': props,
             })
         
-        map_data = {'type': 'FeatureCollection', 'features': features}
+        map_data = _sanitize_for_json({'type': 'FeatureCollection', 'features': features})
         
         # Day snapshot filename
         date_str = roster_date.replace('-', '')
@@ -1486,7 +1507,7 @@ class ProcessingJob:
                 logger.warning(f"Error reading snapshot {filepath}: {e}")
         
         features_list = list(all_features.values())
-        cumulative_data = {'type': 'FeatureCollection', 'features': features_list}
+        cumulative_data = _sanitize_for_json({'type': 'FeatureCollection', 'features': features_list})
         
         # Save cumulative file
         cum_filename = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_cumulative.json'
