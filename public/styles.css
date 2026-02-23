@@ -1063,15 +1063,15 @@ body {
     background: none !important;
     border: none !important;
     box-shadow: none !important;
-    font-size: 13px;
-    font-weight: 600;
-    color: rgba(80, 80, 80, 0.45);
+    font-weight: 800;
+    color: rgba(60, 60, 60, 0.35);
     text-align: center;
     white-space: nowrap;
     pointer-events: none;
     text-shadow: 
-        0 0 3px rgba(255, 255, 255, 0.8),
-        0 0 6px rgba(255, 255, 255, 0.5);
+        0 0 4px rgba(255, 255, 255, 0.9),
+        0 0 8px rgba(255, 255, 255, 0.6);
+    letter-spacing: 1px;
 }
 
 /* Mobile Responsive */

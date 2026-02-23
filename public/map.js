@@ -839,16 +839,17 @@ async function loadPrecinctBoundaries(dataUrl = 'data/precinct_boundaries_combin
                     const lngSpan = bounds.getEast() - bounds.getWest();
                     const avgSpan = (latSpan + lngSpan) / 2;
                     
-                    // Scale font size based on precinct area (larger precincts get bigger text)
-                    // Base size 12px, scale up for larger precincts
-                    const fontSize = Math.max(10, Math.min(22, Math.round(avgSpan * 600)));
+                    // Scale font size based on precinct area — large bold text to fill the precinct
+                    const fontSize = Math.max(18, Math.min(48, Math.round(avgSpan * 2000)));
+                    const iconW = Math.max(100, fontSize * 3);
+                    const iconH = Math.max(40, fontSize * 1.4);
                     
                     const label = L.marker(center, {
                         icon: L.divIcon({
                             className: 'precinct-label',
                             html: `<div style="font-size: ${fontSize}px;">${labelText}</div>`,
-                            iconSize: [80, 30],
-                            iconAnchor: [40, 15]
+                            iconSize: [iconW, iconH],
+                            iconAnchor: [iconW / 2, iconH / 2]
                         }),
                         interactive: false,
                         zIndexOffset: -1000
