@@ -367,14 +367,14 @@ function updateDatasetStatsBox() {
         statsHtml = `
             <div class="stats-title">${title || 'Dataset'} — Flipped R→D</div>
             <div class="stats-row">
-                <span class="stat-item" style="color:#7B2FBE">🟣 <span class="stat-value">${flippedToBlue.toLocaleString()}</span> voters flipped R→D</span>
+                <span class="stat-item" style="color:#6A1B9A">🟣 <span class="stat-value">${flippedToBlue.toLocaleString()}</span> voters flipped R→D</span>
             </div>
             <div class="stats-row" style="font-size:11px;color:#888;margin-top:2px;">of ${totalAll.toLocaleString()} total</div>`;
     } else if (flipFilter === 'to-red') {
         statsHtml = `
             <div class="stats-title">${title || 'Dataset'} — Flipped D→R</div>
             <div class="stats-row">
-                <span class="stat-item" style="color:#800000">🔴 <span class="stat-value">${flippedToRed.toLocaleString()}</span> voters flipped D→R</span>
+                <span class="stat-item" style="color:#C62828">🔴 <span class="stat-value">${flippedToRed.toLocaleString()}</span> voters flipped D→R</span>
             </div>
             <div class="stats-row" style="font-size:11px;color:#888;margin-top:2px;">of ${totalAll.toLocaleString()} total</div>`;
     } else if (partyFilter === 'democratic') {
@@ -540,7 +540,7 @@ function initializeDataLayers() {
                 if (v.props.party_affiliation_previous && v.props.party_affiliation_previous !== v.props.party_affiliation_current) {
                     const prev = v.props.party_affiliation_previous;
                     const cur = v.props.party_affiliation_current;
-                    const color = cur.toLowerCase().includes('democrat') ? '#7B2FBE' : '#800000';
+                    const color = cur.toLowerCase().includes('democrat') ? '#6A1B9A' : '#C62828';
                     popupContent += `<br><span style="color:${color};font-size:11px;">↩ Was ${prev}</span>`;
                 }
                 popupContent += `<br>`;
@@ -568,7 +568,7 @@ function initializeDataLayers() {
                     const prev = v.props.party_affiliation_previous;
                     const cur = v.props.party_affiliation_current;
                     const flipLabel = cur.toLowerCase().includes('democrat') ? 'R→D' : 'D→R';
-                    const color = cur.toLowerCase().includes('democrat') ? '#7B2FBE' : '#800000';
+                    const color = cur.toLowerCase().includes('democrat') ? '#6A1B9A' : '#C62828';
                     popupContent += `<strong style="color:${color}">Flipped:</strong> <span style="color:${color}">${prev} → ${cur} (${flipLabel})</span><br>`;
                 }
                 if (v.props.check_in) popupContent += `<strong>Voted:</strong> ${v.props.check_in}<br>`;
@@ -677,8 +677,8 @@ function initializeDataLayers() {
             try {
                 // Set gradient color based on active filter
                 const gradient = flippedVotersFilter === 'to-red'
-                    ? { 0.4: '#800000', 0.65: '#800000', 1: '#800000' }
-                    : { 0.4: '#7B2FBE', 0.65: '#7B2FBE', 1: '#7B2FBE' };
+                    ? { 0.4: '#C62828', 0.65: '#C62828', 1: '#C62828' }
+                    : { 0.4: '#6A1B9A', 0.65: '#6A1B9A', 1: '#6A1B9A' };
                 flippedHeatmapLayer.options.gradient = gradient;
                 flippedHeatmapLayer.setLatLngs(heatmapDataFlipped);
                 console.log('Updated flipped heatmap layer with', heatmapDataFlipped.length, 'points');
