@@ -534,7 +534,8 @@ function initializeDataLayers() {
             let popupContent = `<strong>Address:</strong> ${group[0].props.address || 'N/A'}<br>`;
             popupContent += `<strong>${count} voters at this address:</strong><br><hr style="margin:4px 0">`;
             group.forEach(v => {
-                if (v.props.name) popupContent += `${v.props.name}`;
+                const voterName = v.props.name || [v.props.firstname, v.props.lastname].filter(Boolean).join(' ');
+                if (voterName) popupContent += `${voterName}`;
                 if (v.props.party_affiliation_current) popupContent += ` (${v.props.party_affiliation_current})`;
                 if (v.props.party_affiliation_previous && v.props.party_affiliation_previous !== v.props.party_affiliation_current) {
                     const prev = v.props.party_affiliation_previous;
@@ -559,7 +560,8 @@ function initializeDataLayers() {
                 });
                 
                 let popupContent = `<strong>Address:</strong> ${v.props.address || 'N/A'}<br>`;
-                if (v.props.name) popupContent += `<strong>Name:</strong> ${v.props.name}<br>`;
+                const voterName = v.props.name || [v.props.firstname, v.props.lastname].filter(Boolean).join(' ');
+                if (voterName) popupContent += `<strong>Name:</strong> ${voterName}<br>`;
                 if (v.props.precinct) popupContent += `<strong>Precinct:</strong> ${v.props.precinct}<br>`;
                 if (v.props.party_affiliation_current) popupContent += `<strong>Party:</strong> ${v.props.party_affiliation_current}<br>`;
                 if (v.props.party_affiliation_previous && v.props.party_affiliation_previous !== v.props.party_affiliation_current) {

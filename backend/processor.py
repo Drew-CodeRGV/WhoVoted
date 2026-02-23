@@ -1380,6 +1380,7 @@ class ProcessingJob:
                 'vuid': _safe_str(row.get('vuid', '')),
                 'lastname': _safe_str(row.get('lastname', '')),
                 'firstname': _safe_str(row.get('firstname', '')),
+                'name': f"{_safe_str(row.get('firstname', ''))} {_safe_str(row.get('lastname', ''))}".strip(),
                 'precinct': _safe_str(row.get('precinct', '')),
                 'address': _safe_str(row.get('address', '')),
                 'display_name': _safe_str(row.get('display_name', '')),
@@ -1391,6 +1392,7 @@ class ProcessingJob:
                 'ballot_style': '',
                 'household_voter_count': 1,
                 'has_switched_parties': bool(row.get('has_switched_parties', False)),
+                'party_history': row.get('party_history', []) if pd.notna(row.get('party_history', None)) else [],
                 'voted_in_current_election': True,
                 'is_registered': True,
             }
