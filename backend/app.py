@@ -1505,8 +1505,28 @@ def district_stats():
     - GET with ?vuids=comma,separated,list for small sets
 
     Optimized: uses temp table + single-pass queries instead of chunked IN clauses.
+    Serves pre-computed cache when available (updated after each scrape).
     """
     try:
+        # Check for pre-computed cache file first (instant response)
+        district_id = request.args.get('district_id', '')
+        if not district_id and request.method == 'POST':
+            data = request.get_json() or {}
+            district_id = data.get('district_id', '')
+        
+        if district_id:
+            safe_name = district_id.replace(' ', '_').replace('/', '_')
+            cache_file = Path(f'/opt/whovoted/public/cache/district_report_{safe_name}.json')
+            if cache_file.exists():
+                with open(cache_file, 'r') as f:
+                    cached_data = json.load(f)
+                    # Add success flag for API compatibility
+                    cached_data['success'] = True
+                    return jsonify(cached_data)
+        
+        # Fallback: compute live (slower)
+        logger.warning(f"District stats cache miss for {district_id} - computing live")
+        
         conn = db.get_connection()
 
         # Get VUIDs from request
@@ -1525,8 +1545,6 @@ def district_stats():
             vuids_param = request.args.get('vuids', '')
             vuids = [v.strip() for v in vuids_param.split(',') if v.strip()] if vuids_param else []
             election_date = request.args.get('election_date', '2026-03-03')
-
-        district_id = request.args.get('district_id', '') or (data.get('district_id', '') if request.method == 'POST' else '')
 
         if not vuids:
             return jsonify({'error': 'No VUIDs provided'}), 400
