@@ -215,15 +215,15 @@ def geocode_registry(county='Hidalgo', batch_size=100, max_workers=10):
         try:
             import subprocess
             result = subprocess.run(
-                ['/opt/whovoted/venv/bin/python3', '/opt/whovoted/deploy/prebuild_heatmap_cache.py'],
-                capture_output=True, text=True, timeout=300
+                ['/opt/whovoted/venv/bin/python3', '/opt/whovoted/deploy/optimize_performance.py'],
+                capture_output=True, text=True, timeout=600
             )
             if result.returncode == 0:
-                print("Static cache rebuilt successfully.")
+                print("Performance optimization completed successfully.")
             else:
-                print(f"Cache rebuild failed: {result.stderr[:200]}")
+                print(f"Optimization failed: {result.stderr[:200]}")
         except Exception as e:
-            print(f"Cache rebuild error: {e}")
+            print(f"Optimization error: {e}")
 
 
 if __name__ == '__main__':

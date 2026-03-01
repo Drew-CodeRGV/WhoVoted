@@ -930,8 +930,20 @@ def search_voters():
 
 @app.route('/api/election-insights')
 def election_insights():
-    """Return computed election insights/stats for the newspaper overlay."""
+    """Return computed election insights/stats for the newspaper overlay.
+    
+    Serves pre-computed data from cache file (updated after each scrape).
+    Falls back to live computation if cache doesn't exist.
+    """
     try:
+        # Check for pre-computed cache file first (instant response)
+        cache_file = Path('/opt/whovoted/public/cache/gazette_insights.json')
+        if cache_file.exists():
+            with open(cache_file, 'r') as f:
+                return jsonify(json.load(f))
+        
+        # Fallback: compute live (slow)
+        logger.warning("Gazette cache miss - computing live (slow)")
         conn = db.get_connection()
 
         # Overall turnout

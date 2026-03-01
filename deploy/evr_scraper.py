@@ -628,6 +628,23 @@ if __name__ == '__main__':
         # Close our direct connection
         if _scraper_conn:
             _scraper_conn.close()
+        
+        # Trigger performance optimization after successful scrape
+        if success:
+            log.info("Triggering post-scrape optimization...")
+            import subprocess
+            try:
+                result = subprocess.run(
+                    ['/opt/whovoted/venv/bin/python3', '/opt/whovoted/deploy/optimize_performance.py'],
+                    capture_output=True, text=True, timeout=600
+                )
+                if result.returncode == 0:
+                    log.info("Post-scrape optimization completed successfully")
+                else:
+                    log.warning(f"Optimization failed: {result.stderr}")
+            except Exception as e:
+                log.warning(f"Could not run optimization: {e}")
+        
         sys.exit(0 if success else 1)
     except Exception as e:
         log.exception(f"Scraper crashed: {e}")
