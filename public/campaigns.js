@@ -559,9 +559,9 @@
             .filter(county => cb[county].total >= minVoters)
             .sort((a, b) => cb[b].total - cb[a].total); // Sort by total voters descending
         
-        // Split into top 10 and others
-        const top10Counties = filteredCounties.slice(0, 10);
-        const otherCounties = filteredCounties.slice(10);
+        // Show top 5 counties (with at least 10 votes), rest go to "Other"
+        const top5Counties = filteredCounties.slice(0, 5).filter(c => cb[c].total >= 10);
+        const otherCounties = filteredCounties.filter(c => !top5Counties.includes(c));
         
         if (filteredCounties.length > 0) {
             const filteredCount = Object.keys(cb).length - filteredCounties.length;
@@ -581,13 +581,13 @@
                 ${filteredCount > 0 ? `<div style="font-size:10px;color:#888;margin-bottom:4px;font-style:italic;">${filteredCount} ${filteredCount === 1 ? 'county' : 'counties'} with &lt;${minVoters} voters hidden (likely geocoding errors)</div>` : ''}
                 <table class="campaign-table" style="font-size:11px;width:100%;">
                     <tr><th style="text-align:left;padding:2px 4px">County</th><th style="text-align:right;padding:2px 4px">Total</th><th style="text-align:right;padding:2px 4px;color:#1E90FF">DEM</th><th style="text-align:right;padding:2px 4px;color:#DC143C">REP</th><th style="text-align:right;padding:2px 4px">DEM%</th></tr>
-                    ${top10Counties.map(c => {
+                    ${top5Counties.map(c => {
                         const d = cb[c];
                         const pct = (d.dem + d.rep) ? Math.round(d.dem / (d.dem + d.rep) * 100) : 0;
                         return '<tr><td style="padding:1px 4px;font-weight:600">' + c + '</td><td style="text-align:right;padding:1px 4px">' + n(d.total) + '</td><td style="text-align:right;padding:1px 4px;color:#1E90FF">' + n(d.dem) + '</td><td style="text-align:right;padding:1px 4px;color:#DC143C">' + n(d.rep) + '</td><td style="text-align:right;padding:1px 4px">' + pct + '%</td></tr>';
                     }).join('')}`;
             
-            // Add "Other Counties" row if there are more than 10
+            // Add "Other Counties" row if there are more than 5
             if (otherCounties.length > 0) {
                 const otherPct = (otherDem + otherRep) ? Math.round(otherDem / (otherDem + otherRep) * 100) : 0;
                 html += `
