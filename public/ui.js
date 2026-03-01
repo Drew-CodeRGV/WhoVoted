@@ -313,13 +313,13 @@ class DatasetSelector {
     }
     
     /**
-     * Load available datasets from backend API
+     * Load available datasets from backend API (DB-driven)
      * Handles API errors gracefully with user-friendly error messages
      * @returns {Promise<Array>} Array of dataset objects
      */
     async loadDatasets() {
         try {
-            const response = await fetch('/admin/list-datasets');
+            const response = await fetch('/api/elections');
             
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -327,12 +327,34 @@ class DatasetSelector {
             
             const data = await response.json();
             
-            if (!data.success || !Array.isArray(data.datasets)) {
+            if (!data.success || !Array.isArray(data.elections)) {
                 throw new Error('Invalid response format from server');
             }
             
-            this.datasets = data.datasets;
-            console.log(`DatasetSelector: Loaded ${this.datasets.length} datasets`);
+            // Transform /api/elections response into dataset objects
+            this.datasets = data.elections.map(election => ({
+                county: election.county,
+                counties: election.counties || [election.county],
+                year: election.electionYear,
+                electionType: election.electionType,
+                electionDate: election.electionDate,
+                votingMethod: election.votingMethod,
+                parties: election.parties || [],
+                totalAddresses: election.totalVoters,
+                rawVoterCount: election.totalVoters,
+                geocodedCount: election.geocodedCount,
+                lastUpdated: election.lastUpdated,
+                countyBreakdown: election.countyBreakdown || {},
+                selectedCounties: (election.counties || [election.county]).slice(),
+                dbDriven: true,
+            }));
+            
+            // Also update the global availableDatasets so election years panel works
+            if (typeof availableDatasets !== 'undefined') {
+                availableDatasets = this.datasets;
+            }
+            
+            console.log(`DatasetSelector: Loaded ${this.datasets.length} datasets from DB`);
             
             return this.datasets;
             
@@ -344,10 +366,8 @@ class DatasetSelector {
     }
     
     /**
-     * Populate dropdown with dataset options
-     * Groups datasets by year, election type, and voting method
-     * Deduplicates primary elections (combines Republican and Democratic into single entry)
-     * @param {Array} datasets - Array of dataset objects
+     * Populate dropdown with dataset options (DB-driven, multi-county aware)
+     * @param {Array} datasets - Array of dataset objects from /api/elections
      */
     populateDropdown(datasets) {
         if (!this.selectElement) {
@@ -367,41 +387,25 @@ class DatasetSelector {
             return;
         }
         
-        // Deduplicate datasets - for primaries, combine Republican and Democratic into one entry
-        // For early vote, skip day snapshots (only show cumulative)
-        const uniqueDatasets = [];
-        const seenKeys = new Set();
-        
+        // DB-driven datasets are already deduplicated by the API
         datasets.forEach((dataset, index) => {
-            // Skip individual early vote day snapshots — only show cumulative
-            if (dataset.isEarlyVoting && !dataset.isCumulative) return;
-            
-            // Create key without party affiliation for deduplication (non-early-vote only)
-            const key = dataset.isCumulative
-                ? `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}_cumulative_${dataset.primaryParty || ''}`
-                : `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}`;
-            
-            if (!seenKeys.has(key)) {
-                seenKeys.add(key);
-                uniqueDatasets.push({ dataset, originalIndex: index });
-            }
-        });
-        
-        // Populate dropdown with unique datasets
-        uniqueDatasets.forEach(({ dataset, originalIndex }) => {
             const option = document.createElement('option');
-            option.value = originalIndex;
+            option.value = index;
             
-            // Format label with metadata
+            // Format label with multi-county support
             const votingMethodLabel = dataset.votingMethod === 'election-day' ? 'Election Day' : 'Early Voting';
-            const electionTypeLabel = dataset.electionType.charAt(0).toUpperCase() + dataset.electionType.slice(1);
-            const partyLabel = (dataset.parties && dataset.parties.length === 1) ? ` (${dataset.parties[0].charAt(0).toUpperCase() + dataset.parties[0].slice(1)})` : '';
-            const cumulativeLabel = dataset.isCumulative ? ' [Cumulative]' : '';
+            const electionTypeLabel = dataset.electionType ? dataset.electionType.charAt(0).toUpperCase() + dataset.electionType.slice(1) : '';
+            const parties = dataset.parties || [];
+            const partyLabel = parties.length === 1 ? ` (${parties[0].charAt(0).toUpperCase() + parties[0].slice(1)})` : '';
             
-            option.textContent = `${dataset.county} ${dataset.year} ${electionTypeLabel}${partyLabel} - ${votingMethodLabel}${cumulativeLabel}`;
+            // Show counties
+            const counties = dataset.counties || [dataset.county || 'Unknown'];
+            const countyLabel = counties.length <= 2 ? counties.join(', ') : `${counties.length} Counties`;
+            
+            option.textContent = `${countyLabel} ${dataset.year || ''} ${electionTypeLabel}${partyLabel} - ${votingMethodLabel} (${(dataset.totalAddresses || 0).toLocaleString()} voters)`;
             
             // Add metadata as data attributes for easy access
-            option.dataset.county = dataset.county;
+            option.dataset.county = counties.join(',');
             option.dataset.year = dataset.year;
             option.dataset.electionType = dataset.electionType;
             option.dataset.electionDate = dataset.electionDate;
@@ -563,7 +567,13 @@ class DatasetSelector {
         const typeElement = document.getElementById('dataset-type');
         
         if (countyElement) {
-            countyElement.textContent = dataset.county || '';
+            // Use the active county filter if set, not the dataset's full county list
+            if (typeof selectedCountyFilter !== 'undefined' && selectedCountyFilter !== 'all') {
+                countyElement.textContent = selectedCountyFilter;
+            } else {
+                const counties = dataset.counties || [dataset.county || 'Unknown'];
+                countyElement.textContent = counties.length <= 2 ? counties.join(', ') : `${counties.length} Counties`;
+            }
         }
         
         if (yearElement) {
@@ -611,9 +621,10 @@ class DatasetSelector {
     /**
      * Initialize the DatasetSelector
      * Sets up DOM references and loads datasets
+     * @param {string} [countyFilter] - Optional county to filter datasets by
      * @returns {Promise<void>}
      */
-    async initialize() {
+    async initialize(countyFilter) {
         // Get DOM references
         this.selectElement = document.getElementById('dataset-selector');
         
@@ -626,11 +637,38 @@ class DatasetSelector {
         const datasets = await this.loadDatasets();
         
         if (datasets.length > 0) {
-            // Populate dropdown
-            this.populateDropdown(datasets);
-            
-            // Restore saved selection or select first dataset
-            this.restoreSavedSelection();
+            // If a county filter is provided, find the best default dataset for that county
+            // instead of blindly restoring a saved selection that may be for a different county
+            if (countyFilter && countyFilter !== 'all') {
+                // Find datasets that include this county, pick the most recent early-voting one
+                const countyDatasets = [];
+                datasets.forEach((ds, idx) => {
+                    const counties = ds.counties || [ds.county || ''];
+                    if (counties.includes(countyFilter)) {
+                        countyDatasets.push({ ds, idx });
+                    }
+                });
+                
+                if (countyDatasets.length > 0) {
+                    // Prefer early-voting over mail-in/election-day (already sorted by API)
+                    const evDataset = countyDatasets.find(d => d.ds.votingMethod === 'early-voting');
+                    const best = evDataset || countyDatasets[0];
+                    
+                    console.log(`DatasetSelector: Using county-filtered default (${countyFilter}), index ${best.idx}`);
+                    this.populateDropdown(datasets);
+                    this.selectElement.value = best.idx;
+                    this.handleSelection(best.idx);
+                } else {
+                    // No datasets for this county — populate dropdown anyway
+                    console.log(`DatasetSelector: No datasets for county ${countyFilter}, using first`);
+                    this.populateDropdown(datasets);
+                    this.restoreSavedSelection();
+                }
+            } else {
+                // No county filter — original behavior
+                this.populateDropdown(datasets);
+                this.restoreSavedSelection();
+            }
         }
     }
 }

@@ -68,7 +68,6 @@ def check_cache_quality(cache_file):
     census_count = sources.get('census', 0)
     photon_count = sources.get('photon', 0)
     nominatim_count = sources.get('nominatim', 0)
-    bing_count = sources.get('bing', 0)
     
     if aws_count > 0:
         print(f"✓ AWS Location Service: {aws_count} addresses (excellent accuracy)")
@@ -78,8 +77,6 @@ def check_cache_quality(cache_file):
         print(f"✓ Photon: {photon_count} addresses (good accuracy)")
     if nominatim_count > 0:
         print(f"→ Nominatim: {nominatim_count} addresses (variable accuracy)")
-    if bing_count > 0:
-        print(f"✓ Bing Maps: {bing_count} addresses (excellent accuracy)")
 
 def check_map_data_quality(data_dir):
     """Check quality of geocoded addresses in map data files."""

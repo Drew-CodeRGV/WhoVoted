@@ -27,8 +27,8 @@ def validate_file(file) -> tuple[bool, str]:
     
     # Check file extension
     filename = file.filename.lower()
-    if not (filename.endswith('.csv') or filename.endswith('.xls') or filename.endswith('.xlsx')):
-        return False, "Only CSV and Excel files are accepted (.csv, .xls, .xlsx)"
+    if not (filename.endswith('.csv') or filename.endswith('.xls') or filename.endswith('.xlsx') or filename.endswith('.pdf')):
+        return False, "Only CSV, Excel, and PDF files are accepted (.csv, .xls, .xlsx, .pdf)"
     
     # Check file size (read first to get size)
     file.seek(0, os.SEEK_END)

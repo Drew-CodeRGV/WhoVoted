@@ -125,33 +125,62 @@ uploadBtn.addEventListener('click', async () => {
         uploadBtn.disabled = true;
         uploadBtn.textContent = 'Uploading...';
         
-        const response = await fetch('/admin/upload', {
-            method: 'POST',
-            body: formData,
-            credentials: 'include'
+        // Show progress section immediately for upload progress
+        progressSection.classList.add('show');
+        statusText.textContent = 'Uploading file...';
+        progressFill.style.width = '0%';
+        progressFill.style.background = '#007bff';
+        progressFill.textContent = '0%';
+        
+        // Use XMLHttpRequest for upload progress tracking
+        const data = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const pct = Math.round((e.loaded / e.total) * 100);
+                    progressFill.style.width = pct + '%';
+                    progressFill.textContent = pct + '%';
+                    statusText.textContent = `Uploading file... ${(e.loaded / 1024 / 1024).toFixed(1)}MB / ${(e.total / 1024 / 1024).toFixed(1)}MB`;
+                }
+            });
+            
+            xhr.addEventListener('load', () => {
+                try {
+                    const json = JSON.parse(xhr.responseText);
+                    if (xhr.status >= 200 && xhr.status < 300 && json.success) {
+                        resolve(json);
+                    } else {
+                        reject(new Error(json.error || 'Upload failed'));
+                    }
+                } catch (e) {
+                    reject(new Error('Invalid server response'));
+                }
+            });
+            
+            xhr.addEventListener('error', () => reject(new Error('Upload failed. Please try again.')));
+            xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
+            
+            xhr.open('POST', '/admin/upload');
+            xhr.withCredentials = true;
+            xhr.send(formData);
         });
         
-        const data = await response.json();
+        showSuccess(`File uploaded successfully for ${county} County, ${year}. Processing started...`);
+        statusText.textContent = 'Processing...';
+        progressFill.style.width = '0%';
+        progressFill.textContent = '';
         
-        if (response.ok && data.success) {
-            showSuccess(`File uploaded successfully for ${county} County, ${year}. Processing started...`);
-            progressSection.classList.add('show');
-            
-            // Start polling for status
-            startStatusPolling();
-            
-            // Hide upload section
-            fileInfo.classList.remove('show');
-            uploadBtn.classList.remove('show');
-            selectedFile = null;
-            fileInput.value = '';
-        } else {
-            showError(data.error || 'Upload failed');
-            uploadBtn.disabled = false;
-            uploadBtn.textContent = 'Upload and Process';
-        }
+        // Start polling for processing status
+        startStatusPolling();
+        
+        // Hide upload section
+        fileInfo.classList.remove('show');
+        uploadBtn.classList.remove('show');
+        selectedFile = null;
+        fileInput.value = '';
     } catch (error) {
-        showError('Upload failed. Please try again.');
+        showError(error.message || 'Upload failed. Please try again.');
         uploadBtn.disabled = false;
         uploadBtn.textContent = 'Upload and Process';
     }
@@ -188,7 +217,7 @@ function startStatusPolling() {
                 statusPollInterval = null;
                 
                 if (jobStatus === 'completed') {
-                    showSuccess('Processing completed successfully!');
+                    showSuccess('Processing completed successfully! The Gazette will reflect the new data on next open.');
                     uploadBtn.disabled = false;
                     uploadBtn.textContent = 'Upload and Process';
                 } else {
@@ -218,6 +247,9 @@ function updateStatus(data) {
     }
     
     if (jobData.status === 'idle') {
+        // Don't hide progress if we just started a job — keep polling
+        statusText.textContent = 'Waiting for processing to start...';
+        progressSection.classList.add('show');
         return;
     }
     
@@ -267,7 +299,7 @@ function updateStatus(data) {
     if (cacheHits > 0 && newGeocoded > 0) {
         // Two-segment progress bar
         // Calculate the proportion of cached vs new within the total progress
-        const cachedProportion = (cacheHits / processedRecords) * 100;
+        const cachedProportion = (cacheHits / processedRecs) * 100;
         progressFill.style.background = `linear-gradient(to right, 
             #28a745 0%, 
             #28a745 ${cachedProportion}%, 
@@ -320,10 +352,10 @@ async function logout() {
             method: 'POST',
             credentials: 'include'
         });
-        window.location.href = '/admin/login';
+        window.location.href = '/';
     } catch (error) {
         console.error('Logout error:', error);
-        window.location.href = '/admin/login';
+        window.location.href = '/';
     }
 }
 

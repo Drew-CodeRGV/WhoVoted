@@ -1,6 +1,303 @@
 // Data loading and management
 let availableDatasets = [];
 let currentDataset = null;
+let showRegisteredNotVoted = false;
+let registeredNotVotedData = null;
+let selectedCountyFilter = 'Hidalgo'; // Default to Hidalgo county
+
+// Browser-side cache for voter popup details, keyed by "lat,lng" → voter array
+const _voterDetailCache = new Map();
+let _viewportPreloadInProgress = false;
+
+// County overview layer for anonymous users (circle markers per county)
+let countyOverviewLayer = null;
+let _countyOverviewLoaded = false;
+
+/**
+ * Detect user's county via browser geolocation + reverse geocode.
+ * Returns county name or 'Hidalgo' as fallback. Times out after 3s.
+ */
+async function detectUserCounty() {
+    return new Promise((resolve) => {
+        const timeout = setTimeout(() => resolve('Hidalgo'), 3000);
+        if (!navigator.geolocation) { clearTimeout(timeout); resolve('Hidalgo'); return; }
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            try {
+                const resp = await fetch(
+                    `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&zoom=10`,
+                    { signal: AbortSignal.timeout(2000) }
+                );
+                const data = await resp.json();
+                let county = (data.address && data.address.county) || '';
+                // Nominatim returns "Hidalgo County" — strip " County"
+                county = county.replace(/\s+County$/i, '').trim();
+                clearTimeout(timeout);
+                resolve(county || 'Hidalgo');
+            } catch { clearTimeout(timeout); resolve('Hidalgo'); }
+        }, () => { clearTimeout(timeout); resolve('Hidalgo'); }, { timeout: 2500 });
+    });
+}
+
+/**
+ * Load lightweight county-level overview for anonymous (not-logged-in) users.
+ * Uses the same Leaflet heatmap layer as logged-in users, but fed with one
+ * data point per county (at the centroid) weighted by vote total.
+ * Payload is ~7KB vs ~2MB+ for the full per-voter heatmap — same look, instant load.
+ */
+async function loadCountyOverview(electionDate, votingMethod) {
+    try {
+        console.log('Loading county overview heatmap (anonymous mode)...');
+        const loadingIndicator = document.getElementById('map-loading-indicator');
+        if (loadingIndicator) loadingIndicator.style.display = 'flex';
+
+        const params = new URLSearchParams({ election_date: electionDate });
+        if (votingMethod) params.set('voting_method', votingMethod);
+
+        const resp = await fetch(`/api/county-overview?${params}`);
+        if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+        const data = await resp.json();
+
+        if (!data.success || !data.counties || !data.counties.length) {
+            console.warn('No county overview data');
+            return;
+        }
+
+        // Build heatmap data: [lat, lng, intensity] per county
+        // Normalize intensity so the largest county = 1.0
+        const maxTotal = Math.max(...data.counties.map(c => c.total));
+        const heatData = [];
+        const heatDataDem = [];
+        const heatDataRep = [];
+        let grandTotal = 0, grandDem = 0, grandRep = 0;
+
+        data.counties.forEach(c => {
+            grandTotal += c.total;
+            grandDem += c.dem;
+            grandRep += c.rep;
+            const intensity = c.total / maxTotal;
+            heatData.push([c.lat, c.lng, intensity]);
+            if (c.dem > 0) heatDataDem.push([c.lat, c.lng, c.dem / maxTotal]);
+            if (c.rep > 0) heatDataRep.push([c.lat, c.lng, c.rep / maxTotal]);
+        });
+
+        // Remove any existing heatmap layers
+        [heatmapLayer, heatmapLayerDemocratic, heatmapLayerRepublican].forEach(layer => {
+            if (layer && map && map.hasLayer(layer)) map.removeLayer(layer);
+        });
+
+        // Create the traditional heatmap with county-level data
+        heatmapLayer = L.heatLayer(heatData, {
+            radius: 40,
+            blur: 50,
+            maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
+            max: 1.0,
+            minOpacity: 0.2,
+            maxOpacity: 0.6
+        });
+
+        // Democratic heatmap
+        heatmapLayerDemocratic = L.heatLayer(heatDataDem, {
+            radius: 40, blur: 50,
+            maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
+            max: 1.0, minOpacity: 0.2, maxOpacity: 0.6,
+            gradient: {
+                0.0: 'rgba(30, 144, 255, 0)', 0.2: 'rgba(30, 144, 255, 0.3)',
+                0.5: 'rgba(30, 144, 255, 0.6)', 0.8: 'rgba(30, 144, 255, 0.8)',
+                1.0: 'rgba(30, 144, 255, 1.0)'
+            }
+        });
+
+        // Republican heatmap
+        heatmapLayerRepublican = L.heatLayer(heatDataRep, {
+            radius: 40, blur: 50,
+            maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
+            max: 1.0, minOpacity: 0.2, maxOpacity: 0.6,
+            gradient: {
+                0.0: 'rgba(220, 20, 60, 0)', 0.2: 'rgba(220, 20, 60, 0.3)',
+                0.5: 'rgba(220, 20, 60, 0.6)', 0.8: 'rgba(220, 20, 60, 0.8)',
+                1.0: 'rgba(220, 20, 60, 1.0)'
+            }
+        });
+
+        // Show the active heatmap mode
+        const mode = window.heatmapMode || 'traditional';
+        if (mode === 'party') {
+            heatmapLayerDemocratic.addTo(map);
+            heatmapLayerRepublican.addTo(map);
+        } else {
+            heatmapLayer.addTo(map);
+        }
+
+        _countyOverviewLoaded = true;
+
+        // Show aggregate stats
+        const el = document.getElementById('dataset-stats-content');
+        if (el) {
+            el.innerHTML = `
+                <div class="stats-title">Texas Early Voting Overview</div>
+                <div class="stats-row">
+                    <span class="stat-item">📊 <span class="stat-value">${grandTotal.toLocaleString()}</span> voters</span>
+                    <span class="stat-item stat-dem">🔵 <span class="stat-value">${grandDem.toLocaleString()}</span></span>
+                    <span class="stat-item stat-rep">🔴 <span class="stat-value">${grandRep.toLocaleString()}</span></span>
+                </div>
+                <div class="stats-row" style="font-size:11px;color:#888;margin-top:4px;">
+                    Sign in for detailed voter-level data
+                </div>`;
+        }
+
+        // Fit map to show all counties
+        const bounds = L.latLngBounds(data.counties.map(c => [c.lat, c.lng]));
+        if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 9 });
+
+        console.log(`County overview heatmap loaded: ${data.counties.length} counties, ${grandTotal} total voters`);
+    } catch (err) {
+        console.error('Error loading county overview:', err);
+    } finally {
+        const loadingIndicator = document.getElementById('map-loading-indicator');
+        if (loadingIndicator) loadingIndicator.style.display = 'none';
+    }
+}
+/**
+ * Switch from county overview to full per-voter heatmap.
+ * Called after user logs in.
+ */
+async function switchToFullHeatmap() {
+    console.log('Switching from county overview to full heatmap...');
+
+    // Remove county-level heatmap layers
+    [heatmapLayer, heatmapLayerDemocratic, heatmapLayerRepublican].forEach(layer => {
+        if (layer && map && map.hasLayer(layer)) map.removeLayer(layer);
+    });
+    // Also remove the old countyOverviewLayer if it was used
+    if (countyOverviewLayer && map) {
+        map.removeLayer(countyOverviewLayer);
+        countyOverviewLayer = null;
+    }
+    _countyOverviewLoaded = false;
+
+    // Re-run the full dataset controls init (detects county, loads heatmap)
+    if (typeof initializeDatasetControls === 'function') {
+        await initializeDatasetControls();
+    }
+}
+
+/**
+ * Preload voter details for all visible markers in the current viewport.
+ * Called when user zooms past heatmap threshold. Fetches full voter data
+ * from /api/voters with viewport bounds and indexes into _voterDetailCache.
+ * Subsequent popup opens read from cache instantly.
+ */
+async function preloadViewportVoterDetails() {
+    if (_viewportPreloadInProgress || !currentDataset || !window.authFullAccess) return;
+    if (!map) return;
+    
+    _viewportPreloadInProgress = true;
+    try {
+        let counties;
+        if (selectedCountyFilter !== 'all') {
+            counties = [selectedCountyFilter];
+        } else {
+            counties = currentDataset.selectedCounties || currentDataset.counties || [currentDataset.county || 'Hidalgo'];
+        }
+        
+        const bounds = map.getBounds();
+        const params = new URLSearchParams({
+            county: counties.join(','),
+            election_date: currentDataset.electionDate,
+            sw_lat: bounds.getSouthWest().lat,
+            sw_lng: bounds.getSouthWest().lng,
+            ne_lat: bounds.getNorthEast().lat,
+            ne_lng: bounds.getNorthEast().lng,
+        });
+        if (currentDataset.votingMethod) params.set('voting_method', currentDataset.votingMethod);
+        
+        console.log('Preloading voter details for viewport...');
+        const resp = await fetch(`/api/voters?${params}`);
+        if (!resp.ok) return;
+        const geojson = await resp.json();
+        
+        // Index by rounded coordinates → group voters at same address
+        let cached = 0;
+        const addrGroups = {};
+        (geojson.features || []).forEach(f => {
+            if (!f.geometry || !f.geometry.coordinates) return;
+            const [lng, lat] = f.geometry.coordinates;
+            // Normalize address for grouping (strip unit/apt)
+            const addr = (f.properties.address || '').trim().toUpperCase();
+            const baseAddr = addr.replace(/\b(?:APT|APARTMENT|UNIT|STE|SUITE|#)\s*[A-Z0-9-]+/i, '').replace(/\s{2,}/g, ' ').trim();
+            const key = baseAddr || `${lat.toFixed(5)},${lng.toFixed(5)}`;
+            if (!addrGroups[key]) addrGroups[key] = { voters: [], coords: [] };
+            addrGroups[key].voters.push(f.properties);
+            addrGroups[key].coords.push([lat, lng]);
+        });
+        
+        // Cache each coordinate → its address group's voters
+        Object.values(addrGroups).forEach(group => {
+            group.coords.forEach(([lat, lng]) => {
+                const cacheKey = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+                if (!_voterDetailCache.has(cacheKey)) {
+                    _voterDetailCache.set(cacheKey, group.voters);
+                    cached++;
+                }
+            });
+        });
+        
+        console.log(`Preloaded ${cached} locations, ${geojson.features?.length || 0} voters into cache`);
+    } catch (e) {
+        console.warn('Viewport preload failed:', e);
+    } finally {
+        _viewportPreloadInProgress = false;
+    }
+}
+
+/**
+ * Show or hide the "no data available" overlay on the map.
+ */
+function showNoDataOverlay(show, countyName) {
+    let overlay = document.getElementById('no-data-overlay');
+    if (show) {
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'no-data-overlay';
+            overlay.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1000;background:rgba(255,255,255,0.95);border-radius:12px;padding:24px 32px;box-shadow:0 4px 20px rgba(0,0,0,0.15);text-align:center;max-width:320px;pointer-events:auto;';
+            const mapEl = document.getElementById('map');
+            if (mapEl) mapEl.appendChild(overlay);
+        }
+        overlay.innerHTML = `
+            <div style="font-size:32px;margin-bottom:8px;">📭</div>
+            <div style="font-size:16px;font-weight:600;color:#333;margin-bottom:6px;">No Data Available for Visualization</div>
+            <div style="font-size:13px;color:#666;">${countyName ? countyName + ' County has voter records but no geocoded addresses to display on the map.' : 'Select a different county or dataset.'}</div>
+        `;
+        overlay.style.display = 'block';
+    } else {
+        if (overlay) overlay.style.display = 'none';
+    }
+}
+
+/**
+ * Zoom the map to a county's centroid.
+ */
+async function zoomToCounty(county) {
+    if (!county || county === 'all') return;
+    try {
+        const resp = await fetch(`/api/county-center?county=${encodeURIComponent(county)}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.lat && data.lng && data.count > 10 && typeof map !== 'undefined') {
+            map.setView([data.lat, data.lng], 10);
+            return;
+        }
+        // Fallback: use Nominatim to find county center in Texas
+        const nomResp = await fetch(
+            `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(county + ' County, Texas')}&format=json&limit=1`,
+            { signal: AbortSignal.timeout(3000) }
+        );
+        const nomData = await nomResp.json();
+        if (nomData.length > 0 && typeof map !== 'undefined') {
+            map.setView([parseFloat(nomData[0].lat), parseFloat(nomData[0].lon)], 10);
+        }
+    } catch (e) { console.warn('Could not zoom to county:', e); }
+}
 
 async function loadMapData() {
     try {
@@ -12,18 +309,37 @@ async function loadMapData() {
             loadingIndicator.style.display = 'flex';
         }
         
+        // Detect user's county (or default to Hidalgo)
+        selectedCountyFilter = await detectUserCounty();
+        console.log('Default county:', selectedCountyFilter);
+        
         // First, discover all available datasets
         availableDatasets = await discoverDatasets();
         console.log('Available datasets:', availableDatasets);
         
-        // Populate dataset selector
+        // Populate dataset selector (will use selectedCountyFilter)
         populateDatasetSelector();
         
-        // Load the most recent dataset by default
+        // Find the most recent early-voting dataset that includes this county
         if (availableDatasets.length > 0) {
-            const defaultDataset = availableDatasets[0]; // Already sorted by date, most recent first
-            console.log('Loading default dataset:', defaultDataset);
-            await loadDataset(defaultDataset);
+            // Repopulate dropdown filtered to the detected county
+            repopulateFilteredDatasetDropdown();
+            
+            const inlineSelect = document.getElementById('dataset-selector-inline');
+            if (inlineSelect && inlineSelect.options.length > 0) {
+                const idx = parseInt(inlineSelect.options[0].value);
+                if (!isNaN(idx) && availableDatasets[idx]) {
+                    inlineSelect.selectedIndex = 0;
+                    const originalSelect = document.getElementById('dataset-selector');
+                    if (originalSelect) originalSelect.value = idx;
+                    await loadDataset(availableDatasets[idx]);
+                }
+            } else {
+                console.warn('No datasets found for county:', selectedCountyFilter);
+            }
+            
+            // Zoom to the county
+            await zoomToCounty(selectedCountyFilter);
         } else {
             console.warn('No datasets found');
         }
@@ -79,15 +395,32 @@ function updateElectionYearsPanel() {
         
         datasetsForYear.forEach((dataset, index) => {
             const datasetIndex = availableDatasets.indexOf(dataset);
-            const votingMethodLabel = dataset.votingMethod === 'election-day' ? 'Election Day' : 'Early Voting';
+            const votingMethodLabel = dataset.votingMethod === 'election-day' ? 'Election Day' : dataset.votingMethod === 'mail-in' ? 'Mail-In' : 'Early Voting';
             const electionTypeLabel = dataset.electionType.charAt(0).toUpperCase() + dataset.electionType.slice(1);
+            const counties = dataset.counties || [dataset.county || 'Hidalgo'];
             
-            html += `
-                <div class="layer-dataset-item" onclick="selectDatasetFromPanel(${datasetIndex})">
-                    <span>${dataset.county} ${electionTypeLabel} - ${votingMethodLabel}</span>
+            html += `<div class="layer-dataset-item" onclick="selectDatasetFromPanel(${datasetIndex})">
+                    <span>${electionTypeLabel} - ${votingMethodLabel}</span>
                     <span class="dataset-voter-count">${dataset.totalAddresses.toLocaleString()}</span>
-                </div>
-            `;
+                </div>`;
+            
+            // Show county checkboxes if multiple counties
+            if (counties.length > 1) {
+                html += `<div class="county-checkboxes" style="padding: 4px 0 4px 16px; font-size: 12px;">`;
+                counties.forEach(county => {
+                    const cb = dataset.countyBreakdown && dataset.countyBreakdown[county];
+                    const voterCount = cb ? cb.totalVoters : 0;
+                    const checked = (dataset.selectedCounties || counties).includes(county) ? 'checked' : '';
+                    html += `<label style="display: flex; align-items: center; gap: 4px; padding: 2px 0; cursor: pointer;">
+                        <input type="checkbox" ${checked} onchange="toggleCountyForDataset(${datasetIndex}, '${county}', this.checked)" style="margin: 0;">
+                        <span>${county}</span>
+                        <span style="color: #888; margin-left: auto;">${voterCount.toLocaleString()}</span>
+                    </label>`;
+                });
+                html += `</div>`;
+            } else {
+                html += `<div style="padding: 2px 0 2px 16px; font-size: 12px; color: #666;">${counties[0]}</div>`;
+            }
         });
         
         html += `
@@ -113,66 +446,75 @@ async function selectDatasetFromPanel(index) {
     }
 }
 
+async function toggleCountyForDataset(datasetIndex, county, checked) {
+    const dataset = availableDatasets[datasetIndex];
+    if (!dataset) return;
+    
+    const counties = dataset.counties || [dataset.county || 'Hidalgo'];
+    if (!dataset.selectedCounties) {
+        dataset.selectedCounties = counties.slice();
+    }
+    
+    if (checked && !dataset.selectedCounties.includes(county)) {
+        dataset.selectedCounties.push(county);
+    } else if (!checked) {
+        dataset.selectedCounties = dataset.selectedCounties.filter(c => c !== county);
+    }
+    
+    // Don't allow deselecting all counties
+    if (dataset.selectedCounties.length === 0) {
+        dataset.selectedCounties = [county];
+        // Re-check the checkbox
+        event.target.checked = true;
+        return;
+    }
+    
+    // If this is the currently loaded dataset, reload with new county selection
+    if (currentDataset === dataset) {
+        await loadDataset(dataset);
+    }
+}
+
 async function discoverDatasets() {
     const datasets = [];
     
     try {
-        // Call backend API to list all available datasets
-        const response = await fetch('/admin/list-datasets');
+        // DB-driven: fetch ALL elections across all counties
+        const response = await fetch('/api/elections');
         
         if (!response.ok) {
-            console.error('Failed to fetch datasets from backend');
+            console.error('Failed to fetch elections from backend');
             return datasets;
         }
         
         const data = await response.json();
         
-        if (data.success && data.datasets) {
-            console.log(`Discovered ${data.datasets.length} datasets from backend`);
+        if (data.success && data.elections) {
+            console.log(`Discovered ${data.elections.length} elections from DB`);
             
-            // Group datasets by election (merge DEM/REP primaries into single dataset)
-            const groupedDatasets = new Map();
-            
-            data.datasets.forEach(dataset => {
-                // For early vote day snapshots, keep each as separate (for time-lapse)
-                // For cumulative early vote, keep separate too
-                // Only group non-early-vote DEM/REP primaries together
-                const isEV = dataset.isEarlyVoting || false;
-                const isCum = dataset.isCumulative || false;
-                
-                // Create key - early vote snapshots get unique keys per date/party
-                // Cumulative and non-EV datasets group DEM+REP together (no party in key)
-                const key = isEV && !isCum
-                    ? `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}_${dataset.electionDate}_${dataset.primaryParty}_${dataset.earlyVoteDay || ''}`
-                    : isCum
-                    ? `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}_cumulative`
-                    : `${dataset.county}_${dataset.year}_${dataset.electionType}_${dataset.votingMethod}_${dataset.electionDate}`;
-                
-                if (!groupedDatasets.has(key)) {
-                    // First dataset for this election - store it
-                    groupedDatasets.set(key, {
-                        ...dataset,
-                        isEarlyVoting: isEV,
-                        isCumulative: isCum,
-                        parties: [dataset.primaryParty].filter(p => p), // Array of parties
-                        mapDataFiles: [dataset.mapDataFile], // Array of map data files to merge
-                        totalAddresses: dataset.totalAddresses
-                    });
-                } else {
-                    // Merge with existing dataset
-                    const existing = groupedDatasets.get(key);
-                    if (dataset.primaryParty) {
-                        existing.parties.push(dataset.primaryParty);
-                    }
-                    existing.mapDataFiles.push(dataset.mapDataFile);
-                    existing.totalAddresses += dataset.totalAddresses;
-                }
+            // Convert DB election records to dataset objects the rest of the code expects
+            data.elections.forEach(election => {
+                datasets.push({
+                    county: election.county,
+                    counties: election.counties || [election.county],
+                    year: election.electionYear,
+                    electionType: election.electionType,
+                    electionDate: election.electionDate,
+                    votingMethod: election.votingMethod,
+                    parties: election.parties || [],
+                    totalAddresses: election.totalVoters,
+                    rawVoterCount: election.totalVoters,
+                    geocodedCount: election.geocodedCount,
+                    lastUpdated: election.lastUpdated,
+                    countyBreakdown: election.countyBreakdown || {},
+                    // Track which counties are selected (default: all)
+                    selectedCounties: (election.counties || [election.county]).slice(),
+                    // DB-driven: no more file references
+                    dbDriven: true,
+                });
             });
             
-            // Convert map to array
-            const mergedDatasets = Array.from(groupedDatasets.values());
-            console.log(`Merged into ${mergedDatasets.length} combined datasets`);
-            return mergedDatasets;
+            return datasets;
         } else {
             console.error('Backend returned invalid response:', data);
             return datasets;
@@ -197,40 +539,13 @@ function populateDatasetSelector() {
         return;
     }
     
-    // Separate cumulative early vote datasets and regular datasets
-    // Hide individual day snapshots from dropdown (they're used by time-lapse only)
-    const displayDatasets = [];
+    // Build county pill tabs dynamically
+    buildCountyPillTabs();
     
-    availableDatasets.forEach((dataset, index) => {
-        // Skip individual day snapshots — only show cumulative or non-early-vote
-        if (dataset.isEarlyVoting && !dataset.isCumulative) return;
-        displayDatasets.push({ dataset, index });
-    });
+    // Populate the dropdown filtered by selected county
+    repopulateFilteredDatasetDropdown();
     
-    if (displayDatasets.length === 0) {
-        selector.innerHTML = '<option value="">No datasets available</option>';
-        selector.disabled = true;
-        return;
-    }
-    
-    displayDatasets.forEach(({ dataset, index }) => {
-        const option = document.createElement('option');
-        option.value = index;
-        
-        // Format label
-        const votingMethodLabel = dataset.votingMethod === 'election-day' ? 'Election Day' : 'Early Voting';
-        const electionTypeLabel = dataset.electionType.charAt(0).toUpperCase() + dataset.electionType.slice(1);
-        // Only show party label if dataset has exactly one party (not merged DEM+REP)
-        const parties = dataset.parties || [];
-        const partyLabel = parties.length === 1 ? ` (${parties[0].charAt(0).toUpperCase() + parties[0].slice(1)})` : '';
-        const cumulativeLabel = dataset.isCumulative ? ' [Cumulative]' : '';
-        
-        option.textContent = `${dataset.county} ${dataset.year} ${electionTypeLabel}${partyLabel} - ${votingMethodLabel}${cumulativeLabel} (${dataset.totalAddresses.toLocaleString()} voters)`;
-        
-        selector.appendChild(option);
-    });
-    
-    // Add change event listener
+    // Add change event listener on the hidden original selector
     selector.addEventListener('change', async (e) => {
         const index = parseInt(e.target.value);
         if (!isNaN(index) && availableDatasets[index]) {
@@ -239,6 +554,147 @@ function populateDatasetSelector() {
     });
     
     selector.disabled = false;
+}
+
+/**
+ * Build county dropdown from available datasets
+ */
+function buildCountyPillTabs() {
+    const dropdown = document.getElementById('countyDropdown');
+    if (!dropdown) return;
+    
+    // Collect all unique counties across all datasets
+    const allCounties = new Set();
+    availableDatasets.forEach(ds => {
+        const counties = ds.counties || [ds.county || 'Hidalgo'];
+        counties.forEach(c => allCounties.add(c));
+    });
+    
+    const sortedCounties = [...allCounties].sort();
+    
+    dropdown.innerHTML = '';
+    
+    // "All Counties" option
+    const allOpt = document.createElement('option');
+    allOpt.value = 'all';
+    allOpt.textContent = `All Counties (${sortedCounties.length})`;
+    if (selectedCountyFilter === 'all') allOpt.selected = true;
+    dropdown.appendChild(allOpt);
+    
+    // One option per county
+    sortedCounties.forEach(county => {
+        const opt = document.createElement('option');
+        opt.value = county;
+        opt.textContent = county;
+        if (selectedCountyFilter === county) opt.selected = true;
+        dropdown.appendChild(opt);
+    });
+    
+    // Change handler
+    dropdown.addEventListener('change', () => {
+        selectCountyFilter(dropdown.value);
+    });
+}
+
+/**
+ * Handle county pill selection
+ */
+async function selectCountyFilter(county) {
+    selectedCountyFilter = county;
+    
+    // Update dropdown selection
+    const dropdown = document.getElementById('countyDropdown');
+    if (dropdown) dropdown.value = county;
+    
+    // Hide any existing no-data overlay
+    showNoDataOverlay(false);
+    
+    // Repopulate the dropdown for this county
+    repopulateFilteredDatasetDropdown();
+    
+    // Zoom to the selected county
+    if (county !== 'all') {
+        await zoomToCounty(county);
+    }
+    
+    // Auto-load the first (most recent) dataset in the filtered list
+    const inlineSelect = document.getElementById('dataset-selector-inline');
+    if (inlineSelect && inlineSelect.options.length > 0) {
+        const idx = parseInt(inlineSelect.options[0].value);
+        if (!isNaN(idx) && availableDatasets[idx]) {
+            inlineSelect.selectedIndex = 0;
+            // Sync hidden selector
+            const originalSelect = document.getElementById('dataset-selector');
+            if (originalSelect) originalSelect.value = idx;
+            await loadDataset(availableDatasets[idx]);
+            updateInlineDatasetInfo();
+        }
+    } else {
+        // No datasets for this county — show overlay
+        showNoDataOverlay(true, county !== 'all' ? county : null);
+    }
+}
+
+/**
+ * Repopulate the inline dataset dropdown based on the selected county filter.
+ * When "All Counties" is selected, show multi-county combined datasets.
+ * When a specific county is selected, show only datasets that include that county
+ * (and set selectedCounties to just that county for single-county loading).
+ */
+function repopulateFilteredDatasetDropdown() {
+    const inlineSelect = document.getElementById('dataset-selector-inline');
+    const originalSelect = document.getElementById('dataset-selector');
+    if (!inlineSelect) return;
+    
+    inlineSelect.innerHTML = '';
+    if (originalSelect) originalSelect.innerHTML = '';
+    
+    const filtered = [];
+    
+    availableDatasets.forEach((dataset, index) => {
+        const counties = dataset.counties || [dataset.county || 'Hidalgo'];
+        
+        if (selectedCountyFilter === 'all') {
+            // Show all datasets (combined multi-county view)
+            filtered.push({ dataset, index });
+        } else {
+            // Show only datasets that include this county
+            if (counties.includes(selectedCountyFilter)) {
+                filtered.push({ dataset, index });
+            }
+        }
+    });
+    
+    if (filtered.length === 0) {
+        inlineSelect.innerHTML = '<option value="">No datasets for this county</option>';
+        return;
+    }
+    
+    filtered.forEach(({ dataset, index }) => {
+        const votingMethodLabel = dataset.votingMethod === 'election-day' ? 'Election Day' : dataset.votingMethod === 'mail-in' ? 'Mail-In' : 'Early Voting';
+        const electionTypeLabel = dataset.electionType ? dataset.electionType.charAt(0).toUpperCase() + dataset.electionType.slice(1) : '';
+        const parties = dataset.parties || [];
+        const partyLabel = parties.length === 1 ? ` (${parties[0].charAt(0).toUpperCase() + parties[0].slice(1)})` : '';
+        
+        // Show voter count for the selected county or total
+        let voterCount = dataset.totalAddresses || 0;
+        if (selectedCountyFilter !== 'all' && dataset.countyBreakdown && dataset.countyBreakdown[selectedCountyFilter]) {
+            voterCount = dataset.countyBreakdown[selectedCountyFilter].totalVoters;
+        }
+        
+        const label = `${dataset.year || ''} ${electionTypeLabel}${partyLabel} — ${votingMethodLabel} (${voterCount.toLocaleString()})`;
+        
+        const opt = document.createElement('option');
+        opt.value = index;
+        opt.textContent = label;
+        inlineSelect.appendChild(opt);
+        
+        // Also populate hidden original selector
+        if (originalSelect) {
+            const opt2 = opt.cloneNode(true);
+            originalSelect.appendChild(opt2);
+        }
+    });
 }
 
 async function loadDataset(dataset) {
@@ -252,62 +708,217 @@ async function loadDataset(dataset) {
         }
         
         currentDataset = dataset;
+        _voterDetailCache.clear(); // Clear popup cache for new dataset
+        // DB-driven: fetch voter data from API
+        // If a specific county is selected via the pill filter, use only that county
+        let counties;
+        if (selectedCountyFilter !== 'all') {
+            counties = [selectedCountyFilter];
+        } else {
+            counties = dataset.selectedCounties || dataset.counties || [dataset.county || 'Hidalgo'];
+        }
+        const params = new URLSearchParams({
+            county: counties.join(','),
+            election_date: dataset.electionDate,
+        });
+        if (dataset.votingMethod) params.set('voting_method', dataset.votingMethod);
         
-        // If dataset has multiple map data files (DEM + REP), merge them
-        let mergedGeojson = {
-            type: 'FeatureCollection',
-            features: []
-        };
+        // Use lightweight heatmap endpoint for initial load (~90% smaller payload)
+        console.log('Fetching heatmap data from DB:', params.toString());
         
-        const filesToLoad = dataset.mapDataFiles || [dataset.mapDataFile];
-        console.log('Loading files:', filesToLoad);
+        // Fire heatmap + stats requests in parallel so both are ready before rendering
+        const [response] = await Promise.all([
+            fetch(`/api/voters/heatmap?${params}`),
+            _fetchAndDisplayStats(dataset),
+        ]);
         
-        for (const mapDataFile of filesToLoad) {
-            console.log('Fetching:', `data/${mapDataFile}`);
-            const response = await fetch(`data/${mapDataFile}`);
-            if (!response.ok) {
-                console.error(`Failed to load ${mapDataFile}: ${response.status} ${response.statusText}`);
-                continue;
-            }
-            
-            const geojson = await response.json();
-            console.log(`Loaded ${mapDataFile} with`, geojson.features ? geojson.features.length : 0, 'features');
-            
-            // Merge features
-            if (geojson.features) {
-                mergedGeojson.features.push(...geojson.features);
-            }
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status} ${response.statusText}`);
         }
         
-        console.log('Total merged features:', mergedGeojson.features.length);
+        const data = await response.json();
+        console.log('Loaded', data.count, 'heatmap points from DB');
+        
+        // Show "no data" overlay if no geocoded points to visualize
+        if (data.count === 0) {
+            showNoDataOverlay(true, selectedCountyFilter !== 'all' ? selectedCountyFilter : null);
+        } else {
+            showNoDataOverlay(false);
+        }
+        
+        // Convert compact array to GeoJSON features for compatibility with initializeDataLayers
+        // Format: [lng, lat, party_code, flags, sex?, birth_year?]
+        // party_code: 1=DEM, 2=REP, 0=other; flags: bit0=flipped, bit1=new_voter
+        const partyNames = {1: 'Democratic', 2: 'Republican', 0: ''};
+        const features = data.points.map(p => ({
+            type: 'Feature',
+            geometry: {type: 'Point', coordinates: [p[0], p[1]]},
+            properties: {
+                party_affiliation_current: partyNames[p[2]] || '',
+                has_switched_parties: !!(p[3] & 1),
+                party_affiliation_previous: (p[3] & 1) ? (p[2] === 1 ? 'Republican' : 'Democratic') : '',
+                is_new_voter: !!(p[3] & 2),
+                sex: p[4] || '',
+                birth_year: p[5] || 0,
+                voted_in_current_election: true,
+                is_registered: true,
+                unmatched: false,
+            }
+        }));
+        
+        const geojson = {type: 'FeatureCollection', features};
         
         // Store the data globally
-        window.mapData = mergedGeojson;
+        window.mapData = geojson;
+        window.votedOnlyMapData = geojson;
+        registeredNotVotedData = null;
+        window.currentDataset = currentDataset;
         
         // Reinitialize markers and heatmap with new data
+        // (stats already fetched in parallel via Promise.all above)
         initializeDataLayers();
         
-        // Update metadata display to show the selected dataset's info
+        // Update metadata display
+        const countyLabel = counties.length <= 2 ? counties.join(', ') : `${counties.length} Counties`;
         updateInfoStrip({
             successfully_geocoded: dataset.totalAddresses,
             last_updated: dataset.lastUpdated,
-            county: dataset.county,
+            county: countyLabel,
             year: dataset.year,
             election_type: dataset.electionType,
             voting_method: dataset.votingMethod
         });
         
-        console.log(`Loaded ${dataset.mapDataFile} successfully`);
+        console.log('Dataset loaded successfully from DB');
         
     } catch (error) {
         console.error('Error loading dataset:', error);
         alert(`Failed to load dataset: ${error.message}`);
     } finally {
-        // Hide loading indicator
         const loadingIndicator = document.getElementById('map-loading-indicator');
         if (loadingIndicator) {
             loadingIndicator.style.display = 'none';
         }
+    }
+}
+
+// ============================================================================
+// REGISTERED NOT VOTED TOGGLE
+// ============================================================================
+
+async function toggleRegisteredNotVoted() {
+    showRegisteredNotVoted = !showRegisteredNotVoted;
+    
+    if (showRegisteredNotVoted && currentDataset) {
+        if (map && map.getZoom() < 14) {
+            console.log('Zoom in to at least level 14 to see registered-not-voted voters');
+            // Still set the flag so it loads on next zoom/pan
+            registeredNotVotedData = null;
+            rebuildMapDataWithRegistered();
+            return;
+        }
+        await loadRegisteredNotVoted();
+    } else {
+        registeredNotVotedData = null;
+        rebuildMapDataWithRegistered();
+    }
+}
+
+let _loadingRegistered = false; // Guard against concurrent fetches
+
+async function loadRegisteredNotVoted() {
+    if (!currentDataset) return;
+    if (_loadingRegistered) return; // Skip if already fetching
+    
+    // Require zoom >= 14 to avoid massive queries
+    if (map && map.getZoom() < 14) {
+        console.log('Registered-not-voted: zoom too low (%d), need >= 14', map.getZoom());
+        registeredNotVotedData = null;
+        rebuildMapDataWithRegistered();
+        return;
+    }
+    
+    _loadingRegistered = true;
+    
+    let counties;
+    if (selectedCountyFilter !== 'all') {
+        counties = [selectedCountyFilter];
+    } else {
+        counties = currentDataset.selectedCounties || currentDataset.counties || [currentDataset.county || 'Hidalgo'];
+    }
+    const bounds = map.getBounds();
+    const params = new URLSearchParams({
+        county: counties.join(','),
+        election_date: currentDataset.electionDate,
+        sw_lat: bounds.getSouthWest().lat,
+        sw_lng: bounds.getSouthWest().lng,
+        ne_lat: bounds.getNorthEast().lat,
+        ne_lng: bounds.getNorthEast().lng,
+        limit: 5000,
+    });
+    
+    console.log('Fetching registered-not-voted voters...');
+    try {
+        const response = await fetch(`/api/registered-voters?${params}`);
+        if (!response.ok) throw new Error(`API error: ${response.status}`);
+        const geojson = await response.json();
+        console.log('Loaded', geojson.features ? geojson.features.length : 0, 'registered-not-voted features');
+        registeredNotVotedData = geojson;
+        rebuildMapDataWithRegistered();
+    } catch (error) {
+        console.error('Error loading registered-not-voted:', error);
+    } finally {
+        _loadingRegistered = false;
+    }
+}
+
+function rebuildMapDataWithRegistered() {
+    // Start with the voted-only data
+    if (!window.votedOnlyMapData) {
+        // First time: save the original voted-only data
+        window.votedOnlyMapData = window.mapData;
+    }
+    
+    if (showRegisteredNotVoted && registeredNotVotedData && registeredNotVotedData.features) {
+        // Merge voted + registered-not-voted
+        window.mapData = {
+            type: 'FeatureCollection',
+            features: [...window.votedOnlyMapData.features, ...registeredNotVotedData.features]
+        };
+    } else {
+        window.mapData = window.votedOnlyMapData;
+    }
+    
+    // Re-render
+    initializeDataLayers();
+}
+
+// Fetch stats from DB API and update the stats box
+async function _fetchAndDisplayStats(dataset) {
+    try {
+        let counties;
+        if (selectedCountyFilter !== 'all') {
+            counties = [selectedCountyFilter];
+        } else {
+            counties = dataset.selectedCounties || dataset.counties || [dataset.county || 'Hidalgo'];
+        }
+        const params = new URLSearchParams({
+            county: counties.join(','),
+            election_date: dataset.electionDate,
+        });
+        if (dataset.votingMethod) params.set('voting_method', dataset.votingMethod);
+        
+        const resp = await fetch(`/api/election-stats?${params}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.success && data.stats) {
+            // Store stats on the dataset object for updateDatasetStatsBox
+            dataset._dbStats = data.stats;
+            window.currentDataset = dataset;
+            updateDatasetStatsBox();
+        }
+    } catch (e) {
+        console.warn('Failed to fetch election stats:', e);
     }
 }
 
@@ -330,21 +941,48 @@ function updateDatasetStatsBox() {
     let title = '';
     if (ds) {
         const parts = [];
-        if (ds.county) parts.push(ds.county + ' County');
+        // Use the active county filter for the title, not the dataset's full county list
+        if (selectedCountyFilter && selectedCountyFilter !== 'all') {
+            parts.push(selectedCountyFilter + ' County');
+        } else if (ds.county) {
+            // Multi-county: show as "Brooks, Hidalgo County" 
+            const countyNames = ds.counties || [ds.county];
+            parts.push(countyNames.join(', ') + ' County');
+        }
         if (ds.year) parts.push(ds.year);
         if (ds.electionType) parts.push(ds.electionType.charAt(0).toUpperCase() + ds.electionType.slice(1));
         title = parts.join(' · ');
     }
     
-    // Count party totals from all features
-    let allDem = 0, allRep = 0, flippedToBlue = 0, flippedToRed = 0;
-    allFeatures.forEach(f => {
+    // Use DB stats if available, otherwise count from features
+    const dbStats = ds ? ds._dbStats : null;
+    let allDem = 0, allRep = 0, flippedToBlue = 0, flippedToRed = 0, newVoterCount = 0;
+    let newDem = 0, newRep = 0;
+    let totalAll = 0;
+    
+    if (dbStats) {
+        // DB-driven stats — accurate, no client-side counting needed
+        allDem = dbStats.democratic || 0;
+        allRep = dbStats.republican || 0;
+        flippedToBlue = dbStats.flipped_to_dem || 0;
+        flippedToRed = dbStats.flipped_to_rep || 0;
+        newVoterCount = dbStats.new_voters || 0;
+        totalAll = dbStats.total || 0;
+    } else {
+        // Fallback: count from features (legacy path)
+        allFeatures.forEach(f => {
         const p = f.properties;
         if (!p) return;
         const cur = (p.party_affiliation_current || '').toLowerCase();
         const prev = (p.party_affiliation_previous || '').toLowerCase();
         if (cur.includes('democrat')) allDem++;
         else if (cur.includes('republican')) allRep++;
+        
+        if (p.is_new_voter) {
+            newVoterCount++;
+            if (cur.includes('democrat')) newDem++;
+            else if (cur.includes('republican')) newRep++;
+        }
         
         if (prev && cur) {
             const prevRep = prev.includes('republican');
@@ -355,8 +993,21 @@ function updateDatasetStatsBox() {
             if (prevDem && curRep) flippedToRed++;
         }
     });
+        // Fallback total from features
+        const featureTotal = allFeatures.length;
+        // When county filter is active, use county-specific count or feature count
+        // Don't use ds.totalAddresses — that's the statewide total for all counties
+        let metaTotal = 0;
+        if (ds) {
+            if (selectedCountyFilter && selectedCountyFilter !== 'all' && ds.countyBreakdown && ds.countyBreakdown[selectedCountyFilter]) {
+                metaTotal = ds.countyBreakdown[selectedCountyFilter].totalVoters || 0;
+            } else {
+                metaTotal = ds.totalAddresses || 0;
+            }
+        }
+        totalAll = Math.max(featureTotal, metaTotal);
+    }
     
-    const totalAll = allFeatures.length;
     const flipFilter = typeof flippedVotersFilter !== 'undefined' ? flippedVotersFilter : 'none';
     const datasetManager = getDatasetManager();
     const partyFilter = datasetManager ? datasetManager.getPartyFilter() : 'all';
@@ -377,12 +1028,31 @@ function updateDatasetStatsBox() {
                 <span class="stat-item" style="color:#C62828">🔴 <span class="stat-value">${flippedToRed.toLocaleString()}</span> voters flipped D→R</span>
             </div>
             <div class="stats-row" style="font-size:11px;color:#888;margin-top:2px;">of ${totalAll.toLocaleString()} total</div>`;
+    } else if (typeof newVotersFilter !== 'undefined' && newVotersFilter) {
+        // New voters mode — respect party filter
+        let displayCount = newVoterCount;
+        let partyLabel = '';
+        if (partyFilter === 'democratic') {
+            displayCount = newDem;
+            partyLabel = ' Democratic';
+        } else if (partyFilter === 'republican') {
+            displayCount = newRep;
+            partyLabel = ' Republican';
+        }
+        const filteredTotal = partyFilter === 'democratic' ? allDem : partyFilter === 'republican' ? allRep : totalAll;
+        statsHtml = `
+            <div class="stats-title">${title || 'Dataset'} — New${partyLabel} Voters</div>
+            <div class="stats-row">
+                <span class="stat-item" style="color:#DAA520">⭐ <span class="stat-value">${displayCount.toLocaleString()}</span> new${partyLabel.toLowerCase()} voters (first election)</span>
+            </div>
+            <div class="stats-row" style="font-size:11px;color:#888;margin-top:2px;">of ${filteredTotal.toLocaleString()}${partyLabel.toLowerCase()} voters (${totalAll.toLocaleString()} total)</div>`;
     } else if (partyFilter === 'democratic') {
         statsHtml = `
             <div class="stats-title">${title || 'Dataset'} — Democrats</div>
             <div class="stats-row">
                 <span class="stat-item stat-dem">🔵 <span class="stat-value">${allDem.toLocaleString()}</span> Democratic voters</span>
             </div>
+            ${newDem > 0 ? `<div class="stats-row" style="font-size:11px;color:#DAA520;margin-top:2px;">⭐ ${newDem.toLocaleString()} new voters</div>` : ''}
             <div class="stats-row" style="font-size:11px;color:#888;margin-top:2px;">of ${totalAll.toLocaleString()} total</div>`;
     } else if (partyFilter === 'republican') {
         statsHtml = `
@@ -390,6 +1060,7 @@ function updateDatasetStatsBox() {
             <div class="stats-row">
                 <span class="stat-item stat-rep">🔴 <span class="stat-value">${allRep.toLocaleString()}</span> Republican voters</span>
             </div>
+            ${newRep > 0 ? `<div class="stats-row" style="font-size:11px;color:#DAA520;margin-top:2px;">⭐ ${newRep.toLocaleString()} new voters</div>` : ''}
             <div class="stats-row" style="font-size:11px;color:#888;margin-top:2px;">of ${totalAll.toLocaleString()} total</div>`;
     } else {
         // Default: show all
@@ -401,10 +1072,155 @@ function updateDatasetStatsBox() {
                 <span class="stat-item stat-dem">🔵 <span class="stat-value">${allDem.toLocaleString()}</span></span>
                 <span class="stat-item stat-rep">🔴 <span class="stat-value">${allRep.toLocaleString()}</span></span>
             </div>
+            ${newVoterCount > 0 ? `<div class="stats-row" style="font-size:11px;color:#DAA520;margin-top:2px;">⭐ ${newVoterCount.toLocaleString()} new voters</div>` : ''}
             ${totalFlipped > 0 ? `<div class="stats-row" style="font-size:11px;color:#888;margin-top:2px;">🔄 ${totalFlipped.toLocaleString()} flipped (${flippedToBlue} R→D, ${flippedToRed} D→R)</div>` : ''}`;
     }
     
     el.innerHTML = statsHtml;
+}
+
+/**
+ * Bind a full popup (with all voter details) to a marker.
+ * Used when full data is already available (e.g. from /api/voters).
+ */
+function _bindFullPopup(marker, group, addrKey, count) {
+    const allVuids = [];
+    let pc = `<div style="max-width:380px;">`;
+    pc += `<div style="font-size:11px;color:#888;margin-bottom:2px;">${group[0].props.address || addrKey}</div>`;
+    if (count > 1) {
+        pc += `<div style="font-weight:700;font-size:13px;margin-bottom:6px;">${count} voters at this address</div>`;
+    }
+    group.forEach((v, i) => {
+        if (i > 0) pc += `<hr style="margin:6px 0;border:none;border-top:1px dashed #ddd;">`;
+        if (v.unitNum) pc += `<div style="font-size:10px;color:#666;font-weight:600;margin-bottom:1px;">${v.unitNum}</div>`;
+        pc += _buildVoterCard(v.props);
+        const vuid = v.props.vuid || '';
+        if (vuid) allVuids.push(vuid);
+    });
+    pc += `</div>`;
+    marker.bindPopup(pc, { maxWidth: 400, maxHeight: 400 });
+    if (allVuids.length > 0) {
+        marker.on('popupopen', () => allVuids.forEach(v => fetchVoterHistory(v)));
+    }
+}
+
+/**
+ * Lazy-load voter details from the DB when a marker popup is opened.
+ * Fetches voter(s) at the given lat/lng via /api/voters/at, then
+ * replaces the popup content with full voter cards + voting history.
+ */
+async function _lazyLoadPopup(marker, lat, lng) {
+    try {
+        const ds = currentDataset;
+        if (!ds) return;
+        
+        // Check browser cache first (populated by preloadViewportVoterDetails)
+        const cacheKey = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+        let voters = _voterDetailCache.get(cacheKey);
+        
+        if (!voters) {
+            // Cache miss — fetch from API
+            const params = new URLSearchParams({
+                lat: lat.toFixed(6),
+                lng: lng.toFixed(6),
+                election_date: ds.electionDate,
+            });
+            if (ds.votingMethod) params.set('voting_method', ds.votingMethod);
+            
+            const resp = await fetch(`/api/voters/at?${params}`);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            voters = data.voters || [];
+            
+            // Store in cache for next time
+            if (voters.length > 0) {
+                _voterDetailCache.set(cacheKey, voters);
+            }
+        }
+        
+        if (!voters || voters.length === 0) {
+            marker.setPopupContent('<div style="padding:8px;color:#999;">No voter details found</div>');
+            return;
+        }
+        
+        let html = `<div style="max-width:380px;">`;
+        html += `<div style="font-size:11px;color:#888;margin-bottom:2px;">${voters[0].address || 'N/A'}</div>`;
+        if (voters.length > 1) {
+            html += `<div style="font-weight:700;font-size:13px;margin-bottom:6px;">${voters.length} voters at this address</div>`;
+        }
+        
+        const vuids = [];
+        voters.forEach((v, i) => {
+            if (i > 0) html += `<hr style="margin:6px 0;border:none;border-top:1px dashed #ddd;">`;
+            html += _buildVoterCard(v);
+            if (v.vuid) vuids.push(v.vuid);
+        });
+        html += `</div>`;
+        
+        marker.setPopupContent(html);
+        
+        // Fetch voting history for each voter
+        vuids.forEach(vuid => fetchVoterHistory(vuid));
+        
+    } catch (error) {
+        console.error('Error loading voter details:', error);
+        marker.setPopupContent('<div style="padding:8px;color:#c00;">Failed to load voter details</div>');
+    }
+}
+
+/**
+ * Build HTML card for a single voter inside a popup.
+ * Shows name, age, gender, party, precinct, badges, flip info, and a
+ * placeholder for voting history (loaded on popup open via fetchVoterHistory).
+ */
+function _buildVoterCard(props) {
+    const nm = props.name || [props.firstname, props.lastname].filter(Boolean).join(' ');
+    const pty = props.party_affiliation_current || '';
+    const isRegisteredNotVoted = props.voted_in_current_election === false;
+    const pColor = isRegisteredNotVoted ? '#A0A0A0'
+                 : pty.toLowerCase().includes('democrat') ? '#1E90FF'
+                 : pty.toLowerCase().includes('republican') ? '#DC143C' : '#888';
+    const gender = props.sex === 'F' ? 'Female' : props.sex === 'M' ? 'Male' : '';
+    const currentYear = new Date().getFullYear();
+    const age = props.birth_year && props.birth_year > 1900 ? (currentYear - props.birth_year) : '';
+    const ageStr = age ? `Age ${age}` : '';
+    const vuid = props.vuid || '';
+
+    let html = '';
+    // Name row with party dot
+    html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">`;
+    html += `<span style="width:10px;height:10px;border-radius:50%;background:${pColor};flex-shrink:0;"></span>`;
+    html += `<span style="font-weight:600;font-size:13px;">${nm || 'Unknown'}</span>`;
+    html += `</div>`;
+
+    if (isRegisteredNotVoted) {
+        // Show "Registered - Has Not Voted" instead of party info
+        html += `<div style="font-size:11px;color:#A0A0A0;font-weight:600;margin-bottom:3px;">Registered - Has Not Voted</div>`;
+        const regDetails = [gender, ageStr, props.precinct ? 'Pct ' + props.precinct : ''].filter(Boolean).join(' · ');
+        if (regDetails) html += `<div style="font-size:11px;color:#666;margin-bottom:3px;">${regDetails}</div>`;
+    } else {
+        // Details line: party · gender · age · precinct
+        const details = [pty, gender, ageStr, props.precinct ? 'Pct ' + props.precinct : ''].filter(Boolean).join(' · ');
+        if (details) html += `<div style="font-size:11px;color:#666;margin-bottom:3px;">${details}</div>`;
+
+        // Badges
+        if (props.is_new_voter) {
+            html += `<div style="color:#DAA520;font-size:11px;font-weight:bold;margin-bottom:2px;">⭐ New Voter (first primary)</div>`;
+        }
+        if (props.party_affiliation_previous && props.party_affiliation_previous !== pty) {
+            const prev = props.party_affiliation_previous;
+            const flipLabel = pty.toLowerCase().includes('democrat') ? 'R→D' : 'D→R';
+            const fColor = pty.toLowerCase().includes('democrat') ? '#6A1B9A' : '#C62828';
+            html += `<div style="color:${fColor};font-size:11px;font-weight:600;margin-bottom:2px;">↩ Flipped: ${prev} → ${pty} (${flipLabel})</div>`;
+        }
+    }
+
+    // Voting history placeholder — always shown, loaded on popup open
+    if (vuid) {
+        html += `<div id="history-${vuid}" style="margin-top:4px;font-size:11px;color:#999;">Loading voting history...</div>`;
+    }
+
+    return html;
 }
 
 function initializeDataLayers() {
@@ -437,6 +1253,7 @@ function initializeDataLayers() {
     const heatmapDataDemocratic = [];
     const heatmapDataRepublican = [];
     const heatmapDataFlipped = [];
+    const heatmapDataNewVoters = [];
     const addressGroups = {}; // Group voters by coordinate for numeric badges
     const bounds = L.latLngBounds();
     
@@ -453,6 +1270,26 @@ function initializeDataLayers() {
         
         // Skip features with null/invalid coordinates
         if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) return;
+        
+        // Gender filter: skip features that don't match the active gender filter
+        if (typeof genderFilter !== 'undefined' && genderFilter !== 'all') {
+            const sex = (props.sex || '').toUpperCase();
+            if (genderFilter === 'male' && sex !== 'M') return;
+            if (genderFilter === 'female' && sex !== 'F') return;
+        }
+        
+        // Age group filter: skip features that don't match the active age filter
+        if (typeof ageFilter !== 'undefined' && ageFilter !== 'all') {
+            const by = props.birth_year || 0;
+            if (!by) return;
+            const ageGroupMap = {
+                '18-24': [2002, 2008], '25-34': [1992, 2001], '35-44': [1982, 1991],
+                '45-54': [1972, 1981], '55-64': [1962, 1971], '65-74': [1952, 1961],
+                '75+': [0, 1951]
+            };
+            const range = ageGroupMap[ageFilter];
+            if (range && (by < range[0] || by > range[1])) return;
+        }
         
         // Add to traditional heatmap
         heatmapData.push([lat, lng, 1]);
@@ -486,98 +1323,106 @@ function initializeDataLayers() {
             heatmapDataFlipped.push([lat, lng, 1]);
         }
         
+        // Collect new voter data for new voters heatmap
+        if (props.is_new_voter) {
+            heatmapDataNewVoters.push([lat, lng, 1]);
+        }
+        
         // Skip filtered-out voters (determineMarkerColor returns null when voter doesn't match active filter)
         if (markerColor === null) {
             return; // Skip this feature in forEach
         }
         
-        // Group by coordinate key for household badges
-        const coordKey = `${lat.toFixed(5)},${lng.toFixed(5)}`;
-        if (!addressGroups[coordKey]) {
-            addressGroups[coordKey] = [];
+        // Group by normalized address string so same-address voters always
+        // cluster together even when geocoded to slightly different coords.
+        // For apartments: strip unit/apt numbers to group all units at same building.
+        let addrRaw = (props.address || '').trim().toUpperCase();
+        let unitNum = '';
+        if (addrRaw) {
+            // Extract and strip apartment/unit identifiers for building-level grouping
+            const unitMatch = addrRaw.match(/\b(?:APT|APARTMENT|UNIT|STE|SUITE|#)\s*[A-Z0-9-]+/i);
+            if (unitMatch) {
+                unitNum = unitMatch[0].trim();
+                addrRaw = addrRaw.replace(unitMatch[0], '').replace(/\s{2,}/g, ' ').replace(/,\s*,/g, ',').trim();
+            }
         }
-        addressGroups[coordKey].push({ lat, lng, markerColor, props });
+        const addrKey = addrRaw || `${lat.toFixed(5)},${lng.toFixed(5)}`;
+        if (!addressGroups[addrKey]) {
+            addressGroups[addrKey] = [];
+        }
+        addressGroups[addrKey].push({ lat, lng, markerColor, props, unitNum });
     });
     
-    // Now create markers, grouping by address for numeric badges
-    Object.values(addressGroups).forEach(group => {
+    // Now create markers, grouping by coordinates
+    // Only show individual data points for logged-in users with full access
+    if (window.authFullAccess) {
+    Object.entries(addressGroups).forEach(([addrKey, group]) => {
+        // Use first voter's coords as the marker position
         const { lat, lng } = group[0];
         const count = group.length;
-        const showBadge = window.showNumericBadges && count > 1;
-        
-        // Use the first voter's color as the representative marker color
         const markerColor = group[0].markerColor;
+        const isNewVoter = group[0].props.is_new_voter;
         
-        if (showBadge) {
-            // Create a DivIcon marker with a numeric badge
-            const fillColor = getMarkerFillColor(markerColor);
-            const badgeIcon = L.divIcon({
-                className: 'household-marker',
-                html: `<div style="
-                    width: 20px; height: 20px; border-radius: 50%;
-                    background: ${fillColor}; border: 2px solid #fff;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-                    position: relative;
-                "><span style="
-                    position: absolute; top: -10px; right: -10px;
-                    background: rgba(0,0,0,0.75); color: #fff;
-                    border-radius: 50%; width: 18px; height: 18px;
-                    display: flex; align-items: center; justify-content: center;
-                    font-size: 11px; font-weight: bold; border: 1px solid #fff;
-                ">${count > 9 ? '9+' : count}</span></div>`,
-                iconSize: [20, 20],
-                iconAnchor: [10, 10]
-            });
-            const marker = L.marker([lat, lng], { icon: badgeIcon });
+        // Determine if we have full data (name/vuid) or just heatmap data
+        const hasFullData = !!(group[0].props.vuid || group[0].props.name);
+
+        let marker;
+        if (count > 1) {
+            // Multi-voter location
+            const isApartment = group.some(v => v.unitNum);
+            const badgeText = count > 9 ? '9+' : count;
             
-            // Build popup with all voters at this address
-            let popupContent = `<strong>Address:</strong> ${group[0].props.address || 'N/A'}<br>`;
-            popupContent += `<strong>${count} voters at this address:</strong><br><hr style="margin:4px 0">`;
-            group.forEach(v => {
-                const voterName = v.props.name || [v.props.firstname, v.props.lastname].filter(Boolean).join(' ');
-                if (voterName) popupContent += `${voterName}`;
-                if (v.props.party_affiliation_current) popupContent += ` (${v.props.party_affiliation_current})`;
-                if (v.props.party_affiliation_previous && v.props.party_affiliation_previous !== v.props.party_affiliation_current) {
-                    const prev = v.props.party_affiliation_previous;
-                    const cur = v.props.party_affiliation_current;
-                    const color = cur.toLowerCase().includes('democrat') ? '#6A1B9A' : '#C62828';
-                    popupContent += `<br><span style="color:${color};font-size:11px;">↩ Was ${prev}</span>`;
-                }
-                popupContent += `<br>`;
-            });
-            marker.bindPopup(popupContent);
-            markerClusterGroup.addLayer(marker);
+            if (isApartment) {
+                const buildingIcon = L.divIcon({
+                    className: 'apartment-marker',
+                    html: `<div style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:#555;border-radius:4px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.4);position:relative;color:#fff;font-size:14px;">🏢<span style="position:absolute;top:-10px;right:-12px;background:rgba(0,0,0,0.8);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:bold;border:1px solid #fff;">${badgeText}</span></div>`,
+                    iconSize: [26, 26],
+                    iconAnchor: [13, 13]
+                });
+                marker = L.marker([lat, lng], { icon: buildingIcon });
+            } else {
+                const fillColor = getMarkerFillColor(markerColor);
+                const showBadgeNum = window.showNumericBadges !== false;
+                const badgeHtml = showBadgeNum
+                    ? `<span style="position:absolute;top:-10px;right:-10px;background:rgba(0,0,0,0.75);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;border:1px solid #fff;">${badgeText}</span>`
+                    : '';
+                const badgeIcon = L.divIcon({
+                    className: 'household-marker',
+                    html: `<div style="width:20px;height:20px;border-radius:50%;background:${fillColor};border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.4);position:relative;">${badgeHtml}</div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+                marker = L.marker([lat, lng], { icon: badgeIcon });
+            }
         } else {
-            // Create individual markers for each voter
-            group.forEach(v => {
-                const marker = L.circleMarker([v.lat, v.lng], {
+            // Single voter
+            if (isNewVoter && (newVotersFilter || !flippedVotersFilter || flippedVotersFilter === 'none')) {
+                const starColor = newVotersFilter ? '#DAA520' : getMarkerFillColor(markerColor);
+                marker = L.marker([lat, lng], { icon: createStarIcon(starColor, 20) });
+            } else {
+                marker = L.circleMarker([lat, lng], {
                     radius: 8,
-                    fillColor: getMarkerFillColor(v.markerColor),
+                    fillColor: getMarkerFillColor(markerColor),
                     color: '#fff',
                     weight: 1,
                     opacity: 1,
                     fillOpacity: 0.8
                 });
-                
-                let popupContent = `<strong>Address:</strong> ${v.props.address || 'N/A'}<br>`;
-                const voterName = v.props.name || [v.props.firstname, v.props.lastname].filter(Boolean).join(' ');
-                if (voterName) popupContent += `<strong>Name:</strong> ${voterName}<br>`;
-                if (v.props.precinct) popupContent += `<strong>Precinct:</strong> ${v.props.precinct}<br>`;
-                if (v.props.party_affiliation_current) popupContent += `<strong>Party:</strong> ${v.props.party_affiliation_current}<br>`;
-                if (v.props.party_affiliation_previous && v.props.party_affiliation_previous !== v.props.party_affiliation_current) {
-                    const prev = v.props.party_affiliation_previous;
-                    const cur = v.props.party_affiliation_current;
-                    const flipLabel = cur.toLowerCase().includes('democrat') ? 'R→D' : 'D→R';
-                    const color = cur.toLowerCase().includes('democrat') ? '#6A1B9A' : '#C62828';
-                    popupContent += `<strong style="color:${color}">Flipped:</strong> <span style="color:${color}">${prev} → ${cur} (${flipLabel})</span><br>`;
-                }
-                if (v.props.check_in) popupContent += `<strong>Voted:</strong> ${v.props.check_in}<br>`;
-                
-                marker.bindPopup(popupContent);
-                markerClusterGroup.addLayer(marker);
-            });
+            }
         }
+
+        if (hasFullData) {
+            // Full data available — build popup immediately (legacy path)
+            _bindFullPopup(marker, group, addrKey, count);
+        } else {
+            // Heatmap data only — lazy-load voter details on popup open
+            marker.bindPopup(`<div id="popup-${lat.toFixed(5)}-${lng.toFixed(5)}" style="min-width:200px;text-align:center;padding:12px;"><span style="color:#999;">Loading voter details...</span></div>`, { maxWidth: 400, maxHeight: 400 });
+            marker.on('popupopen', () => _lazyLoadPopup(marker, lat, lng));
+        }
+
+        markerClusterGroup.addLayer(marker);
     });
+    } // end authFullAccess gate
     
     console.log('Added', markerClusterGroup.getLayers().length, 'markers to cluster group');
     console.log('Created', heatmapData.length, 'heatmap points');
@@ -586,117 +1431,94 @@ function initializeDataLayers() {
     console.log('Party filter:', partyFilter);
     console.log('Heatmap mode:', window.heatmapMode);
     
-    // Update the stats box below the logo
-    updateDatasetStatsBox();
+    // Update the stats box — only show DB-driven stats (from _fetchAndDisplayStats).
+    // If DB stats aren't loaded yet, show a brief loading state instead of
+    // stale fallback numbers that use the statewide total.
+    const ds = window.currentDataset || currentDataset;
+    if (ds && ds._dbStats) {
+        updateDatasetStatsBox();
+    } else {
+        const el = document.getElementById('dataset-stats-content');
+        if (el) el.innerHTML = '<span style="color:#999;">Loading stats...</span>';
+    }
     
-    // Update heatmap layers with new data
-    // CRITICAL: Remove layers from map BEFORE calling setLatLngs to avoid errors
-    // IMPORTANT: Only update layers that have data to avoid internal Leaflet errors
-    // Use setTimeout to avoid Leaflet internal state issues with _animating property
+    // Update heatmap layers by recreating them with new data
+    // This avoids leaflet-heat internal errors with setLatLngs when map container isn't ready
     
-    // Update traditional heatmap (always has data)
-    if (heatmapLayer) {
-        // Remove from map before updating
-        if (map && map.hasLayer(heatmapLayer)) {
-            map.removeLayer(heatmapLayer);
+    // Helper: safely remove a heatmap layer from the map
+    function safeRemoveHeatLayer(layer) {
+        if (layer && map && map.hasLayer(layer)) {
+            map.removeLayer(layer);
         }
-        // Defer the update to avoid internal Leaflet state issues
-        setTimeout(() => {
-            try {
-                // Re-add to map briefly so canvas is available, then set data
-                if (!map.hasLayer(heatmapLayer)) {
-                    map.addLayer(heatmapLayer);
-                }
-                // Guard: ensure layer has valid map reference before updating
-                if (heatmapLayer._map) {
-                    heatmapLayer.setLatLngs(heatmapData);
-                }
-                // Remove again - updateMapView will decide what to show
-                if (map.hasLayer(heatmapLayer)) {
-                    map.removeLayer(heatmapLayer);
-                }
-                console.log('Updated traditional heatmap layer with', heatmapData.length, 'points');
-            } catch (error) {
-                console.error('Error updating traditional heatmap:', error);
+    }
+    
+    // Remove all existing heatmap layers
+    safeRemoveHeatLayer(heatmapLayer);
+    safeRemoveHeatLayer(heatmapLayerDemocratic);
+    safeRemoveHeatLayer(heatmapLayerRepublican);
+    safeRemoveHeatLayer(flippedHeatmapLayer);
+    safeRemoveHeatLayer(newVotersHeatmapLayer);
+    
+    // Recreate traditional heatmap
+    if (heatmapData.length > 0) {
+        heatmapLayer = L.heatLayer(heatmapData, {
+            radius: 25,
+            blur: 35,
+            maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
+            max: 1.0,
+            minOpacity: 0.2,
+            maxOpacity: 0.6
+        });
+        console.log('Updated traditional heatmap layer with', heatmapData.length, 'points');
+    }
+    
+    // Recreate Democratic heatmap
+    if (heatmapDataDemocratic.length > 0) {
+        heatmapLayerDemocratic = L.heatLayer(heatmapDataDemocratic, {
+            radius: 25,
+            blur: 35,
+            maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
+            max: 1.0,
+            minOpacity: 0.2,
+            maxOpacity: 0.6,
+            gradient: {
+                0.0: 'rgba(30, 144, 255, 0)',
+                0.2: 'rgba(30, 144, 255, 0.3)',
+                0.5: 'rgba(30, 144, 255, 0.6)',
+                0.8: 'rgba(30, 144, 255, 0.8)',
+                1.0: 'rgba(30, 144, 255, 1.0)'
             }
-        }, 10);
+        });
+        console.log('Updated Democratic heatmap layer with', heatmapDataDemocratic.length, 'points');
+    } else {
+        heatmapLayerDemocratic = null;
+        console.log('Democratic heatmap has no data');
     }
     
-    // Update Democratic heatmap ONLY if it has data
-    if (typeof heatmapLayerDemocratic !== 'undefined' && heatmapLayerDemocratic && heatmapDataDemocratic.length > 0) {
-        // Remove from map before updating
-        if (map && map.hasLayer(heatmapLayerDemocratic)) {
-            map.removeLayer(heatmapLayerDemocratic);
-        }
-        // Defer the update to avoid internal Leaflet state issues
-        setTimeout(() => {
-            try {
-                // Temporarily add to map so canvas is available
-                if (!map.hasLayer(heatmapLayerDemocratic)) {
-                    map.addLayer(heatmapLayerDemocratic);
-                }
-                if (heatmapLayerDemocratic._map) {
-                    heatmapLayerDemocratic.setLatLngs(heatmapDataDemocratic);
-                }
-                // Remove again - updateMapView will decide what to show
-                if (map.hasLayer(heatmapLayerDemocratic)) {
-                    map.removeLayer(heatmapLayerDemocratic);
-                }
-                console.log('Updated Democratic heatmap layer with', heatmapDataDemocratic.length, 'points');
-            } catch (error) {
-                console.error('Error updating Democratic heatmap:', error);
+    // Recreate Republican heatmap
+    if (heatmapDataRepublican.length > 0) {
+        heatmapLayerRepublican = L.heatLayer(heatmapDataRepublican, {
+            radius: 25,
+            blur: 35,
+            maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
+            max: 1.0,
+            minOpacity: 0.2,
+            maxOpacity: 0.6,
+            gradient: {
+                0.0: 'rgba(220, 20, 60, 0)',
+                0.2: 'rgba(220, 20, 60, 0.3)',
+                0.5: 'rgba(220, 20, 60, 0.6)',
+                0.8: 'rgba(220, 20, 60, 0.8)',
+                1.0: 'rgba(220, 20, 60, 1.0)'
             }
-        }, 10);
-    } else if (typeof heatmapLayerDemocratic !== 'undefined' && heatmapLayerDemocratic) {
-        // If no data, just remove from map
-        if (map && map.hasLayer(heatmapLayerDemocratic)) {
-            map.removeLayer(heatmapLayerDemocratic);
-        }
-        console.log('Democratic heatmap has no data, cleared from map');
+        });
+        console.log('Updated Republican heatmap layer with', heatmapDataRepublican.length, 'points');
+    } else {
+        heatmapLayerRepublican = null;
+        console.log('Republican heatmap has no data');
     }
     
-    // Update Republican heatmap ONLY if it has data
-    if (typeof heatmapLayerRepublican !== 'undefined' && heatmapLayerRepublican && heatmapDataRepublican.length > 0) {
-        // Remove from map before updating
-        if (map && map.hasLayer(heatmapLayerRepublican)) {
-            map.removeLayer(heatmapLayerRepublican);
-        }
-        // Defer the update to avoid internal Leaflet state issues
-        setTimeout(() => {
-            try {
-                // Temporarily add to map so canvas is available
-                if (!map.hasLayer(heatmapLayerRepublican)) {
-                    map.addLayer(heatmapLayerRepublican);
-                }
-                if (heatmapLayerRepublican._map) {
-                    heatmapLayerRepublican.setLatLngs(heatmapDataRepublican);
-                }
-                // Remove again - updateMapView will decide what to show
-                if (map.hasLayer(heatmapLayerRepublican)) {
-                    map.removeLayer(heatmapLayerRepublican);
-                }
-                console.log('Updated Republican heatmap layer with', heatmapDataRepublican.length, 'points');
-            } catch (error) {
-                console.error('Error updating Republican heatmap:', error);
-            }
-        }, 10);
-    } else if (typeof heatmapLayerRepublican !== 'undefined' && heatmapLayerRepublican) {
-        // If no data, just remove from map
-        if (map && map.hasLayer(heatmapLayerRepublican)) {
-            map.removeLayer(heatmapLayerRepublican);
-        }
-        console.log('Republican heatmap has no data, cleared from map');
-    }
-    
-    // Update flipped voters heatmap layer
-    // Recreate the layer each time to ensure gradient color change takes effect
-    // (Leaflet.heat caches the gradient palette internally)
-    if (flippedHeatmapLayer) {
-        if (map && map.hasLayer(flippedHeatmapLayer)) {
-            map.removeLayer(flippedHeatmapLayer);
-        }
-    }
-    
+    // Recreate flipped voters heatmap
     if (heatmapDataFlipped.length > 0) {
         const flipColor = flippedVotersFilter === 'to-red' ? '#C62828' : '#6A1B9A';
         flippedHeatmapLayer = L.heatLayer(heatmapDataFlipped, {
@@ -704,23 +1526,45 @@ function initializeDataLayers() {
             blur: 35,
             maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
             max: 1.0,
-            minOpacity: 0.3,
-            maxOpacity: 0.8,
+            minOpacity: 0.2,
+            maxOpacity: 0.6,
             gradient: { 0.4: flipColor, 0.65: flipColor, 1: flipColor }
         });
         console.log('Recreated flipped heatmap layer with', heatmapDataFlipped.length, 'points, color:', flipColor);
     } else {
+        flippedHeatmapLayer = null;
         console.log('Flipped heatmap has no data');
+    }
+    
+    // Recreate new voters heatmap (golden yellow)
+    if (heatmapDataNewVoters.length > 0) {
+        newVotersHeatmapLayer = L.heatLayer(heatmapDataNewVoters, {
+            radius: 25,
+            blur: 35,
+            maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
+            max: 1.0,
+            minOpacity: 0.2,
+            maxOpacity: 0.6,
+            gradient: {
+                0.0: 'rgba(218, 165, 32, 0)',
+                0.2: 'rgba(218, 165, 32, 0.3)',
+                0.4: 'rgba(218, 165, 32, 0.5)',
+                0.6: 'rgba(255, 193, 37, 0.7)',
+                0.8: 'rgba(255, 215, 0, 0.85)',
+                1.0: 'rgba(255, 215, 0, 1.0)'
+            }
+        });
+        console.log('Recreated new voters heatmap with', heatmapDataNewVoters.length, 'points');
+    } else {
+        newVotersHeatmapLayer = null;
+        console.log('New voters heatmap has no data');
     }
     
     // Don't auto-zoom to fit data bounds - keep focused on Hidalgo County
     // Users can manually zoom/pan to see outlier data points
     
-    // Defer updateMapView to run AFTER all heatmap setTimeout callbacks have fired
-    // This ensures heatmap layers have their data before we decide which to show
-    setTimeout(() => {
-        updateMapView();
-    }, 50);
+    // Update map view to show the appropriate layers
+    updateMapView();
     
     // Hide loading indicator after data layers are initialized
     const loadingIndicator = document.getElementById('map-loading-indicator');
@@ -820,20 +1664,9 @@ async function loadDefaultData() {
 }
 
 async function loadMetadata() {
-    try {
-        const response = await fetch('data/metadata.json');
-        
-        if (!response.ok) {
-            console.warn('Metadata file not found');
-            return;
-        }
-        
-        const metadata = await response.json();
-        updateInfoStrip(metadata);
-        
-    } catch (error) {
-        console.warn('Error loading metadata:', error);
-    }
+    // Legacy: generic metadata.json is no longer used.
+    // Per-dataset metadata is loaded via discoverDatasets() and the backend API.
+    return;
 }
 
 
@@ -1255,3 +2088,50 @@ function filterEarlyVoteFeatures(features) {
 }
 
 
+
+/**
+ * Fetch and render voting history for a flipped voter.
+ * Calls /api/voter-history/<vuid> and renders a compact table
+ * showing each election with D/R colored cells.
+ */
+async function fetchVoterHistory(vuid) {
+    const el = document.getElementById(`history-${vuid}`);
+    if (!el) return;
+    // Avoid re-fetching if already loaded
+    if (el.dataset.loaded === 'true') return;
+    try {
+        const resp = await fetch(`/api/voter-history/${vuid}`);
+        if (!resp.ok) {
+            el.textContent = 'History unavailable';
+            return;
+        }
+        const data = await resp.json();
+        const history = data.history || [];
+        if (history.length === 0) {
+            el.innerHTML = '<span style="color:#aaa;">No prior voting history</span>';
+            el.dataset.loaded = 'true';
+            return;
+        }
+        // Show last 4 elections max (most recent first for readability)
+        const recent = history.slice(-4);
+        let html = '<div style="margin-top:2px;font-size:10px;color:#888;font-weight:600;">Voting History</div>';
+        html += '<table style="border-collapse:collapse;margin-top:2px;font-size:10px;width:100%;table-layout:fixed;"><tr>';
+        recent.forEach(h => {
+            const yr = h.year ? ("'" + String(h.year).slice(-2)) : '?';
+            const method = h.isEarlyVoting ? 'EV' : 'ED';
+            html += `<td style="padding:2px 3px;text-align:center;border:1px solid #ddd;font-weight:600;background:#f5f5f5;font-size:9px;overflow:hidden;">${yr} ${method}</td>`;
+        });
+        html += '</tr><tr>';
+        recent.forEach(h => {
+            const party = (h.party || '').charAt(0).toUpperCase(); // D or R
+            const bg = party === 'D' ? '#1565C0' : party === 'R' ? '#C62828' : '#888';
+            html += `<td style="padding:3px 4px;text-align:center;border:1px solid #ddd;color:#fff;font-weight:bold;background:${bg}">${party || '?'}</td>`;
+        });
+        html += '</tr></table>';
+        el.innerHTML = html;
+        el.dataset.loaded = 'true';
+    } catch (e) {
+        console.warn('Failed to fetch voter history for', vuid, e);
+        el.textContent = 'History unavailable';
+    }
+}

@@ -13,7 +13,8 @@ from config import Config
 from geocoder import GeocodingCache, NominatimGeocoder
 from vuid_resolver import (
     VUIDResolver, normalize_column_names, has_vuid_column,
-    has_address_column, parse_voter_name, COLUMN_ALIASES
+    has_address_column, parse_voter_name, COLUMN_ALIASES,
+    preview_column_mapping
 )
 
 logger = logging.getLogger(__name__)
@@ -32,10 +33,10 @@ def _sanitize_for_json(obj):
 
 def read_data_file(filepath: str) -> pd.DataFrame:
     """
-    Read CSV or Excel file into a pandas DataFrame.
+    Read CSV, Excel, or PDF file into a pandas DataFrame.
     
     Args:
-        filepath: Path to the data file (.csv, .xls, or .xlsx)
+        filepath: Path to the data file (.csv, .xls, .xlsx, or .pdf)
     
     Returns:
         pandas DataFrame with the data
@@ -53,8 +54,14 @@ def read_data_file(filepath: str) -> pd.DataFrame:
             return pd.read_excel(filepath, engine='openpyxl')
         elif filepath_lower.endswith('.xls'):
             return pd.read_excel(filepath, engine='xlrd')
+        elif filepath_lower.endswith('.pdf'):
+            # Extract PDF to CSV first, then read the CSV
+            from pdf_extractor import extract_pdf_to_csv
+            csv_path = extract_pdf_to_csv(filepath)
+            logger.info(f"PDF extracted to CSV: {csv_path}")
+            return pd.read_csv(csv_path)
         else:
-            raise ValueError(f"Unsupported file format. Must be .csv, .xls, or .xlsx")
+            raise ValueError(f"Unsupported file format. Must be .csv, .xls, .xlsx, or .pdf")
     except Exception as e:
         logger.error(f"Failed to read file {filepath}: {e}")
         raise
@@ -274,8 +281,8 @@ class CrossReferenceEngine:
         """
         Main entry point. For each voter in df, determine party_affiliation_previous.
 
-        Calls find_earlier_datasets(), loads the most recent earlier dataset via
-        load_voter_lookup(), then calls get_previous_party() for each row.
+        DB-first approach: queries voter_elections for the immediately preceding
+        election's party. Falls back to GeoJSON if DB is unavailable.
 
         Args:
             df: DataFrame of current voters with columns like vuid, lastname, firstname, lat, lng, etc.
@@ -283,6 +290,65 @@ class CrossReferenceEngine:
         Returns:
             A pandas Series of previous party strings aligned with df index.
         """
+        # Try DB-first approach
+        try:
+            import database as db
+            db.init_db()
+            
+            # Collect all VUIDs from the dataframe
+            vuids = []
+            for _, row in df.iterrows():
+                vuid = str(row.get('vuid', '')).strip()
+                if vuid.endswith('.0'):
+                    vuid = vuid[:-2]
+                if vuid and vuid.isdigit():
+                    vuids.append(vuid)
+            
+            if not vuids or not self.current_election_date:
+                return pd.Series([''] * len(df), index=df.index)
+            
+            # Query the immediately preceding election party for each VUID
+            prev_party_map = {}
+            conn = db.get_connection()
+            for i in range(0, len(vuids), 999):
+                chunk = vuids[i:i + 999]
+                ph = ','.join('?' * len(chunk))
+                rows = conn.execute(f"""
+                    SELECT ve.vuid, ve.party_voted
+                    FROM voter_elections ve
+                    WHERE ve.vuid IN ({ph})
+                      AND ve.election_date = (
+                          SELECT MAX(ve2.election_date) FROM voter_elections ve2
+                          WHERE ve2.vuid = ve.vuid
+                            AND ve2.election_date < ?
+                            AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL
+                      )
+                      AND ve.party_voted != '' AND ve.party_voted IS NOT NULL
+                """, chunk + [self.current_election_date]).fetchall()
+                for r in rows:
+                    prev_party_map[r[0]] = r[1]
+            
+            logger.info(f"DB cross-reference: found previous-election party for {len(prev_party_map)} voters")
+            
+            # Build results: return previous party only if different from current
+            results = []
+            for _, row in df.iterrows():
+                vuid = str(row.get('vuid', '')).strip()
+                if vuid.endswith('.0'):
+                    vuid = vuid[:-2]
+                current_party = self._extract_current_party_from_row(row)
+                prev = prev_party_map.get(vuid, '')
+                if prev and current_party and prev != current_party:
+                    results.append(prev)
+                else:
+                    results.append('')
+            
+            return pd.Series(results, index=df.index)
+            
+        except Exception as e:
+            logger.warning(f"DB cross-reference failed, falling back to GeoJSON: {e}")
+        
+        # Fallback: GeoJSON-based cross-reference (original logic)
         earlier_datasets = self.find_earlier_datasets()
 
         if not earlier_datasets:
@@ -319,7 +385,7 @@ class ProcessingJob:
     def __init__(self, csv_path: str, year: str = None, county: str = None, 
                  election_type: str = None, election_date: str = None, voting_method: str = None,
                  original_filename: str = None, primary_party: str = None, job_id: str = None,
-                 max_workers: int = 20):
+                 max_workers: int = 20, column_mapping: dict = None):
         """
         Initialize processing job.
         
@@ -334,6 +400,7 @@ class ProcessingJob:
             primary_party: Primary party affiliation (democratic/republican) for primary elections
             job_id: Unique job identifier (generated if not provided)
             max_workers: Number of parallel workers for geocoding (default: 20)
+            column_mapping: Custom column name mapping {source_col: canonical_col}
         """
         self.csv_path = csv_path
         self.year = year or str(datetime.now().year)
@@ -342,11 +409,12 @@ class ProcessingJob:
         self.election_date = election_date
         self.voting_method = voting_method or "early-voting"
         self.original_filename = original_filename or Path(csv_path).name
-        self.primary_party = primary_party or ""  # Store primary party (democratic/republican or empty)
+        self.primary_party = primary_party or ""
         self.job_id = job_id or str(uuid.uuid4())
-        self.max_workers = max_workers  # Number of parallel workers for geocoding
-        self.status = 'queued'  # queued, running, completed, failed
-        self.progress = 0.0  # 0.0 to 1.0
+        self.max_workers = max_workers
+        self.column_mapping = column_mapping or {}
+        self.status = 'queued'
+        self.progress = 0.0
         self.total_records = 0
         self.processed_records = 0
         self.errors = []
@@ -399,8 +467,8 @@ class ProcessingJob:
             df = read_data_file(self.csv_path)
             self.total_records = len(df)
             
-            # Check if this is an early vote roster (VUID but no address)
-            if self.detect_early_vote_roster(df):
+            # Check if this is an early vote roster (VUID-based, or filename/method indicates EV)
+            if self.is_early_vote_upload(df):
                 self.process_early_vote_roster(df)
                 return
             
@@ -458,9 +526,9 @@ class ProcessingJob:
             result.add_error(0, f"Failed to read file: {str(e)}")
             return result
 
-        # Early vote rosters have VUID but no ADDRESS — skip standard column checks
-        if has_vuid_column(df) and not has_address_column(df):
-            self.log("Detected early vote roster (VUID present, no ADDRESS column)")
+        # Early vote rosters use DB-first pipeline — skip standard column checks
+        if self.is_early_vote_upload(df):
+            self.log("Detected early vote roster — will use DB-first pipeline")
             result.valid_count = len(df)
             return result
 
@@ -692,6 +760,10 @@ class ProcessingJob:
                 if id_value.isdigit() and len(id_value) == 10:
                     record['vuid'] = id_value
             
+            # Clean VUID: strip .0 suffix from float-converted values
+            if 'vuid' in record and record['vuid'].endswith('.0'):
+                record['vuid'] = record['vuid'][:-2]
+            
             # Build full name
             name_parts = []
             if 'FIRSTNAME' in row and pd.notna(row['FIRSTNAME']):
@@ -763,6 +835,10 @@ class ProcessingJob:
                         # Check if ID is 10 digits (VUID format)
                         if id_value.isdigit() and len(id_value) == 10:
                             record['vuid'] = id_value
+                    
+                    # Clean VUID: strip .0 suffix from float-converted values
+                    if 'vuid' in record and record['vuid'].endswith('.0'):
+                        record['vuid'] = record['vuid'][:-2]
                     
                     # Build full name if name components are available
                     name_parts = []
@@ -942,18 +1018,14 @@ class ProcessingJob:
             map_data['features'].append(feature)
 
         # Create metadata-aware filename
-        # Format: map_data_{county}_{year}_{election_type}_{party}_{date}.json
-        # Example: map_data_Hidalgo_2022_primary_democratic_20220301.json
+        # Format: map_data_{county}_{year}_{election_type}_{party}_{date}_{method}.json
+        # Example: map_data_Hidalgo_2022_primary_democratic_20220301_ed.json
         date_str = self.election_date.replace('-', '') if self.election_date else 'unknown'
         party_suffix = f'_{self.primary_party}' if self.primary_party else ''
-        map_data_filename = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_{date_str}.json'
+        method_suffix = '_ev' if self.voting_method == 'early-voting' else '_ed'
+        map_data_filename = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_{date_str}{method_suffix}.json'
         map_data_path = Config.DATA_DIR / map_data_filename
         with open(map_data_path, 'w') as f:
-            json.dump(map_data, f, indent=2)
-
-        # Also save as default map_data.json for backward compatibility
-        default_map_data_path = Config.DATA_DIR / 'map_data.json'
-        with open(default_map_data_path, 'w') as f:
             json.dump(map_data, f, indent=2)
 
         # Generate metadata.json
@@ -977,14 +1049,10 @@ class ProcessingJob:
 
         # Save metadata with same naming pattern (include party for primaries)
         party_suffix = f'_{self.primary_party}' if self.primary_party else ''
-        metadata_filename = f'metadata_{self.county}_{self.year}_{self.election_type}{party_suffix}_{date_str}.json'
+        method_suffix = '_ev' if self.voting_method == 'early-voting' else '_ed'
+        metadata_filename = f'metadata_{self.county}_{self.year}_{self.election_type}{party_suffix}_{date_str}{method_suffix}.json'
         metadata_path = Config.DATA_DIR / metadata_filename
         with open(metadata_path, 'w') as f:
-            json.dump(metadata, f, indent=2)
-
-        # Also save as default metadata.json for backward compatibility
-        default_metadata_path = Config.DATA_DIR / 'metadata.json'
-        with open(default_metadata_path, 'w') as f:
             json.dump(metadata, f, indent=2)
 
         # Generate error CSV if there are errors
@@ -998,6 +1066,56 @@ class ProcessingJob:
             self.re_resolve_unmatched()
         except Exception as e:
             logger.warning(f"Re-resolution of unmatched VUIDs failed: {e}")
+        
+        # Record election participation in the DB (election-day flow)
+        try:
+            import database as db
+            db.init_db()
+            
+            party_voted = self._extract_current_party(df.iloc[0]) if len(df) > 0 else ''
+            election_batch = []
+            recorded = 0
+            
+            for idx, row in df.iterrows():
+                vuid = str(row.get('vuid', '')).strip()
+                if not vuid:
+                    vuid = str(row.get('cert', '')).strip()
+                if not vuid:
+                    vuid = str(row.get('id', '')).strip()
+                if vuid.endswith('.0'):
+                    vuid = vuid[:-2]
+                if not vuid or not vuid.isdigit() or len(vuid) != 10:
+                    continue
+                
+                election_batch.append({
+                    'vuid': vuid,
+                    'election_date': self.election_date or '',
+                    'election_year': self.year or '',
+                    'election_type': self.election_type or '',
+                    'voting_method': self.voting_method or 'election-day',
+                    'party_voted': self._extract_current_party(row),
+                    'precinct': str(row.get('precinct', '')).strip(),
+                    'ballot_style': str(row.get('ballot_style', '')).strip(),
+                    'site': str(row.get('site', '')).strip() if 'site' in row else '',
+                    'check_in': str(row.get('check_in', '')).strip() if 'check_in' in row else '',
+                    'source_file': self.original_filename,
+                    'data_source': 'county-upload',
+                })
+                recorded += 1
+                
+                if len(election_batch) >= 500:
+                    db.record_elections_batch(election_batch)
+                    election_batch = []
+            
+            if election_batch:
+                db.record_elections_batch(election_batch)
+            
+            # Update current_party from election history
+            db.update_all_current_parties()
+            
+            self.log(f"Recorded {recorded:,} election participation records in DB")
+        except Exception as e:
+            logger.warning(f"DB election recording failed (non-fatal): {e}")
 
     
     def deploy_outputs(self):
@@ -1011,10 +1129,11 @@ class ProcessingJob:
             # Create filename pattern based on election metadata
             date_str = self.election_date.replace('-', '') if self.election_date else 'unknown'
 
-            # Year-specific filenames (include party for primaries)
+            # Year-specific filenames (include party for primaries and voting method)
             party_suffix = f'_{self.primary_party}' if self.primary_party else ''
-            map_data_filename = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_{date_str}.json'
-            metadata_filename = f'metadata_{self.county}_{self.year}_{self.election_type}{party_suffix}_{date_str}.json'
+            method_suffix = '_ev' if self.voting_method == 'early-voting' else '_ed'
+            map_data_filename = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_{date_str}{method_suffix}.json'
+            metadata_filename = f'metadata_{self.county}_{self.year}_{self.election_type}{party_suffix}_{date_str}{method_suffix}.json'
 
             # Copy year-specific files
             year_specific_files = [map_data_filename, metadata_filename]
@@ -1026,19 +1145,6 @@ class ProcessingJob:
                 if src.exists():
                     shutil.copy2(src, dst)
                     self.log(f"Deployed {filename}")
-                else:
-                    self.log(f"Warning: {filename} not found in data directory")
-
-            # Copy backward-compatible default files (map_data.json, metadata.json)
-            default_files = ['map_data.json', 'metadata.json']
-
-            for filename in default_files:
-                src = Config.DATA_DIR / filename
-                dst = public_data_dir / filename
-
-                if src.exists():
-                    shutil.copy2(src, dst)
-                    self.log(f"Deployed {filename} (backward compatibility)")
                 else:
                     self.log(f"Warning: {filename} not found in data directory")
 
@@ -1195,22 +1301,58 @@ class ProcessingJob:
         """Detect if a DataFrame is an early vote roster (has VUID but no ADDRESS)."""
         return has_vuid_column(df) and not has_address_column(df)
 
-    def process_early_vote_roster(self, df: pd.DataFrame):
-        """Process an early vote roster through the VUID resolution pipeline.
+    def is_early_vote_upload(self, df: pd.DataFrame) -> bool:
+        """Detect if this upload should use the early-vote DB-first pipeline.
         
-        This replaces the standard geocoding pipeline for files that have
-        VUID but no address column.
+        Returns True if:
+        - Classic EV roster: has VUID but no ADDRESS column, OR
+        - File has VUID AND (filename suggests EV OR voting_method is early-voting)
         """
-        self.log("Early vote roster detected — using VUID resolution pipeline")
+        # Try with raw columns first, then with normalized columns
+        test_df = normalize_column_names(df, custom_mappings=self.column_mapping)
+        has_vuid = has_vuid_column(df) or ('vuid' in test_df.columns)
+        if not has_vuid:
+            return False
+        
+        # Classic detection: VUID present, no address column
+        has_addr = has_address_column(df) or ('address' in test_df.columns)
+        if not has_addr:
+            return True
+        
+        # Filename-based detection
+        fn = (self.original_filename or '').upper()
+        ev_keywords = ['EV ', 'EV_', 'EARLY', 'ROSTER', 'CUMULATIVE', 'ABBM', 'MAIL']
+        if any(kw in fn for kw in ev_keywords):
+            return True
+        
+        # Voting method detection (from upload form)
+        if self.voting_method and ('early' in self.voting_method.lower() or 'mail' in self.voting_method.lower()):
+            return True
+        
+        return False
+
+    def process_early_vote_roster(self, df: pd.DataFrame):
+        """Process an early vote roster — DB-first approach.
+        
+        1. Record each VUID's election participation in voter_elections (immutable)
+        2. Resolve addresses/coords from the voters table (registration DB)
+        3. Update current_party from most recent primary
+        4. Generate GeoJSON output from DB data
+        """
+        import database as db
+        db.init_db()
+        
+        self.log(f"{self.voting_method or 'early-voting'} roster detected — DB-first pipeline")
         
         # Normalize column names
-        df = normalize_column_names(df)
+        df = normalize_column_names(df, custom_mappings=self.column_mapping)
         
-        # Validate VUID column exists after normalization
         if 'vuid' not in df.columns:
             raise ValueError("VUID column is required for Early Vote Roster processing")
         
-        # Drop rows with empty VUID
+        # Capture raw row count BEFORE any cleaning (this is what the user uploaded)
+        raw_voter_count = len(df)
+        
         df = df.dropna(subset=['vuid'])
         df = df[df['vuid'].astype(str).str.strip() != '']
         
@@ -1218,7 +1360,7 @@ class ProcessingJob:
             raise ValueError("File is empty or malformed")
         
         self.total_records = len(df)
-        self.log(f"Processing {self.total_records} early vote records")
+        self.log(f"Processing {self.total_records} early vote records (raw file rows: {raw_voter_count})")
         
         # Parse voter names
         if 'voter_name' in df.columns:
@@ -1229,105 +1371,535 @@ class ProcessingJob:
             df['lastname'] = ''
             df['firstname'] = ''
         
-        # Build VUID lookup from existing datasets
-        resolver = VUIDResolver(self.county, Config.DATA_DIR)
-        lookup_count = resolver.build_lookup()
-        self.log(f"VUID lookup built with {lookup_count} known VUIDs")
+        roster_date = self.election_date or self._extract_roster_date_from_filename()
+        self.log(f"Election date: {roster_date}")
         
-        # Resolve each VUID
+        # MIXED PRIMARY DETECTION: If file has a 'party' column and no primary_party
+        # was specified, split by party and process each subset separately
+        if not self.primary_party and 'party' in df.columns:
+            party_col = df['party'].astype(str).str.strip().str.upper()
+            unique_parties = set()
+            for p in party_col.unique():
+                if p in ('DEM', 'DEMOCRAT', 'DEMOCRATIC', 'D'):
+                    unique_parties.add('democratic')
+                elif p in ('REP', 'REPUBLICAN', 'R'):
+                    unique_parties.add('republican')
+                elif p and p != 'NAN' and p != '':
+                    unique_parties.add(p.lower())
+            
+            if len(unique_parties) >= 2:
+                self.log(f"⚡ Mixed primary detected — {len(unique_parties)} parties: {', '.join(sorted(unique_parties))}")
+                self.log(f"  Splitting into separate party datasets...")
+                
+                # Map raw party values to canonical names
+                party_map = {}
+                for p in party_col.unique():
+                    pu = p.strip().upper()
+                    if pu in ('DEM', 'DEMOCRAT', 'DEMOCRATIC', 'D'):
+                        party_map[p] = 'democratic'
+                    elif pu in ('REP', 'REPUBLICAN', 'R'):
+                        party_map[p] = 'republican'
+                    elif pu and pu != 'NAN':
+                        party_map[p] = pu.lower()
+                
+                df['_canonical_party'] = party_col.map(lambda x: party_map.get(x, ''))
+                
+                total_processed = 0
+                for party_name in sorted(unique_parties):
+                    party_df = df[df['_canonical_party'] == party_name].copy()
+                    party_df = party_df.drop(columns=['_canonical_party'])
+                    if len(party_df) == 0:
+                        continue
+                    
+                    self.log(f"\n{'='*60}")
+                    self.log(f"Processing {party_name.upper()} subset: {len(party_df):,} voters")
+                    self.log(f"{'='*60}")
+                    
+                    # Create a sub-job with the party set
+                    sub_job = ProcessingJob(
+                        csv_path=self.csv_path,
+                        year=self.year,
+                        county=self.county,
+                        election_type=self.election_type,
+                        election_date=self.election_date,
+                        voting_method=self.voting_method,
+                        original_filename=self.original_filename,
+                        primary_party=party_name,
+                        job_id=f"{self.job_id}_{party_name}",
+                        max_workers=self.max_workers,
+                        column_mapping=self.column_mapping,
+                    )
+                    # Share log and progress with parent
+                    sub_job.log_messages = self.log_messages
+                    sub_job.geocoder = self.geocoder
+                    sub_job.started_at = self.started_at or datetime.now()
+                    
+                    # The sub-df is already normalized, so call the inner processing
+                    # We pass it directly — the sub-job's process_early_vote_roster
+                    # will re-normalize but that's idempotent
+                    sub_job.process_early_vote_roster(party_df)
+                    
+                    total_processed += sub_job.processed_records
+                    self.geocoded_count += sub_job.geocoded_count
+                    self.failed_count += sub_job.failed_count
+                
+                # Clean up the _canonical_party column if it still exists
+                if '_canonical_party' in df.columns:
+                    df = df.drop(columns=['_canonical_party'])
+                
+                self.processed_records = total_processed
+                self.total_records = len(df)
+                self.progress = 1.0
+                self.status = 'completed'
+                self.completed_at = datetime.now()
+                processing_time = (self.completed_at - self.started_at).total_seconds()
+                self.log(f"\n{'='*60}")
+                self.log(f"Mixed primary processing complete in {processing_time:.1f}s — "
+                         f"{len(unique_parties)} party datasets, {total_processed:,} total voters")
+                return
+        
+        primary_party = self.primary_party or ''
+        party_label = primary_party.capitalize() if primary_party else ''
+        if party_label == 'Democratic':
+            party_voted = 'Democratic'
+        elif party_label == 'Republican':
+            party_voted = 'Republican'
+        else:
+            party_voted = party_label
+        
+        # STEP 1: Record election participation in voter_elections table
+        self.log("Step 1: Recording election participation in DB...")
+        election_batch = []
+        vuids_in_roster = []
+        
+        for _, row in df.iterrows():
+            raw_vuid = row.get('vuid', '')
+            normalized = VUIDResolver.normalize_vuid(raw_vuid)
+            if not normalized or not normalized.isdigit():
+                continue
+            
+            vuids_in_roster.append(normalized)
+            election_batch.append({
+                'vuid': normalized,
+                'election_date': self.election_date or roster_date,
+                'election_year': self.year or '',
+                'election_type': self.election_type or 'primary',
+                'voting_method': self.voting_method or 'early-voting',
+                'party_voted': party_voted,
+                'precinct': str(row.get('precinct', '')).strip(),
+                'ballot_style': '',
+                'site': '',
+                'check_in': '',
+                'source_file': self.original_filename,
+                'data_source': 'county-upload',
+            })
+            
+            if len(election_batch) >= 500:
+                db.record_elections_batch(election_batch)
+                election_batch = []
+        
+        if election_batch:
+            db.record_elections_batch(election_batch)
+        
+        self.log(f"  Recorded {len(vuids_in_roster):,} election participation records")
+        self.progress = 0.3
+        
+        # STEP 2: Resolve addresses/coords from voter DB
+        self.log("Step 2: Resolving VUIDs from voter database...")
+        resolver = VUIDResolver(self.county, Config.DATA_DIR)
+        db_count = resolver.build_lookup()
+        self.log(f"  Voter DB has {db_count:,} voters for {self.county} County")
+        
         matched = 0
         unmatched = 0
-        
-        # Extract roster date from the filename timestamp (e.g. _202602221003529256 → 2026-02-22)
-        # This is the date the file was generated, NOT the election date
-        roster_date = self._extract_roster_date_from_filename()
-        self.log(f"Roster date from filename: {roster_date}")
-        primary_party = self.primary_party or ''
-        
-        # Prepare output columns
         results = []
-        for idx, row in df.iterrows():
-            raw_vuid = row.get('vuid', '')
-            normalized_vuid = VUIDResolver.normalize_vuid(raw_vuid)
-            
-            match = resolver.resolve(normalized_vuid)
-            
-            record = {
-                'vuid': normalized_vuid,
-                'lastname': row.get('lastname', ''),
-                'firstname': row.get('firstname', ''),
-                'precinct': str(row.get('precinct', '')).strip(),
-                'early_vote_day': roster_date,
-                'voted_in_current_election': True,
-                'is_registered': True,
-            }
-            
-            if match:
-                record['lat'] = match['lat']
-                record['lng'] = match['lng']
-                record['address'] = match['address']
-                record['display_name'] = match['display_name']
-                record['unmatched'] = False
-                
-                # Set party affiliation
-                existing_party = match.get('party_affiliation_current', '')
-                if primary_party:
-                    record['party_affiliation_current'] = primary_party.capitalize()
-                    if existing_party and existing_party.lower() != primary_party.lower():
-                        record['party_affiliation_previous'] = existing_party
-                        record['has_switched_parties'] = True
-                    else:
-                        record['party_affiliation_previous'] = ''
-                        record['has_switched_parties'] = False
-                else:
-                    record['party_affiliation_current'] = existing_party
-                    record['party_affiliation_previous'] = ''
-                    record['has_switched_parties'] = False
-                
-                matched += 1
-            else:
-                record['lat'] = None
-                record['lng'] = None
-                record['address'] = ''
-                record['display_name'] = ''
-                record['unmatched'] = True
-                record['party_affiliation_current'] = primary_party.capitalize() if primary_party else ''
-                record['party_affiliation_previous'] = ''
-                record['has_switched_parties'] = False
-                unmatched += 1
-            
-            results.append(record)
-            self.processed_records += 1
-            self.progress = 0.2 + (0.6 * (self.processed_records / self.total_records))
         
-        self.log(f"VUID resolution: {matched} matched, {unmatched} unmatched")
+        # Pre-fetch the immediately preceding election party for all VUIDs.
+        # A flip is ONLY flagged if the voter's party in THIS election differs
+        # from their party in the IMMEDIATELY PRECEDING election.
+        current_election_date = self.election_date or roster_date
+        prev_party_map = {}
+        conn_prev = db.get_connection()
+        for ci in range(0, len(vuids_in_roster), 999):
+            chunk = vuids_in_roster[ci:ci + 999]
+            ph = ','.join('?' * len(chunk))
+            rows = conn_prev.execute(f"""
+                SELECT ve.vuid, ve.party_voted
+                FROM voter_elections ve
+                WHERE ve.vuid IN ({ph})
+                  AND ve.election_date = (
+                      SELECT MAX(ve2.election_date) FROM voter_elections ve2
+                      WHERE ve2.vuid = ve.vuid
+                        AND ve2.election_date < ?
+                        AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL
+                  )
+                  AND ve.party_voted != '' AND ve.party_voted IS NOT NULL
+            """, chunk + [current_election_date]).fetchall()
+            for r in rows:
+                prev_party_map[r[0]] = r[1]
+        self.log(f"  Found previous-election party for {len(prev_party_map):,} voters")
+        
+        # Pre-fetch VUIDs that have ANY prior election record (for new voter detection)
+        prior_vuids = set()
+        for ci in range(0, len(vuids_in_roster), 999):
+            chunk = vuids_in_roster[ci:ci + 999]
+            ph = ','.join('?' * len(chunk))
+            rows = conn_prev.execute(f"""
+                SELECT DISTINCT vuid FROM voter_elections
+                WHERE vuid IN ({ph})
+                  AND election_date < ?
+                  AND party_voted != '' AND party_voted IS NOT NULL
+            """, chunk + [current_election_date]).fetchall()
+            for r in rows:
+                prior_vuids.add(r[0])
+        new_voter_count = len(vuids_in_roster) - len(prior_vuids)
+        self.log(f"  New voters (no prior elections): {new_voter_count:,}")
+        
+        # Check if this county has prior election data for reliable new voter detection
+        has_prior_data = conn_prev.execute("""
+            SELECT 1 FROM voter_elections ve
+            JOIN voters v ON ve.vuid = v.vuid
+            WHERE v.county = ? AND ve.election_date < ?
+              AND ve.party_voted != '' AND ve.party_voted IS NOT NULL
+            LIMIT 1
+        """, (self.county, current_election_date)).fetchone() is not None
+        if not has_prior_data:
+            self.log(f"  ⚠️ No prior election data for {self.county} — skipping new voter tagging")
+            new_voter_count = 0
+        
+        # Build CSV data lookup for fallback (names + addresses parsed from upload)
+        csv_data_lookup = {}
+        has_csv_address = 'address' in df.columns
+        has_csv_city = 'city' in df.columns
+        has_csv_zip = 'zip' in df.columns
+        if has_csv_address:
+            self.log(f"  CSV has address column — will use for geocoding fallback")
+        for _, row in df.iterrows():
+            v = str(row.get('vuid', '')).strip()
+            nv = VUIDResolver.normalize_vuid(v)
+            if nv:
+                # Build full address from CSV columns
+                csv_addr = str(row.get('address', '') or '').strip()
+                csv_city = str(row.get('city', '') or '').strip() if has_csv_city else ''
+                csv_zip = str(row.get('zip', '') or '').strip() if has_csv_zip else ''
+                full_addr = csv_addr
+                if csv_city and csv_city not in full_addr:
+                    full_addr += f', {csv_city}'
+                if csv_zip and csv_zip not in full_addr:
+                    full_addr += f' {csv_zip}'
+                # Add Texas if not present
+                if full_addr and 'TX' not in full_addr.upper() and 'TEXAS' not in full_addr.upper():
+                    full_addr += ', TX'
+
+                csv_data_lookup[nv] = {
+                    'firstname': str(row.get('firstname', '') or '').strip(),
+                    'lastname': str(row.get('lastname', '') or '').strip(),
+                    'address': full_addr if csv_addr else '',
+                }
+        
+        # Batch resolve for efficiency
+        batch_size = 500
+        for i in range(0, len(vuids_in_roster), batch_size):
+            batch_vuids = vuids_in_roster[i:i + batch_size]
+            resolved = resolver.resolve_batch(batch_vuids)
+            
+            for vuid in batch_vuids:
+                match = resolved.get(vuid)
+                
+                record = {
+                    'vuid': vuid,
+                    'precinct': '',
+                    'early_vote_day': roster_date,
+                    'voted_in_current_election': True,
+                    'is_registered': True,
+                    # Only flag as new if county has prior election data to compare against
+                    'is_new_voter': (vuid not in prior_vuids) if has_prior_data else False,
+                }
+                
+                # Flip detection: compare against IMMEDIATELY preceding election only
+                prev_party = prev_party_map.get(vuid, '')
+                has_switched = bool(prev_party and party_voted and prev_party.lower() != party_voted.lower())
+                
+                # Look up CSV-parsed data as fallback
+                csv_data = csv_data_lookup.get(vuid, {})
+                csv_firstname = csv_data.get('firstname', '')
+                csv_lastname = csv_data.get('lastname', '')
+                csv_address = csv_data.get('address', '')
+                
+                if match:
+                    record['lat'] = match['lat']
+                    record['lng'] = match['lng']
+                    record['address'] = match['address'] or csv_address
+                    record['display_name'] = match['display_name']
+                    record['unmatched'] = match['lat'] is None
+                    record['party_affiliation_current'] = party_voted or match.get('party_affiliation_current', '')
+                    record['party_affiliation_previous'] = prev_party if has_switched else ''
+                    record['has_switched_parties'] = has_switched
+                    record['sex'] = match.get('sex', '')
+                    record['birth_year'] = match.get('birth_year', 0)
+                    record['firstname'] = match.get('firstname', '') or csv_firstname
+                    record['lastname'] = match.get('lastname', '') or csv_lastname
+                    record['precinct'] = match.get('precinct', '')
+                    
+                    if match['lat'] is not None:
+                        matched += 1
+                    else:
+                        unmatched += 1
+                else:
+                    record['lat'] = None
+                    record['lng'] = None
+                    record['address'] = csv_address
+                    record['display_name'] = ''
+                    record['unmatched'] = True
+                    record['party_affiliation_current'] = party_voted
+                    record['party_affiliation_previous'] = prev_party if has_switched else ''
+                    record['has_switched_parties'] = has_switched
+                    record['sex'] = ''
+                    record['birth_year'] = 0
+                    record['firstname'] = csv_firstname
+                    record['lastname'] = csv_lastname
+                    record['precinct'] = ''
+                    unmatched += 1
+                
+                results.append(record)
+                self.processed_records += 1
+            
+            self.progress = 0.3 + (0.4 * min(i + batch_size, len(vuids_in_roster)) / len(vuids_in_roster))
+        
+        stats = resolver.get_stats()
+        self.log(f"  DB hits: {stats['db_hits']:,}, GeoJSON fallback: {stats['geojson_hits']:,}, "
+                 f"Not found: {stats['misses']:,}")
+        self.log(f"  Geocoded: {matched:,}, No coords: {unmatched:,}")
         self.geocoded_count = matched
         self.failed_count = unmatched
         
-        result_df = pd.DataFrame(results)
+        # STEP 2.5: Geocode voters who have addresses but no coordinates
+        # This covers: DB voters with address but no coords, AND CSV-provided addresses
+        to_geocode = [(i, r) for i, r in enumerate(results)
+                      if r.get('unmatched') and r.get('address', '').strip()]
+        no_address_count = sum(1 for r in results if r.get('unmatched') and not r.get('address', '').strip())
+        if to_geocode:
+            self.log(f"Step 2.5: Geocoding {len(to_geocode):,} voters via AWS/Census/Photon chain...")
+            if no_address_count:
+                self.log(f"  ({no_address_count:,} voters have no address at all — cannot geocode)")
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            import threading
+            geocode_lock = threading.Lock()
+            newly_geocoded = 0
+            geocode_failed = 0
+            geocode_done = 0
+            total_to_geocode = len(to_geocode)
+            
+            def _geocode_one(item):
+                idx, rec = item
+                addr = rec['address'].strip()
+                result = self.geocoder.geocode(addr)
+                return idx, result
+            
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                futures = {executor.submit(_geocode_one, item): item for item in to_geocode}
+                for future in as_completed(futures):
+                    try:
+                        idx, geo_result = future.result()
+                        with geocode_lock:
+                            geocode_done += 1
+                        if geo_result and geo_result.get('lat') is not None:
+                            results[idx]['lat'] = geo_result['lat']
+                            results[idx]['lng'] = geo_result['lng']
+                            results[idx]['display_name'] = geo_result.get('display_name', results[idx].get('address', ''))
+                            results[idx]['unmatched'] = False
+                            with geocode_lock:
+                                newly_geocoded += 1
+                                matched += 1
+                                unmatched -= 1
+                            # Update the voters table with new coords
+                            vuid = results[idx]['vuid']
+                            try:
+                                conn_upd = db.get_connection()
+                                conn_upd.execute(
+                                    "UPDATE voters SET lat=?, lng=?, geocoded=1, updated_at=? WHERE vuid=?",
+                                    (geo_result['lat'], geo_result['lng'], datetime.now().isoformat(), vuid)
+                                )
+                                conn_upd.commit()
+                            except Exception:
+                                pass
+                            # Also update geocoding cache in DB
+                            try:
+                                db.cache_put(
+                                    results[idx]['address'].strip().upper(),
+                                    geo_result['lat'], geo_result['lng'],
+                                    geo_result.get('display_name', ''),
+                                    geo_result.get('source', 'aws')
+                                )
+                            except Exception:
+                                pass
+                        else:
+                            with geocode_lock:
+                                geocode_failed += 1
+                    except Exception as e:
+                        with geocode_lock:
+                            geocode_done += 1
+                            geocode_failed += 1
+                        self.log(f"  Geocoding error: {e}")
+                    
+                    # Update progress during geocoding
+                    with geocode_lock:
+                        self.progress = 0.7 + (0.15 * geocode_done / total_to_geocode)
+                        self.geocoded_count = matched
+                        self.failed_count = unmatched
+                        # Log progress every 100 geocodes
+                        if geocode_done % 100 == 0 or geocode_done == total_to_geocode:
+                            self.log(f"  Geocoding progress: {geocode_done:,}/{total_to_geocode:,} "
+                                     f"(✅ {newly_geocoded:,} success, ❌ {geocode_failed:,} failed)")
+            
+            self.geocoded_count = matched
+            self.failed_count = unmatched
+            self.log(f"  Geocoding complete: {newly_geocoded:,} newly geocoded, "
+                     f"{geocode_failed:,} failed, {unmatched:,} still unmatched")
+        else:
+            if no_address_count:
+                self.log(f"Step 2.5: Skipped — {no_address_count:,} unmatched voters have no address to geocode")
         
-        # Generate outputs
-        self.generate_early_vote_outputs(result_df, matched, unmatched, roster_date)
+        # STEP 2.75: Upsert all voters into the voters table
+        # This ensures voters from new counties (e.g. Brooks) exist in the voters table
+        # so they show up in election dataset queries and on the map
+        self.log("Step 2.75: Upserting voters into voters table...")
+        voter_batch = []
+        for r in results:
+            addr = r.get('address', '')
+            # Try to split address into parts
+            city = ''
+            zipcode = ''
+            if addr:
+                import re as _re
+                zip_m = _re.search(r'\b(\d{5})\b', addr)
+                if zip_m:
+                    zipcode = zip_m.group(1)
+                # Try to extract city from "..., CITY, TX ZIP" pattern
+                city_m = _re.search(r',\s*([A-Za-z\s]+),\s*TX', addr, _re.IGNORECASE)
+                if city_m:
+                    city = city_m.group(1).strip()
+            
+            voter_batch.append({
+                'vuid': r['vuid'],
+                'lastname': r.get('lastname', ''),
+                'firstname': r.get('firstname', ''),
+                'middlename': '',
+                'suffix': '',
+                'address': addr,
+                'city': city,
+                'zip': zipcode,
+                'county': self.county,
+                'birth_year': r.get('birth_year', 0) or None,
+                'registration_date': '',
+                'sex': r.get('sex', ''),
+                'registered_party': '',
+                'current_party': party_voted,
+                'precinct': r.get('precinct', ''),
+                'lat': r.get('lat'),
+                'lng': r.get('lng'),
+                'source': 'early-vote-upload',
+            })
+        
+        db.upsert_voters_batch(voter_batch)
+        self.log(f"  Upserted {len(voter_batch):,} voters into voters table")
+        
+        # STEP 3: Update current_party for voters in this election
+        self.log("Step 3: Updating party affiliations...")
+        if party_voted:
+            conn = db.get_connection()
+            placeholders = ','.join('?' * min(len(vuids_in_roster), 999))
+            updated_total = 0
+            for i in range(0, len(vuids_in_roster), 999):
+                chunk = vuids_in_roster[i:i + 999]
+                placeholders = ','.join('?' * len(chunk))
+                cursor = conn.execute(
+                    f"UPDATE voters SET current_party = ?, updated_at = ? "
+                    f"WHERE vuid IN ({placeholders})",
+                    [party_voted, datetime.now().isoformat()] + chunk
+                )
+                updated_total += cursor.rowcount
+            conn.commit()
+            self.log(f"  Updated current_party to '{party_voted}' for {updated_total:,} voters")
+        self.progress = 0.75
+        
+        # STEP 4: DB is the source of truth — no GeoJSON files needed
+        # The frontend reads from /api/voters and /api/elections directly
+        self.log("Step 4: Skipped — DB is source of truth (no GeoJSON generation)")
+        self.progress = 0.9
+        
+        # STEP 5: Integrity verification
+        self.log("Step 5: Running integrity checks...")
+        try:
+            from integrity import verify_ev_upload
+            integrity_report = verify_ev_upload(
+                db_path=str(Config.DATA_DIR / 'whovoted.db'),
+                data_dir=Config.DATA_DIR,
+                public_dir=Config.PUBLIC_DIR,
+                county=self.county,
+                year=self.year,
+                election_type=self.election_type,
+                election_date=current_election_date,
+                party=self.primary_party or '',
+                raw_row_count=raw_voter_count,
+                cleaned_row_count=self.total_records,
+                normalized_vuid_count=len(vuids_in_roster),
+                geocoded_count=matched,
+                unmatched_count=unmatched,
+                job_id=self.job_id,
+                source_file=self.original_filename,
+            )
+            for line in integrity_report.summary_lines():
+                self.log(line)
+            
+            # Store report in job data for admin dashboard
+            self.integrity_report = integrity_report.to_dict()
+            
+            if not integrity_report.passed:
+                self.log(f"⚠️  {len(integrity_report.failed_checks)} integrity check(s) FAILED — review above")
+        except Exception as e:
+            self.log(f"Integrity check error (non-fatal): {e}")
         
         self.progress = 1.0
         self.status = 'completed'
         self.completed_at = datetime.now()
         processing_time = (self.completed_at - self.started_at).total_seconds()
-        self.log(f"Early vote processing completed in {processing_time:.1f}s")
+        self.log(f"Early vote processing completed in {processing_time:.1f}s — "
+                 f"{matched:,} geocoded, {unmatched:,} unmatched, "
+                 f"{len(vuids_in_roster):,} election records saved")
 
     def _extract_roster_date_from_filename(self) -> str:
-        """Extract the roster date from the original filename's timestamp suffix.
+        """Extract the roster date from the original filename.
         
-        Filenames like 'EV DEM Roster March 3, 2026 (Cumulative)_202602221003529256'
-        have a timestamp suffix where the first 8 digits are YYYYMMDD — the date
-        the file was generated/updated, which is the roster date.
-        
-        Falls back to today's date if no timestamp is found.
+        First tries to find a human-readable date like "March 3, 2026" in the
+        filename (the actual election date). Falls back to the timestamp suffix
+        (file generation date), then to today's date.
         """
         import re
         filename = self.original_filename or ''
         # Remove extension
-        name = re.sub(r'\.(csv|CSV)$', '', filename)
+        name = re.sub(r'\.(csv|CSV|xlsx|XLSX|xls|XLS)$', '', filename)
+        
+        # Try human-readable date first: "March 3, 2026" etc.
+        month_names = {
+            'january': 1, 'february': 2, 'march': 3, 'april': 4,
+            'may': 5, 'june': 6, 'july': 7, 'august': 8,
+            'september': 9, 'october': 10, 'november': 11, 'december': 12
+        }
+        month_pattern = '|'.join(month_names.keys())
+        date_match = re.search(
+            r'(' + month_pattern + r')[_,\s]+(\d{1,2})[_,\s]+(\d{4})',
+            name.lower()
+        )
+        if date_match:
+            month_num = month_names[date_match.group(1)]
+            day_num = int(date_match.group(2))
+            year_num = int(date_match.group(3))
+            try:
+                dt = datetime(year_num, month_num, day_num)
+                return dt.strftime('%Y-%m-%d')
+            except ValueError:
+                pass
         
         # Look for timestamp suffix: underscore followed by 14-20 digits at end
         match = re.search(r'_(\d{14,20})$', name)
@@ -1353,7 +1925,7 @@ class ProcessingJob:
         self.log("Warning: Could not extract roster date from filename, using today's date")
         return datetime.now().strftime('%Y-%m-%d')
 
-    def generate_early_vote_outputs(self, df: pd.DataFrame, matched: int, unmatched: int, roster_date: str):
+    def generate_early_vote_outputs(self, df: pd.DataFrame, matched: int, unmatched: int, roster_date: str, raw_voter_count: int = None):
         """Generate GeoJSON day snapshot and cumulative files for early vote data."""
         Config.DATA_DIR.mkdir(parents=True, exist_ok=True)
         
@@ -1392,9 +1964,12 @@ class ProcessingJob:
                 'ballot_style': '',
                 'household_voter_count': 1,
                 'has_switched_parties': bool(row.get('has_switched_parties', False)),
+                'is_new_voter': bool(row.get('is_new_voter', False)),
                 'party_history': row.get('party_history', []) if pd.notna(row.get('party_history', None)) else [],
                 'voted_in_current_election': True,
                 'is_registered': True,
+                'sex': _safe_str(row.get('sex', '')),
+                'birth_year': int(row.get('birth_year', 0)) if pd.notna(row.get('birth_year', 0)) else 0,
             }
             
             features.append({
@@ -1408,7 +1983,7 @@ class ProcessingJob:
         # Day snapshot filename
         date_str = roster_date.replace('-', '')
         party_suffix = f'_{self.primary_party}' if self.primary_party else ''
-        snapshot_filename = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_{date_str}.json'
+        snapshot_filename = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_{date_str}_ev.json'
         snapshot_path = Config.DATA_DIR / snapshot_filename
         
         with open(snapshot_path, 'w') as f:
@@ -1429,44 +2004,39 @@ class ProcessingJob:
             'original_filename': self.original_filename,
             'last_updated': datetime.now().isoformat(),
             'total_addresses': len(df),
+            'raw_voter_count': raw_voter_count or len(df),
             'matched_vuids': matched,
             'unmatched_vuids': unmatched,
             'successfully_geocoded': 0,
             'failed_addresses': 0,
         }
         
-        meta_filename = f'metadata_{self.county}_{self.year}_{self.election_type}{party_suffix}_{date_str}.json'
+        meta_filename = f'metadata_{self.county}_{self.year}_{self.election_type}{party_suffix}_{date_str}_ev.json'
         meta_path = Config.DATA_DIR / meta_filename
         with open(meta_path, 'w') as f:
             json.dump(metadata, f, indent=2)
         
-        # Generate cumulative file
+        # Generate cumulative file (party-specific)
         self._generate_cumulative(party_suffix)
         
         # Deploy early vote files to public directory
         self._deploy_early_vote_outputs(snapshot_filename, meta_filename, party_suffix)
 
     def _deploy_early_vote_outputs(self, snapshot_filename: str, meta_filename: str, party_suffix: str):
-        """Deploy early vote snapshot, metadata, and cumulative files to public directory."""
+        """Deploy early vote cumulative files to public directory.
+
+        Day snapshots are kept in data/ only (used as input for cumulative generation)
+        but NOT deployed to public/ — only the cumulative file is user-facing.
+        """
         import shutil
-        
+
         public_data_dir = Config.PUBLIC_DIR / 'data'
         public_data_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Deploy day snapshot + metadata
-        for filename in [snapshot_filename, meta_filename]:
-            src = Config.DATA_DIR / filename
-            dst = public_data_dir / filename
-            if src.exists():
-                shutil.copy2(src, dst)
-                self.log(f"Deployed {filename}")
-            else:
-                self.log(f"Warning: {filename} not found in data directory")
-        
-        # Deploy cumulative files
-        cum_map = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_cumulative.json'
-        cum_meta = f'metadata_{self.county}_{self.year}_{self.election_type}{party_suffix}_cumulative.json'
-        
+
+        # Deploy cumulative files only (not day snapshots)
+        cum_map = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_cumulative_ev.json'
+        cum_meta = f'metadata_{self.county}_{self.year}_{self.election_type}{party_suffix}_cumulative_ev.json'
+
         for filename in [cum_map, cum_meta]:
             src = Config.DATA_DIR / filename
             dst = public_data_dir / filename
@@ -1476,9 +2046,10 @@ class ProcessingJob:
             else:
                 self.log(f"Warning: {filename} not found in data directory")
 
+
     def _generate_cumulative(self, party_suffix: str):
         """Merge all day snapshots for same county/election/party into cumulative file."""
-        pattern = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_*.json'
+        pattern = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_*_ev.json'
         snapshot_files = sorted(Config.DATA_DIR.glob(pattern))
         
         # Exclude cumulative file itself
@@ -1490,15 +2061,29 @@ class ProcessingJob:
         # Merge all features, deduplicate by VUID (keep most recent)
         all_features = {}
         day_snapshots = []
+        total_raw_voter_count = 0
         
         for filepath in snapshot_files:
             try:
                 with open(filepath, 'r') as f:
                     data = json.load(f)
                 
-                # Extract date from filename
-                date_part = filepath.stem.split('_')[-1]
+                # Extract date from filename (second-to-last part, before _ev suffix)
+                parts = filepath.stem.split('_')
+                date_part = parts[-2] if len(parts) >= 2 else parts[-1]
                 day_snapshots.append(date_part)
+                
+                # Read corresponding day snapshot metadata for raw_voter_count
+                meta_filepath = filepath.parent / filepath.name.replace('map_data', 'metadata')
+                if meta_filepath.exists():
+                    try:
+                        with open(meta_filepath, 'r') as mf:
+                            day_meta = json.load(mf)
+                        total_raw_voter_count += day_meta.get('raw_voter_count', day_meta.get('total_addresses', 0))
+                    except Exception:
+                        total_raw_voter_count += len(data.get('features', []))
+                else:
+                    total_raw_voter_count += len(data.get('features', []))
                 
                 for feature in data.get('features', []):
                     vuid = feature.get('properties', {}).get('vuid', '')
@@ -1512,7 +2097,7 @@ class ProcessingJob:
         cumulative_data = _sanitize_for_json({'type': 'FeatureCollection', 'features': features_list})
         
         # Save cumulative file
-        cum_filename = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_cumulative.json'
+        cum_filename = f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_cumulative_ev.json'
         cum_path = Config.DATA_DIR / cum_filename
         with open(cum_path, 'w') as f:
             json.dump(cumulative_data, f, indent=2)
@@ -1520,6 +2105,10 @@ class ProcessingJob:
         # Count matched/unmatched
         cum_matched = sum(1 for f in features_list if not f.get('properties', {}).get('unmatched', False))
         cum_unmatched = sum(1 for f in features_list if f.get('properties', {}).get('unmatched', False))
+        
+        # Use raw_voter_count if available, otherwise fall back to feature count
+        if total_raw_voter_count == 0:
+            total_raw_voter_count = len(features_list)
         
         # Cumulative metadata
         cum_meta = {
@@ -1530,18 +2119,87 @@ class ProcessingJob:
             'is_early_voting': True,
             'is_cumulative': True,
             'last_updated': datetime.now().isoformat(),
-            'total_addresses': len(features_list),
+            'total_addresses': total_raw_voter_count,
+            'raw_voter_count': total_raw_voter_count,
             'matched_vuids': cum_matched,
             'unmatched_vuids': cum_unmatched,
             'day_snapshots': sorted(day_snapshots),
         }
         
-        cum_meta_filename = f'metadata_{self.county}_{self.year}_{self.election_type}{party_suffix}_cumulative.json'
+        cum_meta_filename = f'metadata_{self.county}_{self.year}_{self.election_type}{party_suffix}_cumulative_ev.json'
         cum_meta_path = Config.DATA_DIR / cum_meta_filename
         with open(cum_meta_path, 'w') as f:
             json.dump(cum_meta, f, indent=2)
         
-        self.log(f"Cumulative file updated: {len(features_list)} total voters ({cum_matched} matched, {cum_unmatched} unmatched)")
+        self.log(f"Cumulative file updated: {len(features_list)} unique voters, {total_raw_voter_count} raw count ({cum_matched} matched, {cum_unmatched} unmatched)")
+
+    def _generate_cross_party_cumulative(self):
+        """Merge DEM + REP cumulative files into a single cross-party primary cumulative."""
+        import shutil
+        
+        parties = ['_democratic', '_republican']
+        all_features = {}
+        
+        for party_suffix in parties:
+            cum_file = Config.DATA_DIR / f'map_data_{self.county}_{self.year}_{self.election_type}{party_suffix}_cumulative_ev.json'
+            if not cum_file.exists():
+                continue
+            try:
+                with open(cum_file, 'r') as f:
+                    data = json.load(f)
+                for feature in data.get('features', []):
+                    vuid = feature.get('properties', {}).get('vuid', '')
+                    if vuid:
+                        normalized = VUIDResolver.normalize_vuid(vuid)
+                        # Keep the most recent entry (later party file overwrites earlier)
+                        all_features[normalized] = feature
+            except Exception as e:
+                logger.warning(f"Error reading {cum_file}: {e}")
+        
+        if not all_features:
+            return
+        
+        features_list = list(all_features.values())
+        combined_data = _sanitize_for_json({'type': 'FeatureCollection', 'features': features_list})
+        
+        # Save combined cumulative
+        combined_filename = f'map_data_{self.county}_{self.year}_{self.election_type}_cumulative_ev.json'
+        combined_path = Config.DATA_DIR / combined_filename
+        with open(combined_path, 'w') as f:
+            json.dump(combined_data, f, indent=2)
+        
+        matched = sum(1 for f in features_list if not f.get('properties', {}).get('unmatched', False))
+        unmatched = sum(1 for f in features_list if f.get('properties', {}).get('unmatched', False))
+        
+        combined_meta = {
+            'year': self.year,
+            'county': self.county,
+            'election_type': self.election_type,
+            'primary_party': '',
+            'is_early_voting': True,
+            'is_cumulative': True,
+            'is_cross_party': True,
+            'last_updated': datetime.now().isoformat(),
+            'total_addresses': len(features_list),
+            'matched_vuids': matched,
+            'unmatched_vuids': unmatched,
+        }
+        
+        combined_meta_filename = f'metadata_{self.county}_{self.year}_{self.election_type}_cumulative_ev.json'
+        combined_meta_path = Config.DATA_DIR / combined_meta_filename
+        with open(combined_meta_path, 'w') as f:
+            json.dump(combined_meta, f, indent=2)
+        
+        # Deploy to public
+        public_data_dir = Config.PUBLIC_DIR / 'data'
+        public_data_dir.mkdir(parents=True, exist_ok=True)
+        for filename in [combined_filename, combined_meta_filename]:
+            src = Config.DATA_DIR / filename
+            dst = public_data_dir / filename
+            if src.exists():
+                shutil.copy2(src, dst)
+        
+        self.log(f"Cross-party cumulative: {len(features_list)} total voters ({matched} matched, {unmatched} unmatched)")
 
     def re_resolve_unmatched(self):
         """After a full voter file is processed, re-resolve unmatched VUIDs in early vote GeoJSONs."""
@@ -1553,8 +2211,10 @@ class ProcessingJob:
             return
         
         # Find early vote GeoJSON files for this county
-        pattern = f'map_data_{self.county}_*_cumulative.json'
+        pattern = f'map_data_{self.county}_*_cumulative_ev.json'
         cum_files = list(Config.DATA_DIR.glob(pattern))
+        # Also check old-style cumulative files (without _ev suffix)
+        cum_files += list(Config.DATA_DIR.glob(f'map_data_{self.county}_*_cumulative.json'))
         
         # Also check individual day snapshots
         pattern_all = f'map_data_{self.county}_*.json'

@@ -1,5 +1,6 @@
 """Geocoding service with Nominatim integration, caching, and rate limiting."""
 import json
+import os
 import time
 import logging
 import re
@@ -315,8 +316,25 @@ class AWSLocationGeocoder:
             boto_config = BotoConfig(
                 max_pool_connections=50  # Support up to 50 parallel connections
             )
-            self.client = boto3.client('location', region_name=self.region, config=boto_config)
-            logger.info(f"AWS Location Service initialized with Place Index: {self.place_index} (max 50 parallel connections)")
+            
+            # Use explicit credentials from environment if available.
+            # This avoids the Lightsail instance role (which lacks geo: permissions)
+            # taking precedence over the .env credentials in the boto3 chain.
+            aws_key = os.environ.get('AWS_ACCESS_KEY_ID')
+            aws_secret = os.environ.get('AWS_SECRET_ACCESS_KEY')
+            
+            if aws_key and aws_secret:
+                self.client = boto3.client(
+                    'location',
+                    region_name=self.region,
+                    aws_access_key_id=aws_key,
+                    aws_secret_access_key=aws_secret,
+                    config=boto_config
+                )
+                logger.info(f"AWS Location Service initialized with explicit credentials and Place Index: {self.place_index}")
+            else:
+                self.client = boto3.client('location', region_name=self.region, config=boto_config)
+                logger.info(f"AWS Location Service initialized with default credentials and Place Index: {self.place_index}")
         except NoCredentialsError:
             logger.warning("AWS credentials not found. Configure AWS credentials to use Location Service.")
             self.client = None
@@ -488,207 +506,18 @@ class PhotonGeocoder:
         }
 
 
-class BingMapsGeocoder:
-    """Geocoder using Bing Maps Location API."""
-    
-    def __init__(self, api_key: Optional[str] = None):
-        """
-        Initialize Bing Maps geocoder.
-        
-        Args:
-            api_key: Bing Maps API key (optional, will use from config if not provided)
-        """
-        self.api_key = api_key or Config.BING_MAPS_API_KEY if hasattr(Config, 'BING_MAPS_API_KEY') else None
-        self.endpoint = "http://dev.virtualearth.net/REST/v1/Locations"
-        self.stats = {
-            'api_calls': 0,
-            'failures': 0
-        }
-        
-        if not self.api_key:
-            logger.warning("Bing Maps API key not configured. Bing geocoding will be skipped.")
-    
-    def geocode(self, address: str) -> Optional[dict]:
-        """
-        Geocode address using Bing Maps API.
-        
-        Args:
-            address: Address to geocode
-        
-        Returns:
-            Dict with lat, lng, display_name or None if failed
-        """
-        if not self.api_key:
-            return None
-        
-        params = {
-            'query': address,
-            'key': self.api_key,
-            'maxResults': 1
-        }
-        
-        try:
-            self.stats['api_calls'] += 1
-            logger.debug(f"Calling Bing Maps API for address: {address}")
-            
-            response = requests.get(
-                self.endpoint,
-                params=params,
-                timeout=10
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"Bing Maps API error {response.status_code}: {response.text}")
-                self.stats['failures'] += 1
-                return None
-            
-            data = response.json()
-            
-            # Check if we got results
-            if data.get('resourceSets') and data['resourceSets'][0].get('resources'):
-                resource = data['resourceSets'][0]['resources'][0]
-                coords = resource['point']['coordinates']
-                
-                return {
-                    'lat': float(coords[0]),
-                    'lng': float(coords[1]),
-                    'display_name': resource.get('name', address),
-                    'source': 'bing'
-                }
-            else:
-                logger.warning(f"Bing Maps API: No results found for address: {address}")
-                self.stats['failures'] += 1
-                return None
-        
-        except requests.exceptions.Timeout:
-            logger.error(f"Bing Maps API timeout for address: {address}")
-            self.stats['failures'] += 1
-            return None
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Bing Maps API request error for address: {address} - {e}")
-            self.stats['failures'] += 1
-            return None
-        except Exception as e:
-            logger.error(f"Bing Maps API unexpected error for address: {address} - {e}")
-            self.stats['failures'] += 1
-            return None
-    
-    def get_stats(self) -> dict:
-        """Get geocoding statistics."""
-        return {
-            'api_calls': self.stats['api_calls'],
-            'failures': self.stats['failures']
-        }
-
-    class PhotonGeocoder:
-        """Geocoder using Photon API (OpenStreetMap-based, free, unlimited)."""
-
-        def __init__(self):
-            """Initialize Photon geocoder."""
-            self.endpoint = "https://photon.komoot.io/api/"
-            self.stats = {
-                'api_calls': 0,
-                'failures': 0
-            }
-
-        def geocode(self, address: str) -> Optional[dict]:
-            """
-            Geocode address using Photon API.
-
-            Args:
-                address: Address to geocode
-
-            Returns:
-                Dict with lat, lng, display_name or None if failed
-            """
-            params = {
-                'q': address,
-                'limit': 1,
-                'osm_tag': 'place:house',  # Prefer house-level results
-                'layer': 'house'  # Focus on building/house layer
-            }
-
-            try:
-                self.stats['api_calls'] += 1
-                logger.debug(f"Calling Photon API for address: {address}")
-
-                response = requests.get(
-                    self.endpoint,
-                    params=params,
-                    timeout=10
-                )
-
-                if response.status_code != 200:
-                    logger.error(f"Photon API error {response.status_code}: {response.text}")
-                    self.stats['failures'] += 1
-                    return None
-
-                data = response.json()
-
-                # Check if we got results
-                if data.get('features'):
-                    feature = data['features'][0]
-                    coords = feature['geometry']['coordinates']
-                    props = feature.get('properties', {})
-
-                    # Build display name from properties
-                    name_parts = []
-                    if props.get('housenumber'):
-                        name_parts.append(props['housenumber'])
-                    if props.get('street'):
-                        name_parts.append(props['street'])
-                    if props.get('city'):
-                        name_parts.append(props['city'])
-                    if props.get('state'):
-                        name_parts.append(props['state'])
-                    if props.get('postcode'):
-                        name_parts.append(props['postcode'])
-
-                    display_name = ', '.join(name_parts) if name_parts else props.get('name', address)
-
-                    return {
-                        'lat': float(coords[1]),
-                        'lng': float(coords[0]),
-                        'display_name': display_name,
-                        'source': 'photon'
-                    }
-                else:
-                    logger.warning(f"Photon API: No results found for address: {address}")
-                    self.stats['failures'] += 1
-                    return None
-
-            except requests.exceptions.Timeout:
-                logger.error(f"Photon API timeout for address: {address}")
-                self.stats['failures'] += 1
-                return None
-            except requests.exceptions.RequestException as e:
-                logger.error(f"Photon API request error for address: {address} - {e}")
-                self.stats['failures'] += 1
-                return None
-            except Exception as e:
-                logger.error(f"Photon API unexpected error for address: {address} - {e}")
-                self.stats['failures'] += 1
-                return None
-
-        def get_stats(self) -> dict:
-            """Get geocoding statistics."""
-            return {
-                'api_calls': self.stats['api_calls'],
-                'failures': self.stats['failures']
-            }
 
 
 class NominatimGeocoder:
     """Multi-provider geocoder with fallback chain: Cache → AWS Location → Census → Photon → Nominatim."""
     
-    def __init__(self, cache: GeocodingCache, bing_api_key: Optional[str] = None, 
+    def __init__(self, cache: GeocodingCache,
                  aws_place_index: Optional[str] = None, aws_region: str = 'us-east-1'):
         """
         Initialize multi-provider geocoder.
         
         Args:
             cache: GeocodingCache instance
-            bing_api_key: Optional Bing Maps API key (deprecated, kept for compatibility)
             aws_place_index: Optional AWS Location Service Place Index name
             aws_region: AWS region for Location Service (default: us-east-1)
         """
@@ -696,7 +525,6 @@ class NominatimGeocoder:
         self.aws_geocoder = AWSLocationGeocoder(aws_place_index, aws_region)
         self.census_geocoder = CensusGeocoder()
         self.photon_geocoder = PhotonGeocoder()
-        self.bing_geocoder = BingMapsGeocoder(bing_api_key)
         self.rate_limiter = RateLimiter(
             max_requests=int(Config.NOMINATIM_RATE_LIMIT),
             period=1.0
@@ -710,7 +538,6 @@ class NominatimGeocoder:
             'aws_success': 0,
             'census_success': 0,
             'photon_success': 0,
-            'bing_success': 0,
             'nominatim_success': 0,
             'zip_fallback_success': 0
         }
@@ -920,12 +747,5 @@ class NominatimGeocoder:
         stats['photon_success'] = self.stats['photon_success']
         stats['photon_api_calls'] = photon_stats['api_calls']
         stats['photon_failures'] = photon_stats['failures']
-        
-        # Add Bing stats if configured (kept for compatibility)
-        if self.bing_geocoder.api_key:
-            bing_stats = self.bing_geocoder.get_stats()
-            stats['bing_success'] = self.stats['bing_success']
-            stats['bing_api_calls'] = bing_stats['api_calls']
-            stats['bing_failures'] = bing_stats['failures']
         
         return stats

@@ -1,10 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-00CE4L33RG"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-00CE4L33RG');
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Politiquera.Com - Voting & Election Info</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="icon" type="image/png" href="assets/politiquera.png">
+    <link rel="shortcut icon" href="favicon.ico">
 
     <!-- Social Media Meta Tags -->
     <meta property="og:title" content="Politiquera.Com - RGV Voting & Election Info">
@@ -24,7 +34,7 @@
     <link rel="image_src" href="assets/thumbnail.jpg">
     
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="assets/thumbnail.jpg">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     
     <!-- Leaflet CSS and JS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
@@ -45,6 +55,10 @@
     
     <!-- Custom Styles -->
     <link rel="stylesheet" href="styles.css" />
+
+    <!-- Clean sans-serif for gazette -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 
     <style>
         /* District Control Styles */
@@ -212,9 +226,19 @@
 
     <!-- Search is now created dynamically by search.js as a bottom-left popup -->
 
-    <!-- Screenshot Icon Button - Bottom Right -->
-    <button class="panel-icon-btn screenshot-icon-btn" id="screenshotBtn" title="Save Screenshot">
-        <i class="fas fa-camera"></i>
+    <!-- Account Icon Button - Bottom Left (replaces search icon) -->
+    <button class="panel-icon-btn account-icon-btn" id="accountBtn" title="Account">
+        <i class="fas fa-user"></i>
+    </button>
+
+    <!-- Campaigns Icon Button - Bottom Right -->
+    <button class="panel-icon-btn campaigns-icon-btn" id="campaignsBtn" title="Campaign Districts">
+        <i class="fas fa-landmark"></i>
+    </button>
+
+    <!-- Newspaper Icon Button - Bottom Right -->
+    <button class="panel-icon-btn newspaper-icon-btn" id="newspaperBtn" title="Election Insights">
+        <i class="fas fa-newspaper"></i>
     </button>
 
     <!-- Map Options Icon Button - Bottom Right -->
@@ -264,11 +288,17 @@
             </div>
 
             <!-- County Boundaries -->
-            <div class="map-option-section" style="margin-bottom: 0; padding-bottom: 0;">
+            <div class="map-option-section" style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
                 <label class="map-option-checkbox" style="display: flex; align-items: center; cursor: pointer; font-size: 14px; color: #333;">
                     <input type="checkbox" id="countyBoundariesToggle" style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
                     <span>Show County Boundaries</span>
                 </label>
+            </div>
+
+            <!-- Heatmap Opacity -->
+            <div class="map-option-section" style="margin-bottom: 0; padding-bottom: 0;">
+                <label class="map-option-label" style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">Heatmap Opacity: <span id="opacityValue">60%</span></label>
+                <input type="range" id="heatmapOpacitySlider" min="10" max="100" value="60" step="10" style="width: 100%; cursor: pointer; accent-color: #667eea;">
             </div>
         </div>
     </div>
@@ -280,9 +310,15 @@
             <button class="panel-popup-close" id="dataOptionsClose">&times;</button>
         </div>
         <div class="panel-popup-content" id="dataOptionsContent">
-            <!-- Dataset Selector -->
+            <!-- County Filter + Dataset Selector -->
             <div class="data-option-section" style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
-                <label for="dataset-selector-inline" style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">Dataset:</label>
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">County:</label>
+                <div id="countyPillTabs" class="county-pill-tabs" style="position: relative;">
+                    <select id="countyDropdown" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px; background: white; cursor: pointer;">
+                        <option value="all">All Counties</option>
+                    </select>
+                </div>
+                <label for="dataset-selector-inline" style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px; margin-top: 12px;">Election:</label>
                 <select id="dataset-selector-inline" class="dataset-select" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px; background: white; cursor: pointer;">
                     <option value="">Loading datasets...</option>
                 </select>
@@ -326,6 +362,60 @@
                         <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #C62828; margin-right: 6px;"></span>
                         Flipped Red (D→R)
                     </button>
+                </div>
+            </div>
+
+            <!-- New Voters Filter -->
+            <div style="margin-top: 10px; margin-bottom: 0; padding-bottom: 10px; border-bottom: 1px solid #eee;">
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">New Voters:</label>
+                <button id="newVotersBtn" class="new-voters-btn" style="width: 100%;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align: middle; margin-right: 6px;">
+                        <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"
+                            fill="#DAA520" stroke="#B8860B" stroke-width="1"/>
+                    </svg>
+                    Show New Voters Only
+                </button>
+            </div>
+
+            <!-- Registered Not Voted Toggle (auth-gated) -->
+            <div id="registeredToggleSection" style="display: none; margin-top: 10px; margin-bottom: 0; padding-bottom: 10px; border-bottom: 1px solid #eee;">
+                <label style="display: flex; align-items: center; cursor: pointer; font-size: 14px; color: #333;">
+                    <input type="checkbox" id="showRegisteredToggle" style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
+                    <span>Show Registered (Not Voted)</span>
+                    <span style="font-size:10px;color:#A0A0A0;margin-left:6px;">●</span>
+                </label>
+            </div>
+
+            <!-- Gender Filter -->
+            <div style="margin-top: 10px; margin-bottom: 0; padding-bottom: 0;">
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">Gender:</label>
+                <div class="gender-filter-buttons" style="display: flex; flex-direction: column; gap: 6px;">
+                    <button class="gender-filter-btn active" data-gender="all">
+                        Show All
+                    </button>
+                    <button class="gender-filter-btn" data-gender="male">
+                        <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #4A90D9; margin-right: 6px;"></span>
+                        Male Only
+                    </button>
+                    <button class="gender-filter-btn" data-gender="female">
+                        <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #E91E8C; margin-right: 6px;"></span>
+                        Female Only
+                    </button>
+                </div>
+            </div>
+
+            <!-- Age Group Filter -->
+            <div style="margin-top: 10px; margin-bottom: 0; padding-bottom: 0;">
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">Age Group:</label>
+                <div class="age-filter-buttons" style="display: flex; flex-direction: column; gap: 6px;">
+                    <button class="age-filter-btn active" data-age="all">Show All</button>
+                    <button class="age-filter-btn" data-age="18-24">18–24</button>
+                    <button class="age-filter-btn" data-age="25-34">25–34</button>
+                    <button class="age-filter-btn" data-age="35-44">35–44</button>
+                    <button class="age-filter-btn" data-age="45-54">45–54</button>
+                    <button class="age-filter-btn" data-age="55-64">55–64</button>
+                    <button class="age-filter-btn" data-age="65-74">65–74</button>
+                    <button class="age-filter-btn" data-age="75+">75+</button>
                 </div>
             </div>
 
@@ -391,14 +481,49 @@
         Using publicly available data from <a href="https://www.hidalgocounty.us/3339/Unofficial-Early-Voting-Totals-Rosters" target="_blank">Hidalgo County</a> & <a href="https://cameroncountytx.gov/elections/results/" target="_blank">Cameron County</a> Elections Department. <span id="total-addresses">Loading...</span> out of <span id="total-voters">446,749</span> Hidalgo County voters (<span id="percentage">0.00</span>%) as of <span id="last-updated">Loading...</span>.
     </div>
     
+    <!-- Gazette Overlay -->
+    <div id="newspaperOverlay" class="gazette-overlay" style="display:none;">
+        <div class="gazette-backdrop" onclick="closeNewspaper()"></div>
+        <div class="gazette" id="newspaperContent">
+            <button class="gazette-close" onclick="closeNewspaper()" aria-label="Close">&times;</button>
+            <div class="gazette-inner">
+                <div class="gazette-header">
+                    <img src="assets/politiquera.png" alt="Politiquera" class="gazette-logo">
+                    <div class="gazette-title">Early Vote Brief</div>
+                    <div class="gazette-meta">Hidalgo County, Texas &middot; 2026 Primary &middot; <span id="npDate"></span></div>
+                </div>
+                <div id="newspaperBody" class="gazette-body">
+                    <p class="gazette-loading">Loading data&hellip;</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- html2canvas for screenshot feature -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    
+
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+        window.addEventListener('load', function() {
+            if (window.google && window.google.accounts) {
+                google.accounts.id.initialize({
+                    client_id: window.GOOGLE_CLIENT_ID || '',
+                    callback: handleGoogleSignIn,
+                    auto_select: false,
+                });
+            }
+        });
+    </script>
+
     <!-- JavaScript Files -->
     <script src="map.js"></script>
     <script src="search.js"></script>
     <script src="data.js"></script>
     <script src="ui.js"></script>
+    <script src="newspaper.js"></script>
+    <script src="campaigns.js"></script>
+    <script src="auth.js"></script>
     
     <!-- Initialize welcome popup fade -->
     <script>

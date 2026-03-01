@@ -10,6 +10,10 @@ let layerControlPanel = null; // Layer control panel instance
 let datasetSelector = null; // Dataset selector instance
 let partyFilter = null; // Party filter instance
 let flippedVotersFilter = 'none'; // Track flipped voters filter: 'none', 'to-blue', 'to-red'
+let newVotersFilter = false; // Track new voters filter
+let newVotersHeatmapLayer = null; // Heatmap layer for new voters
+let genderFilter = 'all'; // Track gender filter: 'all', 'male', 'female'
+let ageFilter = 'all'; // Track age filter: 'all', '18-24', '25-34', etc.
 
 function initMap() {
     // Initialize Leaflet map with OpenStreetMap tiles and Canvas renderer for performance
@@ -46,8 +50,8 @@ function initMap() {
         blur: 35,
         maxZoom: config.HEATMAP_MAX_ZOOM,
         max: 1.0,
-        minOpacity: 0.3,
-        maxOpacity: 0.8
+        minOpacity: 0.2,
+        maxOpacity: 0.6
     });
     
     // Party-colored heatmaps
@@ -56,8 +60,8 @@ function initMap() {
         blur: 35,
         maxZoom: config.HEATMAP_MAX_ZOOM,
         max: 1.0,
-        minOpacity: 0.3,
-        maxOpacity: 0.8,
+        minOpacity: 0.2,
+        maxOpacity: 0.6,
         gradient: {
             0.0: 'rgba(30, 144, 255, 0)',      // Transparent blue
             0.2: 'rgba(30, 144, 255, 0.3)',    // Light blue
@@ -72,8 +76,8 @@ function initMap() {
         blur: 35,
         maxZoom: config.HEATMAP_MAX_ZOOM,
         max: 1.0,
-        minOpacity: 0.3,
-        maxOpacity: 0.8,
+        minOpacity: 0.2,
+        maxOpacity: 0.6,
         gradient: {
             0.0: 'rgba(220, 20, 60, 0)',       // Transparent red
             0.2: 'rgba(220, 20, 60, 0.3)',     // Light red
@@ -89,8 +93,8 @@ function initMap() {
         blur: 35,
         maxZoom: config.HEATMAP_MAX_ZOOM,
         max: 1.0,
-        minOpacity: 0.3,
-        maxOpacity: 0.8,
+        minOpacity: 0.2,
+        maxOpacity: 0.6,
         gradient: { 0.4: '#6A1B9A', 0.65: '#6A1B9A', 1: '#6A1B9A' }
     });
 
@@ -120,8 +124,9 @@ function initMap() {
     // Initialize dataset selector and party filter
     initializeDatasetControls();
     
-    // Load data
-    loadMapData();
+    // Set up zoom handler for map view updates
+    map.on('zoomend', updateMapView);
+    updateMapView();
 }
 
 async function loadAdditionalLayers() {
@@ -210,6 +215,15 @@ function centerMapOnUserLocation() {
     }
 }
 
+function applyHeatmapOpacity() {
+    const opacity = window.heatmapOpacity || 0.6;
+    [heatmapLayer, heatmapLayerDemocratic, heatmapLayerRepublican, flippedHeatmapLayer, newVotersHeatmapLayer].forEach(layer => {
+        if (layer && layer._canvas) {
+            layer._canvas.style.opacity = opacity;
+        }
+    });
+}
+
 function updateMapView() {
     const currentZoom = map.getZoom();
     console.log('updateMapView called, zoom:', currentZoom, 'threshold:', config.HEATMAP_MAX_ZOOM);
@@ -222,21 +236,29 @@ function updateMapView() {
     
     if (currentZoom > config.HEATMAP_MAX_ZOOM) {
         // Show markers at high zoom
+        // Preload voter details for visible markers (for instant popups)
+        if (typeof preloadViewportVoterDetails === 'function') {
+            preloadViewportVoterDetails();
+        }
+        
         // Remove all heatmap layers
-        if (map.hasLayer(heatmapLayer)) {
+        if (heatmapLayer && map.hasLayer(heatmapLayer)) {
             map.removeLayer(heatmapLayer);
         }
-        if (map.hasLayer(heatmapLayerDemocratic)) {
+        if (heatmapLayerDemocratic && map.hasLayer(heatmapLayerDemocratic)) {
             map.removeLayer(heatmapLayerDemocratic);
         }
-        if (map.hasLayer(heatmapLayerRepublican)) {
+        if (heatmapLayerRepublican && map.hasLayer(heatmapLayerRepublican)) {
             map.removeLayer(heatmapLayerRepublican);
         }
         if (flippedHeatmapLayer && map.hasLayer(flippedHeatmapLayer)) {
             map.removeLayer(flippedHeatmapLayer);
         }
+        if (newVotersHeatmapLayer && map.hasLayer(newVotersHeatmapLayer)) {
+            map.removeLayer(newVotersHeatmapLayer);
+        }
         
-        if (!map.hasLayer(markerClusterGroup)) {
+        if (window.authFullAccess && !map.hasLayer(markerClusterGroup)) {
             map.addLayer(markerClusterGroup);
         }
         console.log('Showing markers, cluster has', markerClusterGroup.getLayers().length, 'markers');
@@ -244,13 +266,13 @@ function updateMapView() {
         // Flipped voters mode: show flipped heatmap at low zoom
         if (flippedVotersFilter !== 'none') {
             // Remove all standard heatmap layers
-            if (map.hasLayer(heatmapLayer)) {
+            if (heatmapLayer && map.hasLayer(heatmapLayer)) {
                 map.removeLayer(heatmapLayer);
             }
-            if (map.hasLayer(heatmapLayerDemocratic)) {
+            if (heatmapLayerDemocratic && map.hasLayer(heatmapLayerDemocratic)) {
                 map.removeLayer(heatmapLayerDemocratic);
             }
-            if (map.hasLayer(heatmapLayerRepublican)) {
+            if (heatmapLayerRepublican && map.hasLayer(heatmapLayerRepublican)) {
                 map.removeLayer(heatmapLayerRepublican);
             }
             
@@ -267,9 +289,30 @@ function updateMapView() {
             return;
         }
         
+        // New voters mode: show golden heatmap at low zoom
+        if (newVotersFilter) {
+            // Remove all standard heatmap layers
+            if (heatmapLayer && map.hasLayer(heatmapLayer)) map.removeLayer(heatmapLayer);
+            if (heatmapLayerDemocratic && map.hasLayer(heatmapLayerDemocratic)) map.removeLayer(heatmapLayerDemocratic);
+            if (heatmapLayerRepublican && map.hasLayer(heatmapLayerRepublican)) map.removeLayer(heatmapLayerRepublican);
+            if (flippedHeatmapLayer && map.hasLayer(flippedHeatmapLayer)) map.removeLayer(flippedHeatmapLayer);
+            if (map.hasLayer(markerClusterGroup)) map.removeLayer(markerClusterGroup);
+            
+            if (newVotersHeatmapLayer && !map.hasLayer(newVotersHeatmapLayer)) {
+                map.addLayer(newVotersHeatmapLayer);
+            }
+            console.log('New voters mode: showing golden heatmap');
+            return;
+        }
+        
         // Ensure flipped heatmap is removed when not in flipped mode
         if (flippedHeatmapLayer && map.hasLayer(flippedHeatmapLayer)) {
             map.removeLayer(flippedHeatmapLayer);
+        }
+        
+        // Ensure new voters heatmap is removed when not in new voters mode
+        if (newVotersHeatmapLayer && map.hasLayer(newVotersHeatmapLayer)) {
+            map.removeLayer(newVotersHeatmapLayer);
         }
         
         // Show heatmap at low zoom
@@ -280,40 +323,40 @@ function updateMapView() {
         // Show appropriate heatmap based on mode
         if (window.heatmapMode === 'party') {
             // Party-colored heatmaps
-            if (map.hasLayer(heatmapLayer)) {
+            if (heatmapLayer && map.hasLayer(heatmapLayer)) {
                 map.removeLayer(heatmapLayer);
             }
             
             // Show heatmaps based on party filter
             if (partyFilter === 'all' || !partyFilter) {
                 // Show both party heatmaps
-                if (!map.hasLayer(heatmapLayerDemocratic)) {
+                if (heatmapLayerDemocratic && !map.hasLayer(heatmapLayerDemocratic)) {
                     map.addLayer(heatmapLayerDemocratic);
                     console.log('Added Democratic heatmap layer to map');
                 }
-                if (!map.hasLayer(heatmapLayerRepublican)) {
+                if (heatmapLayerRepublican && !map.hasLayer(heatmapLayerRepublican)) {
                     map.addLayer(heatmapLayerRepublican);
                     console.log('Added Republican heatmap layer to map');
                 }
                 console.log('Showing both party-colored heatmaps');
             } else if (partyFilter === 'democratic') {
                 // Show only Democratic heatmap
-                if (map.hasLayer(heatmapLayerRepublican)) {
+                if (heatmapLayerRepublican && map.hasLayer(heatmapLayerRepublican)) {
                     map.removeLayer(heatmapLayerRepublican);
                     console.log('Removed Republican heatmap layer from map');
                 }
-                if (!map.hasLayer(heatmapLayerDemocratic)) {
+                if (heatmapLayerDemocratic && !map.hasLayer(heatmapLayerDemocratic)) {
                     map.addLayer(heatmapLayerDemocratic);
                     console.log('Added Democratic heatmap layer to map');
                 }
                 console.log('Showing Democratic heatmap only');
             } else if (partyFilter === 'republican') {
                 // Show only Republican heatmap
-                if (map.hasLayer(heatmapLayerDemocratic)) {
+                if (heatmapLayerDemocratic && map.hasLayer(heatmapLayerDemocratic)) {
                     map.removeLayer(heatmapLayerDemocratic);
                     console.log('Removed Democratic heatmap layer from map');
                 }
-                if (!map.hasLayer(heatmapLayerRepublican)) {
+                if (heatmapLayerRepublican && !map.hasLayer(heatmapLayerRepublican)) {
                     map.addLayer(heatmapLayerRepublican);
                     console.log('Added Republican heatmap layer to map');
                 }
@@ -321,19 +364,21 @@ function updateMapView() {
             }
         } else {
             // Traditional heatmap
-            if (map.hasLayer(heatmapLayerDemocratic)) {
+            if (heatmapLayerDemocratic && map.hasLayer(heatmapLayerDemocratic)) {
                 map.removeLayer(heatmapLayerDemocratic);
             }
-            if (map.hasLayer(heatmapLayerRepublican)) {
+            if (heatmapLayerRepublican && map.hasLayer(heatmapLayerRepublican)) {
                 map.removeLayer(heatmapLayerRepublican);
             }
-            if (!map.hasLayer(heatmapLayer)) {
+            if (heatmapLayer && !map.hasLayer(heatmapLayer)) {
                 map.addLayer(heatmapLayer);
             }
-            const heatmapPoints = heatmapLayer._latlngs || [];
+            const heatmapPoints = heatmapLayer ? (heatmapLayer._latlngs || []) : [];
             console.log('Showing traditional heatmap, has', heatmapPoints.length, 'points');
         }
     }
+    // Apply opacity to any visible heatmap canvases
+    setTimeout(applyHeatmapOpacity, 50);
 }
 
 function addCustomMarker(latlng) {
@@ -360,6 +405,29 @@ async function initializeDatasetControls() {
     try {
         console.log('Initializing dataset controls...');
         
+        // Show loading indicator during init
+        const loadingIndicator = document.getElementById('map-loading-indicator');
+        if (loadingIndicator) loadingIndicator.style.display = 'flex';
+
+        // Wait for auth check to complete so we know if user is logged in
+        if (window.authReady) await window.authReady;
+
+        // Anonymous users: show lightweight county-level overview instead of
+        // loading thousands of voter points. Much faster initial render.
+        if (!window.authFullAccess) {
+            console.log('Anonymous user — loading county overview');
+            // Use the most recent election date (2026 primary early voting)
+            await loadCountyOverview('2026-03-03', 'early-voting');
+            if (loadingIndicator) loadingIndicator.style.display = 'none';
+            return;
+        }
+        
+        // Detect user's county first (or default to Hidalgo)
+        if (typeof detectUserCounty === 'function') {
+            selectedCountyFilter = await detectUserCounty();
+        }
+        console.log('Detected county:', selectedCountyFilter);
+        
         // Get the DatasetManager instance
         const datasetManager = getDatasetManager();
         
@@ -373,25 +441,17 @@ async function initializeDatasetControls() {
             datasetManager.saveState();
             
             // Show loading indicator
-            const loadingIndicator = document.getElementById('map-loading-indicator');
-            if (loadingIndicator) {
-                loadingIndicator.style.display = 'flex';
-            }
+            const li = document.getElementById('map-loading-indicator');
+            if (li) li.style.display = 'flex';
             
             // Clear existing map markers
             if (markerClusterGroup) {
                 markerClusterGroup.clearLayers();
             }
-            // Clear heatmap layers - remove from map first to avoid errors
-            if (heatmapLayer && map.hasLayer(heatmapLayer)) {
-                map.removeLayer(heatmapLayer);
-            }
-            if (heatmapLayerDemocratic && map.hasLayer(heatmapLayerDemocratic)) {
-                map.removeLayer(heatmapLayerDemocratic);
-            }
-            if (heatmapLayerRepublican && map.hasLayer(heatmapLayerRepublican)) {
-                map.removeLayer(heatmapLayerRepublican);
-            }
+            // Clear heatmap layers
+            if (heatmapLayer && map.hasLayer(heatmapLayer)) map.removeLayer(heatmapLayer);
+            if (heatmapLayerDemocratic && map.hasLayer(heatmapLayerDemocratic)) map.removeLayer(heatmapLayerDemocratic);
+            if (heatmapLayerRepublican && map.hasLayer(heatmapLayerRepublican)) map.removeLayer(heatmapLayerRepublican);
             
             // Load new dataset
             try {
@@ -402,10 +462,8 @@ async function initializeDatasetControls() {
                     const isPrimary = datasetManager.isPrimaryElection();
                     partyFilter.setVisible(isPrimary);
                     
-                    // If it's a primary election, apply the saved filter
                     if (isPrimary) {
                         const currentFilter = datasetManager.getPartyFilter();
-                        // Trigger filter application by calling the filter change handler
                         if (currentFilter !== 'all') {
                             partyFilter.handleFilterChange(currentFilter);
                         }
@@ -414,15 +472,26 @@ async function initializeDatasetControls() {
             } catch (error) {
                 console.error('Error loading dataset:', error);
             } finally {
-                // Hide loading indicator
-                if (loadingIndicator) {
-                    loadingIndicator.style.display = 'none';
-                }
+                if (li) li.style.display = 'none';
             }
         });
         
-        // Initialize DatasetSelector (loads datasets and restores selection)
-        await datasetSelector.initialize();
+        // Initialize DatasetSelector — pass county so it filters properly
+        await datasetSelector.initialize(selectedCountyFilter);
+        
+        // Build county dropdown and filtered dataset list
+        if (typeof buildCountyPillTabs === 'function') buildCountyPillTabs();
+        if (typeof repopulateFilteredDatasetDropdown === 'function') repopulateFilteredDatasetDropdown();
+        
+        // Zoom to the detected county
+        if (selectedCountyFilter !== 'all' && typeof zoomToCounty === 'function') {
+            zoomToCounty(selectedCountyFilter);
+        }
+        
+        // Update election years panel with loaded datasets
+        if (typeof updateElectionYearsPanel === 'function') {
+            updateElectionYearsPanel();
+        }
         
         // Create PartyFilter instance with onFilterChange callback
         partyFilter = new PartyFilter(map, (filterValue) => {
@@ -433,7 +502,6 @@ async function initializeDatasetControls() {
             datasetManager.saveState();
             
             // Re-filter the current data WITHOUT reloading
-            // The data is already loaded in window.mapData
             if (window.mapData && window.mapData.features) {
                 initializeDataLayers();
             }
@@ -446,6 +514,9 @@ async function initializeDatasetControls() {
         
     } catch (error) {
         console.error('Error initializing dataset controls:', error);
+    } finally {
+        const loadingIndicator = document.getElementById('map-loading-indicator');
+        if (loadingIndicator) loadingIndicator.style.display = 'none';
     }
 }
 
@@ -515,10 +586,50 @@ async function lazyLoadMarkers(markers, chunkSize, processChunk) {
 function determineMarkerColor(voterData) {
     // Handle missing or incomplete data
     if (!voterData || !voterData.party_affiliation_current) {
+        // Registered but not voted — gray
+        if (voterData && voterData.voted_in_current_election === false) {
+            return 'gray';
+        }
         return 'green'; // Unknown affiliation
     }
 
+    // Registered but not voted — always gray regardless of party
+    if (voterData.voted_in_current_election === false) {
+        return 'gray';
+    }
+
+    // Gender filter
+    if (genderFilter !== 'all') {
+        const sex = (voterData.sex || '').toUpperCase();
+        if (genderFilter === 'male' && sex !== 'M') return null;
+        if (genderFilter === 'female' && sex !== 'F') return null;
+    }
+
+    // Age group filter
+    if (ageFilter !== 'all') {
+        const by = voterData.birth_year || 0;
+        if (!by) return null;
+        const ageGroupMap = {
+            '18-24': [2002, 2008], '25-34': [1992, 2001], '35-44': [1982, 1991],
+            '45-54': [1972, 1981], '55-64': [1962, 1971], '65-74': [1952, 1961],
+            '75+': [0, 1951]
+        };
+        const range = ageGroupMap[ageFilter];
+        if (range && (by < range[0] || by > range[1])) return null;
+    }
+
     const currentParty = voterData.party_affiliation_current.toLowerCase();
+    
+    // New voters filter: only show new voters
+    if (newVotersFilter) {
+        if (!voterData.is_new_voter) {
+            return null; // Skip non-new voters when filter is active
+        }
+        // New voters keep their party color (red/blue) — star shape handled in rendering
+        if (currentParty.includes('republican') || currentParty.includes('rep')) return 'red';
+        if (currentParty.includes('democrat') || currentParty.includes('dem')) return 'blue';
+        return 'green';
+    }
     
     // Check for party flip if flipped voters filter is active
     if (flippedVotersFilter !== 'none' && voterData.party_affiliation_previous) {
@@ -554,6 +665,18 @@ function determineMarkerColor(voterData) {
     } else if (flippedVotersFilter !== 'none') {
         // If flipped voters filter is active but no previous party data, skip this voter
         return null;
+    }
+
+    // Always show flip colors for flipped voters, even without filter active
+    if (voterData.has_switched_parties && voterData.party_affiliation_previous) {
+        const previousParty = voterData.party_affiliation_previous.toLowerCase();
+        const isCurrentRep = currentParty.includes('republican') || currentParty.includes('rep');
+        const isCurrentDem = currentParty.includes('democrat') || currentParty.includes('dem');
+        const isPreviousRep = previousParty.includes('republican') || previousParty.includes('rep');
+        const isPreviousDem = previousParty.includes('democrat') || previousParty.includes('dem');
+        
+        if (isPreviousRep && isCurrentDem) return 'purple';   // R→D
+        if (isPreviousDem && isCurrentRep) return 'maroon';   // D→R
     }
 
     // Republican - red
@@ -930,57 +1053,8 @@ async function loadPrecinctBoundaries(dataUrl = 'data/precinct_boundaries_combin
  * @returns {L.GeoJSON} Leaflet GeoJSON layer
  */
 async function loadCountyOutlines() {
-    try {
-        console.log('Loading county outlines as fallback...');
-        const response = await fetch('../data/tx-county-outlines.json');
-        if (!response.ok) {
-            console.warn('County outlines not available');
-            return null;
-        }
-        
-        const geojsonData = await response.json();
-        
-        // Filter for Hidalgo County (FIPS 215) and Cameron County (FIPS 61)
-        const filteredFeatures = geojsonData.features.filter(feature => {
-            const fips = feature.properties.FIPS_ST_CNTY_CD;
-            return fips === '48215' || fips === '48061'; // Hidalgo or Cameron
-        });
-        
-        const countyLayer = L.geoJSON({
-            type: 'FeatureCollection',
-            features: filteredFeatures
-        }, {
-            style: function(feature) {
-                return {
-                    color: '#333',
-                    weight: 2,
-                    opacity: 0.6,
-                    fillColor: 'transparent',
-                    fillOpacity: 0,
-                    dashArray: '5, 5'
-                };
-            },
-            onEachFeature: function(feature, layer) {
-                layer.on('click', function(e) {
-                    const countyName = feature.properties.CNTY_NM || 'Unknown';
-                    const popupContent = `
-                        <div class="precinct-popup">
-                            <h4>${countyName} County</h4>
-                            <p><em>Precinct boundaries not loaded</em></p>
-                            <p>See PRECINCT_DATA_INSTRUCTIONS.md for setup</p>
-                        </div>
-                    `;
-                    layer.bindPopup(popupContent).openPopup();
-                });
-            }
-        });
-        
-        return countyLayer;
-        
-    } catch (error) {
-        console.error('Error loading county outlines:', error);
-        return null;
-    }
+    // County outlines file not deployed — skip to avoid 404
+    return null;
 }
 
 // ============================================================================
@@ -1012,44 +1086,8 @@ function createPollingPlaceIcon() {
  * @returns {L.LayerGroup} Leaflet layer group with polling place markers
  */
 async function loadPollingPlaces(dataUrl = 'data/voting_locations.json') {
-    try {
-        const response = await fetch(dataUrl);
-        if (!response.ok) {
-            console.warn('Polling places data not available');
-            return null;
-        }
-        
-        const data = await response.json();
-        const pollingPlaceLayer = L.layerGroup();
-        const icon = createPollingPlaceIcon();
-        
-        if (data.locations && Array.isArray(data.locations)) {
-            data.locations.forEach(location => {
-                if (location.lat && location.lng) {
-                    const marker = L.marker([location.lat, location.lng], { icon: icon });
-                    
-                    const popupContent = `
-                        <div class="polling-place-popup">
-                            <h4>${location.name || 'Polling Place'}</h4>
-                            <p><strong>Address:</strong><br>${location.address || 'N/A'}</p>
-                            <p><strong>Hours:</strong> ${location.hours || 'N/A'}</p>
-                            <p><strong>Dates:</strong> ${location.dates || 'N/A'}</p>
-                            ${location.type ? `<p><strong>Type:</strong> ${location.type}</p>` : ''}
-                        </div>
-                    `;
-                    
-                    marker.bindPopup(popupContent);
-                    pollingPlaceLayer.addLayer(marker);
-                }
-            });
-        }
-        
-        return pollingPlaceLayer;
-        
-    } catch (error) {
-        console.error('Error loading polling places:', error);
-        return null;
-    }
+    // Polling places file not deployed — skip to avoid 404
+    return null;
 }
 
 // ============================================================================
@@ -1066,11 +1104,34 @@ function getMarkerFillColor(colorCode) {
         'red': '#DC143C',      // Republican
         'blue': '#1E90FF',     // Democratic
         'purple': '#6A1B9A',   // Flipped: Republican → Democratic
-        'maroon': '#C62828',   // Flipped: Democratic → Republican
-        'green': '#32CD32'     // Unknown/Other
+        'maroon': '#8B0000',   // Flipped: Democratic → Republican (deep red)
+        'green': '#32CD32',    // Unknown/Other
+        'gold': '#DAA520',     // New voter (gold star layer)
+        'gray': '#A0A0A0',    // Registered but not voted
     };
 
     return colors[colorCode] || colors['green'];
+}
+
+/**
+ * Create a star-shaped SVG DivIcon for new voters.
+ * @param {string} fillColor - The fill color for the star
+ * @param {number} size - Size of the star icon in pixels
+ * @returns {L.DivIcon}
+ */
+function createStarIcon(fillColor, size = 20) {
+    const half = size / 2;
+    // 5-point star SVG path
+    const svg = `<svg width="${size}" height="${size}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"
+            fill="${fillColor}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+    </svg>`;
+    return L.divIcon({
+        className: 'star-marker',
+        html: svg,
+        iconSize: [size, size],
+        iconAnchor: [half, half]
+    });
 }
 
 
@@ -1096,14 +1157,33 @@ function renderVoterMarker(voterData, lat, lng, badge = null) {
     // Determine if filled or hollow
     const isFilled = styleCode === 'filled';
     
+    // For registered-not-voted (gray), use party-colored outline with transparent fill
+    let strokeColor = fillColor;
+    let markerRadius = 8;
+    let markerFillOpacity = isFilled ? 0.8 : 0;
+    
+    if (colorCode === 'gray' && voterData) {
+        markerRadius = 5;
+        markerFillOpacity = 0; // Always hollow
+        // Determine outline color from party affiliation (check multiple fields)
+        const party = (voterData.current_party || voterData.party_affiliation_current || voterData.registered_party || '').toLowerCase();
+        if (party.includes('rep') || party === 'rep') {
+            strokeColor = '#DC143C'; // Red
+        } else if (party.includes('dem') || party === 'dem') {
+            strokeColor = '#1E90FF'; // Blue
+        } else {
+            strokeColor = '#A0A0A0'; // Gray for unknown/NPA
+        }
+    }
+    
     // Create marker options
     const markerOptions = {
-        radius: 8,
+        radius: markerRadius,
         fillColor: fillColor,
-        color: fillColor,
+        color: strokeColor,
         weight: 2,
         opacity: 1,
-        fillOpacity: isFilled ? 0.8 : 0  // Filled or hollow
+        fillOpacity: markerFillOpacity
     };
     
     const marker = L.circleMarker([lat, lng], markerOptions);
@@ -1633,6 +1713,19 @@ function initializeMapOptionsPanel() {
         });
     });
     
+    // Heatmap opacity slider
+    window.heatmapOpacity = 0.6; // Default: 60%
+    const opacitySlider = document.getElementById('heatmapOpacitySlider');
+    const opacityValue = document.getElementById('opacityValue');
+    if (opacitySlider) {
+        opacitySlider.addEventListener('input', (e) => {
+            const pct = parseInt(e.target.value);
+            window.heatmapOpacity = pct / 100;
+            if (opacityValue) opacityValue.textContent = pct + '%';
+            applyHeatmapOpacity();
+        });
+    }
+
     // Numeric displays toggle
     const numericToggle = document.getElementById('numericDisplayToggle');
     if (numericToggle) {
@@ -1725,11 +1818,16 @@ function initializeMapOptionsPanel() {
         button.addEventListener('click', (e) => {
             const flipValue = e.currentTarget.dataset.flip;
             flippedVotersFilter = flipValue;
+            newVotersFilter = false; // Deactivate new voters when flipped is selected
             console.log('Flipped voters filter:', flipValue);
             
             // Update active state
             flippedButtons.forEach(btn => btn.classList.remove('active'));
             e.currentTarget.classList.add('active');
+            
+            // Deactivate new voters button
+            const newVoterBtn = document.getElementById('newVotersBtn');
+            if (newVoterBtn) newVoterBtn.classList.remove('active');
             
             // Reload markers to apply change
             if (window.mapData && window.mapData.features) {
@@ -1738,8 +1836,86 @@ function initializeMapOptionsPanel() {
         });
     });
     
+    // New voters button
+    const newVoterBtn = document.getElementById('newVotersBtn');
+    if (newVoterBtn) {
+        newVoterBtn.addEventListener('click', () => {
+            newVotersFilter = !newVotersFilter;
+            newVoterBtn.classList.toggle('active', newVotersFilter);
+            
+            if (newVotersFilter) {
+                // Deactivate flipped voters filter
+                flippedVotersFilter = 'none';
+                flippedButtons.forEach(btn => btn.classList.remove('active'));
+                const showAllBtn = document.querySelector('.flipped-voters-btn[data-flip="none"]');
+                if (showAllBtn) showAllBtn.classList.add('active');
+            }
+            
+            console.log('New voters filter:', newVotersFilter);
+            if (window.mapData && window.mapData.features) {
+                initializeDataLayers();
+            }
+        });
+    }
+    
+    // Gender filter buttons
+    const genderButtons = document.querySelectorAll('.gender-filter-btn');
+    genderButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            const val = e.currentTarget.dataset.gender;
+            genderFilter = val;
+            console.log('Gender filter:', val);
+            genderButtons.forEach(btn => btn.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            if (window.mapData && window.mapData.features) {
+                initializeDataLayers();
+            }
+        });
+    });
+
+    // Age group filter buttons
+    const ageButtons = document.querySelectorAll('.age-filter-btn');
+    ageButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            const val = e.currentTarget.dataset.age;
+            ageFilter = val;
+            console.log('Age filter:', val);
+            ageButtons.forEach(btn => btn.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            if (window.mapData && window.mapData.features) {
+                initializeDataLayers();
+            }
+        });
+    });
+    
     // Initialize global flag for numeric badges
     window.showNumericBadges = numericToggle ? numericToggle.checked : true;
+    
+    // Registered not voted toggle
+    const regToggle = document.getElementById('showRegisteredToggle');
+    if (regToggle) {
+        regToggle.addEventListener('change', async () => {
+            await toggleRegisteredNotVoted();
+        });
+    }
+
+    // Re-fetch registered voters on map move (debounced, only at zoom >= 14)
+    if (map) {
+        const debouncedRefetchRegistered = debounce(async () => {
+            if (showRegisteredNotVoted && currentDataset) {
+                await loadRegisteredNotVoted();
+            }
+        }, 1000);
+        map.on('moveend', debouncedRefetchRegistered);
+        
+        // Preload voter details on pan when zoomed past heatmap threshold
+        const debouncedPreload = debounce(() => {
+            if (map.getZoom() > config.HEATMAP_MAX_ZOOM && typeof preloadViewportVoterDetails === 'function') {
+                preloadViewportVoterDetails();
+            }
+        }, 800);
+        map.on('moveend', debouncedPreload);
+    }
     
     console.log('Map Options Panel initialized successfully');
 }
@@ -1803,47 +1979,27 @@ function initializeDataOptionsPanel() {
  */
 function initializeInlineDatasetSelector() {
     const select = document.getElementById('dataset-selector-inline');
-    const originalSelect = document.getElementById('dataset-selector');
     
     if (!select) {
         console.warn('Inline dataset selector not found');
         return;
     }
     
-    if (!originalSelect) {
-        console.warn('Original dataset selector not found');
-        return;
-    }
-    
-    // Copy options from the original dataset selector
-    if (originalSelect.options.length > 0) {
-        select.innerHTML = originalSelect.innerHTML;
-        select.selectedIndex = originalSelect.selectedIndex;
-        
-        // Update info badges
-        updateInlineDatasetInfo();
-    }
-    
-    // Listen for changes on inline selector
+    // The dropdown is now populated by repopulateFilteredDatasetDropdown() in data.js
+    // Just wire up the change handler
     select.addEventListener('change', async (e) => {
-        const selectedIndex = e.target.selectedIndex;
+        const selectedIndex = parseInt(e.target.value);
+        if (isNaN(selectedIndex) || !availableDatasets[selectedIndex]) return;
         
-        // Sync with original selector
-        originalSelect.selectedIndex = selectedIndex;
-        // Trigger change event on original selector
-        const event = new Event('change', { bubbles: true });
-        originalSelect.dispatchEvent(event);
+        // Sync with hidden original selector
+        const originalSelect = document.getElementById('dataset-selector');
+        if (originalSelect) originalSelect.value = selectedIndex;
+        
+        // Load the dataset
+        await loadDataset(availableDatasets[selectedIndex]);
         
         // Update info badges
         updateInlineDatasetInfo();
-    });
-    
-    // Listen for changes on original selector to sync back
-    originalSelect.addEventListener('change', () => {
-        if (select.selectedIndex !== originalSelect.selectedIndex) {
-            select.selectedIndex = originalSelect.selectedIndex;
-            updateInlineDatasetInfo();
-        }
     });
     
     console.log('Inline dataset selector initialized');
@@ -1860,23 +2016,20 @@ function updateInlineDatasetInfo() {
     
     if (!select || !countySpan || !yearSpan || !typeSpan) return;
     
-    const selectedOption = select.options[select.selectedIndex];
-    if (!selectedOption || !selectedOption.value) {
+    const idx = parseInt(select.value);
+    if (isNaN(idx) || !availableDatasets || !availableDatasets[idx]) {
         countySpan.textContent = '';
         yearSpan.textContent = '';
         typeSpan.textContent = '';
         return;
     }
     
-    // Parse dataset info from option text or data attributes
-    const text = selectedOption.textContent;
-    const parts = text.split(' - ');
-    
-    if (parts.length >= 3) {
-        countySpan.textContent = parts[0]; // County
-        yearSpan.textContent = parts[1];   // Year
-        typeSpan.textContent = parts[2];   // Type
-    }
+    const ds = availableDatasets[idx];
+    const counties = (selectedCountyFilter !== 'all') ? selectedCountyFilter : (ds.counties || [ds.county || 'Hidalgo']).join(', ');
+    countySpan.textContent = counties;
+    yearSpan.textContent = ds.year || '';
+    const votingMethodLabel = ds.votingMethod === 'election-day' ? 'Election Day' : 'Early Voting';
+    typeSpan.textContent = votingMethodLabel;
 }
 
 /**
@@ -1937,14 +2090,14 @@ function setInlinePartyFilterVisibility(show) {
  * Called when datasets are loaded or selection changes
  */
 function syncInlineDatasetSelector() {
-    const originalSelect = document.getElementById('dataset-selector');
-    const inlineSelect = document.getElementById('dataset-selector-inline');
-    
-    if (originalSelect && inlineSelect) {
-        inlineSelect.innerHTML = originalSelect.innerHTML;
-        inlineSelect.selectedIndex = originalSelect.selectedIndex;
-        updateInlineDatasetInfo();
+    // Rebuild the county pills and filtered dropdown from current availableDatasets
+    if (typeof buildCountyPillTabs === 'function') {
+        buildCountyPillTabs();
     }
+    if (typeof repopulateFilteredDatasetDropdown === 'function') {
+        repopulateFilteredDatasetDropdown();
+    }
+    updateInlineDatasetInfo();
 }
 
 /**
@@ -1977,171 +2130,4 @@ if (document.readyState === 'loading') {
     initializeMapOptionsPanel();
 }
 
-// ============================================================================
-// SCREENSHOT FEATURE
-// ============================================================================
 
-/**
- * Capture the current map view as a 1920x1080 screenshot with watermark
- */
-async function captureScreenshot() {
-    const btn = document.getElementById('screenshotBtn');
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-    }
-
-    try {
-        const W = window.innerWidth;
-        const H = window.innerHeight;
-
-        // Temporarily switch fixed-position overlays to absolute so html2canvas captures them
-        const fixedEls = [
-            document.querySelector('.header-background'),
-            document.querySelector('.overlay-image'),
-            document.getElementById('dataset-stats-box'),
-        ].filter(Boolean);
-
-        fixedEls.forEach(el => {
-            el.dataset.origPosition = el.style.position || '';
-            el.style.position = 'absolute';
-        });
-
-        // Also hide the icon buttons and popups so they don't appear in screenshot
-        const hideEls = document.querySelectorAll('.panel-icon-btn, .panel-popup, .welcome-popup, .info-strip');
-        hideEls.forEach(el => {
-            el.dataset.origDisplay = el.style.display || '';
-            el.style.display = 'none';
-        });
-
-        // Small delay for layout to settle
-        await new Promise(r => setTimeout(r, 50));
-
-        // Capture the full page
-        const capture = await html2canvas(document.body, {
-            useCORS: true,
-            allowTaint: true,
-            logging: false,
-            scale: 1,
-            width: W,
-            height: H,
-            scrollX: 0,
-            scrollY: 0,
-            windowWidth: W,
-            windowHeight: H,
-            backgroundColor: null
-        });
-
-        // Restore original positions
-        fixedEls.forEach(el => {
-            el.style.position = el.dataset.origPosition;
-            delete el.dataset.origPosition;
-        });
-        hideEls.forEach(el => {
-            el.style.display = el.dataset.origDisplay;
-            delete el.dataset.origDisplay;
-        });
-
-        // Build final canvas: captured page + bottom bar
-        const barH = 48;
-        const canvas = document.createElement('canvas');
-        canvas.width = W;
-        canvas.height = H + barH;
-        const ctx = canvas.getContext('2d');
-
-        // Draw captured page
-        ctx.drawImage(capture, 0, 0);
-
-        // Large centered logo watermark (semi-transparent)
-        const logo = new Image();
-        logo.crossOrigin = 'anonymous';
-        logo.src = 'assets/politiquera.png';
-        await new Promise(resolve => { logo.onload = resolve; logo.onerror = () => resolve(); });
-
-        if (logo.naturalWidth) {
-            const logoMaxW = Math.min(W * 0.4, 500);
-            const aspect = logo.naturalWidth / logo.naturalHeight;
-            const logoW = logoMaxW;
-            const logoH = logoW / aspect;
-            ctx.globalAlpha = 0.2;
-            ctx.drawImage(logo, (W - logoW) / 2, (H - logoH) / 2, logoW, logoH);
-            ctx.globalAlpha = 1.0;
-        }
-
-        // Black bar across entire bottom
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, H, W, barH);
-
-        // Small logo in the bar
-        if (logo.naturalWidth) {
-            const smallLogoH = 30;
-            const smallLogoW = (logo.naturalWidth / logo.naturalHeight) * smallLogoH;
-            const text = 'Data Visualizations by Politiquera.com';
-            ctx.font = '600 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-            const textW = ctx.measureText(text).width;
-            const gap = 12;
-            const totalW = smallLogoW + gap + textW;
-            const startX = (W - totalW) / 2;
-            ctx.drawImage(logo, startX, H + (barH - smallLogoH) / 2, smallLogoW, smallLogoH);
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(text, startX + smallLogoW + gap, H + barH / 2);
-        } else {
-            const text = 'Data Visualizations by Politiquera.com';
-            ctx.font = '600 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(text, W / 2, H + barH / 2);
-        }
-
-        // Trigger download
-        canvas.toBlob(blob => {
-            if (!blob) { alert('Failed to generate screenshot'); return; }
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            const ds = window.currentDataset || currentDataset;
-            const datePart = new Date().toISOString().slice(0, 10);
-            const nameParts = [];
-            if (ds) {
-                if (ds.county) nameParts.push(ds.county);
-                if (ds.year) nameParts.push(ds.year);
-                if (ds.electionType) nameParts.push(ds.electionType);
-            }
-            nameParts.push(datePart);
-            a.download = `Politiquera_${nameParts.join('_')}.png`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }, 'image/png');
-
-    } catch (err) {
-        console.error('Screenshot failed:', err);
-        alert('Screenshot failed: ' + err.message);
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-camera"></i>';
-        }
-    }
-}
-
-// Initialize screenshot button
-function initializeScreenshotButton() {
-    const btn = document.getElementById('screenshotBtn');
-    if (btn) {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            captureScreenshot();
-        });
-    }
-}
-
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeScreenshotButton);
-} else {
-    initializeScreenshotButton();
-}

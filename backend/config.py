@@ -10,9 +10,7 @@ load_dotenv()
 class Config:
     """Application configuration."""
     
-    # Admin credentials
-    ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin')
-    ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin2026!')
+    # Admin credentials removed — Google SSO only
     
     # Session configuration
     SECRET_KEY = os.getenv('SECRET_KEY')
@@ -37,6 +35,9 @@ class Config:
     # AWS Location Service configuration
     AWS_LOCATION_PLACE_INDEX = os.getenv('AWS_LOCATION_PLACE_INDEX', 'WhoVotedPlaceIndex')
     AWS_DEFAULT_REGION = os.getenv('AWS_DEFAULT_REGION', 'us-east-1')
+    
+    # Google OAuth
+    GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
     
     # CORS configuration
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:8080').split(',')

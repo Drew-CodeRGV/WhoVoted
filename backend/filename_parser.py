@@ -127,7 +127,30 @@ class FilenameParser:
         if re.search(r'\b(CUMULATIVE|CUMUL|TOTAL|AGGREGATE)\b', name_upper):
             result['is_cumulative'] = True
         
-        # Extract timestamp from end of filename
+        # Extract human-readable election date from filename first
+        # e.g. "March 3, 2026", "November 5, 2024", "March_3_2026"
+        month_names = {
+            'january': 1, 'february': 2, 'march': 3, 'april': 4,
+            'may': 5, 'june': 6, 'july': 7, 'august': 8,
+            'september': 9, 'october': 10, 'november': 11, 'december': 12
+        }
+        month_pattern = '|'.join(month_names.keys())
+        # Match "Month Day, Year" or "Month_Day_Year" or "Month Day Year"
+        date_match = re.search(
+            r'(' + month_pattern + r')[_,\s]+(\d{1,2})[_,\s]+(\d{4})',
+            name.lower()
+        )
+        if date_match:
+            month_num = month_names[date_match.group(1)]
+            day_num = int(date_match.group(2))
+            year_num = int(date_match.group(3))
+            try:
+                election_dt = datetime(year_num, month_num, day_num)
+                result['election_date'] = election_dt.strftime('%Y-%m-%d')
+            except ValueError:
+                pass
+        
+        # Extract timestamp from end of filename (file generation date, NOT election date)
         # Format: YYYYMMDDHHMMSSSSSS (20 digits)
         timestamp_match = re.search(r'_?(\d{14,20})$', name)
         if timestamp_match:
@@ -137,14 +160,16 @@ class FilenameParser:
                 dt = datetime.strptime(timestamp_str[:14], '%Y%m%d%H%M%S')
                 result['timestamp'] = dt.isoformat()
                 
-                # Extract date for election_date (but don't override year from filename)
-                result['election_date'] = dt.strftime('%Y-%m-%d')
+                # Only use timestamp as election_date if no human-readable date was found
+                if not result.get('election_date'):
+                    result['election_date'] = dt.strftime('%Y-%m-%d')
             except ValueError:
                 # Try shorter format YYYYMMDD
                 try:
                     dt = datetime.strptime(timestamp_str[:8], '%Y%m%d')
                     result['timestamp'] = dt.isoformat()
-                    result['election_date'] = dt.strftime('%Y-%m-%d')
+                    if not result.get('election_date'):
+                        result['election_date'] = dt.strftime('%Y-%m-%d')
                 except ValueError:
                     pass
         
