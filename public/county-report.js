@@ -22,11 +22,10 @@
     };
     
     window.openCountyReport = async function() {
-        // Get current county and election from the dataset selector
-        const countyEl = document.getElementById('dataset-county-inline');
-        const county = countyEl ? countyEl.textContent.trim() : '';
+        // Get current county from global filter
+        const county = typeof selectedCountyFilter !== 'undefined' ? selectedCountyFilter : '';
         
-        if (!county || county === 'All Counties' || county.includes('Counties')) {
+        if (!county || county === 'all') {
             alert('Please select a specific county to view its report.');
             return;
         }

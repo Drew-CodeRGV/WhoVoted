@@ -1077,6 +1077,21 @@ function updateDatasetStatsBox() {
     }
     
     el.innerHTML = statsHtml;
+    
+    // Add County Report button if a specific county is selected
+    if (selectedCountyFilter && selectedCountyFilter !== 'all' && typeof openCountyReport === 'function') {
+        const existingBtn = el.querySelector('.county-report-btn-stats');
+        if (!existingBtn) {
+            const btn = document.createElement('button');
+            btn.className = 'county-report-btn-stats';
+            btn.innerHTML = '<i class="fas fa-file-alt"></i> County Report';
+            btn.style.cssText = 'margin-top: 8px; padding: 6px 12px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; transition: background 0.2s;';
+            btn.onmouseover = () => btn.style.background = '#5568d3';
+            btn.onmouseout = () => btn.style.background = '#667eea';
+            btn.onclick = openCountyReport;
+            el.appendChild(btn);
+        }
+    }
 }
 
 /**
