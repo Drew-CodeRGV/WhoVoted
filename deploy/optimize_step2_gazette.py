@@ -192,6 +192,11 @@ def main():
     last_updated = conn.execute("SELECT MAX(last_updated) FROM election_summary WHERE election_date='2026-03-03'").fetchone()[0]
     insights['last_updated'] = last_updated
     
+    # Add generation timestamp
+    from datetime import datetime
+    insights['generated_at'] = datetime.now().isoformat()
+    insights['generated_timestamp'] = datetime.now().strftime('%Y-%m-%d %I:%M %p')
+    
     # Stub for new_age_gender_2026 (skip for now - too slow)
     insights['new_age_gender_2026'] = {}
     
