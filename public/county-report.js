@@ -30,31 +30,51 @@
             return;
         }
         
-        // Get election date from current dataset
-        const datasetSelector = window.datasetSelector;
-        if (!datasetSelector) {
-            alert('Dataset selector not initialized.');
-            return;
+        // Get election date from current dataset - try multiple sources
+        let electionDate = null;
+        let votingMethod = null;
+        
+        // Try datasetSelector first
+        if (window.datasetSelector) {
+            const currentDataset = window.datasetSelector.getCurrentDataset();
+            if (currentDataset) {
+                electionDate = currentDataset.electionDate;
+                votingMethod = currentDataset.votingMethod || '';
+            }
         }
         
-        const currentDataset = datasetSelector.getCurrentDataset();
-        if (!currentDataset || !currentDataset.electionDate) {
-            alert('No election selected.');
-            return;
+        // Fallback: try to get from availableDatasets and current selection
+        if (!electionDate && typeof availableDatasets !== 'undefined' && availableDatasets.length > 0) {
+            const datasetSelect = document.getElementById('dataset-selector') || document.getElementById('dataset-selector-inline');
+            if (datasetSelect && datasetSelect.value !== '') {
+                const idx = parseInt(datasetSelect.value, 10);
+                if (!isNaN(idx) && availableDatasets[idx]) {
+                    electionDate = availableDatasets[idx].electionDate;
+                    votingMethod = availableDatasets[idx].votingMethod || '';
+                }
+            }
         }
         
-        const electionDate = currentDataset.electionDate;
-        const votingMethod = currentDataset.votingMethod || '';
+        // Last resort: use most recent election from availableDatasets
+        if (!electionDate && typeof availableDatasets !== 'undefined' && availableDatasets.length > 0) {
+            electionDate = availableDatasets[0].electionDate;
+            votingMethod = availableDatasets[0].votingMethod || '';
+        }
+        
+        if (!electionDate) {
+            alert('Could not determine election date. Please try refreshing the page.');
+            return;
+        }
         
         // Show overlay
-        const overlay = document.getElementById('countyReportOverlay');
+        let overlay = document.getElementById('countyReportOverlay');
         if (!overlay) {
             createCountyReportOverlay();
+            overlay = document.getElementById('countyReportOverlay');
         }
         
-        const overlayEl = document.getElementById('countyReportOverlay');
         const body = document.getElementById('countyReportBody');
-        overlayEl.style.display = 'flex';
+        overlay.style.display = 'flex';
         
         body.innerHTML = '<p class="county-report-loading">Loading county data&hellip;</p>';
         
