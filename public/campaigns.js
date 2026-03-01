@@ -540,14 +540,24 @@
 
         // County breakdown (from server stats)
         const cb = stats.county_breakdown || {};
-        const cbCounties = Object.keys(cb).sort();
-        if (cbCounties.length > 1) {
+        const totalVoters = stats.total || 0;
+        
+        // Filter out counties with very few voters (likely geocoding errors)
+        // Only show counties with at least 10 voters OR at least 1% of total
+        const minVoters = Math.max(10, Math.ceil(totalVoters * 0.01));
+        const filteredCounties = Object.keys(cb)
+            .filter(county => cb[county].total >= minVoters)
+            .sort((a, b) => cb[b].total - cb[a].total); // Sort by total voters descending
+        
+        if (filteredCounties.length > 1) {
+            const filteredCount = Object.keys(cb).length - filteredCounties.length;
             html += `
             <div class="campaign-section">
                 <h4>🗺️ Votes by County</h4>
+                ${filteredCount > 0 ? `<div style="font-size:10px;color:#888;margin-bottom:4px;font-style:italic;">${filteredCount} ${filteredCount === 1 ? 'county' : 'counties'} with &lt;${minVoters} voters hidden (likely geocoding errors)</div>` : ''}
                 <table class="campaign-table" style="font-size:11px;width:100%;">
                     <tr><th style="text-align:left;padding:2px 4px">County</th><th style="text-align:right;padding:2px 4px">Total</th><th style="text-align:right;padding:2px 4px;color:#1E90FF">DEM</th><th style="text-align:right;padding:2px 4px;color:#DC143C">REP</th><th style="text-align:right;padding:2px 4px">DEM%</th></tr>
-                    ${cbCounties.map(c => {
+                    ${filteredCounties.map(c => {
                         const d = cb[c];
                         const pct = (d.dem + d.rep) ? Math.round(d.dem / (d.dem + d.rep) * 100) : 0;
                         return '<tr><td style="padding:1px 4px;font-weight:600">' + c + '</td><td style="text-align:right;padding:1px 4px">' + n(d.total) + '</td><td style="text-align:right;padding:1px 4px;color:#1E90FF">' + n(d.dem) + '</td><td style="text-align:right;padding:1px 4px;color:#DC143C">' + n(d.rep) + '</td><td style="text-align:right;padding:1px 4px">' + pct + '%</td></tr>';
