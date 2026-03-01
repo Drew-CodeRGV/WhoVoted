@@ -1066,22 +1066,57 @@ function updateDatasetStatsBox() {
         // Default: show all
         const totalFlipped = flippedToBlue + flippedToRed;
         statsHtml = `
-            <div class="stats-title">${title || 'Dataset'}</div>
-            <div class="stats-row">
-                <span class="stat-item">📊 <span class="stat-value">${totalAll.toLocaleString()}</span> voters</span>
-                <span class="stat-item stat-dem">🔵 <span class="stat-value">${allDem.toLocaleString()}</span></span>
-                <span class="stat-item stat-rep">🔴 <span class="stat-value">${allRep.toLocaleString()}</span></span>
+            <div class="stats-title" id="statsToggleTitle" style="cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <span>${title || 'Dataset'}</span>
+                <i class="fas fa-chevron-down" id="statsChevron" style="font-size: 10px; transition: transform 0.2s;"></i>
             </div>
-            ${newVoterCount > 0 ? `<div class="stats-row" style="font-size:11px;color:#DAA520;margin-top:2px;">⭐ ${newVoterCount.toLocaleString()} new voters</div>` : ''}
-            ${totalFlipped > 0 ? `<div class="stats-row" style="font-size:11px;color:#888;margin-top:2px;">🔄 ${totalFlipped.toLocaleString()} flipped (${flippedToBlue} R→D, ${flippedToRed} D→R)</div>` : ''}`;
+            <div id="statsContent" style="transition: max-height 0.3s ease, opacity 0.3s ease; overflow: hidden;">
+                <div class="stats-row">
+                    <span class="stat-item">📊 <span class="stat-value">${totalAll.toLocaleString()}</span> voters</span>
+                    <span class="stat-item stat-dem">🔵 <span class="stat-value">${allDem.toLocaleString()}</span></span>
+                    <span class="stat-item stat-rep">🔴 <span class="stat-value">${allRep.toLocaleString()}</span></span>
+                </div>
+                ${newVoterCount > 0 ? `<div class="stats-row" style="font-size:11px;color:#DAA520;margin-top:2px;">⭐ ${newVoterCount.toLocaleString()} new voters</div>` : ''}
+                ${totalFlipped > 0 ? `<div class="stats-row" style="font-size:11px;color:#888;margin-top:2px;">🔄 ${totalFlipped.toLocaleString()} flipped (${flippedToBlue} R→D, ${flippedToRed} D→R)</div>` : ''}
+            </div>`;
     }
     
     el.innerHTML = statsHtml;
     
+    // Add toggle functionality for stats content
+    const toggleTitle = document.getElementById('statsToggleTitle');
+    const statsContent = document.getElementById('statsContent');
+    const chevron = document.getElementById('statsChevron');
+    
+    if (toggleTitle && statsContent && chevron) {
+        // Check if stats should be collapsed (from localStorage)
+        const isCollapsed = localStorage.getItem('statsBoxCollapsed') === 'true';
+        if (isCollapsed) {
+            statsContent.style.maxHeight = '0';
+            statsContent.style.opacity = '0';
+            chevron.style.transform = 'rotate(-90deg)';
+        }
+        
+        toggleTitle.addEventListener('click', () => {
+            const collapsed = statsContent.style.maxHeight === '0px' || statsContent.style.opacity === '0';
+            if (collapsed) {
+                statsContent.style.maxHeight = '200px';
+                statsContent.style.opacity = '1';
+                chevron.style.transform = 'rotate(0deg)';
+                localStorage.setItem('statsBoxCollapsed', 'false');
+            } else {
+                statsContent.style.maxHeight = '0';
+                statsContent.style.opacity = '0';
+                chevron.style.transform = 'rotate(-90deg)';
+                localStorage.setItem('statsBoxCollapsed', 'true');
+            }
+        });
+    }
+    
     // Add County Report button if a specific county is selected
     if (selectedCountyFilter && selectedCountyFilter !== 'all' && typeof openCountyReport === 'function') {
         const existingBtn = el.querySelector('.county-report-btn-stats');
-        if (!existingBtn) {
+        if (!existingBtn && statsContent) {
             const btn = document.createElement('button');
             btn.className = 'county-report-btn-stats';
             btn.innerHTML = '<i class="fas fa-file-alt"></i> County Report';
@@ -1089,7 +1124,7 @@ function updateDatasetStatsBox() {
             btn.onmouseover = () => btn.style.background = '#5568d3';
             btn.onmouseout = () => btn.style.background = '#667eea';
             btn.onclick = openCountyReport;
-            el.appendChild(btn);
+            statsContent.appendChild(btn);
         }
     }
 }

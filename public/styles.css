@@ -1885,6 +1885,11 @@ body {
     pointer-events: auto;
 }
 
+/* Allow pointer events on clickable title */
+.dataset-stats-box .stats-title {
+    pointer-events: auto;
+}
+
 .dataset-stats-box .stats-title {
     font-weight: 600;
     font-size: 13px;
