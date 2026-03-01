@@ -376,7 +376,6 @@ def main():
     print("="*70 + "\n")
     
     # Load districts from JSON file
-    import json
     districts_file = Path('/opt/whovoted/public/data/districts.json')
     if not districts_file.exists():
         print("⚠ districts.json not found, skipping district reports")
