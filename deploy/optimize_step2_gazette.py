@@ -77,51 +77,26 @@ def main():
         insights[f'd2r_{year}'] = d2r
     print(f"✓ {time.time()-t0:.1f}s")
     
-    # New voters (complex query - will still take time)
+    # New voters (now fast with denormalized column!)
     print("Computing new voters...", end=' ', flush=True)
     t0 = time.time()
+    
+    # Use the pre-computed is_new_voter flag
     new_2026 = conn.execute("""
-        SELECT COUNT(*) FROM voter_elections ve
-        JOIN voters v ON ve.vuid = v.vuid
-        WHERE ve.election_date = '2026-03-03'
-          AND EXISTS (SELECT 1 FROM voter_elections ve_prior
-              JOIN voters v2 ON ve_prior.vuid = v2.vuid
-              WHERE v2.county = v.county AND ve_prior.election_date < '2026-03-03'
-                AND ve_prior.party_voted != '' AND ve_prior.party_voted IS NOT NULL
-              LIMIT 1)
-          AND NOT EXISTS (SELECT 1 FROM voter_elections ve2
-              WHERE ve2.vuid = ve.vuid AND ve2.election_date < '2026-03-03'
-                AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL)
+        SELECT COUNT(*) FROM voter_elections
+        WHERE election_date = '2026-03-03' AND is_new_voter = 1
     """).fetchone()[0]
     insights['new_2026'] = new_2026
     
     new_dem_2026 = conn.execute("""
-        SELECT COUNT(*) FROM voter_elections ve
-        JOIN voters v ON ve.vuid = v.vuid
-        WHERE ve.election_date = '2026-03-03' AND ve.party_voted = 'Democratic'
-          AND EXISTS (SELECT 1 FROM voter_elections ve_prior
-              JOIN voters v2 ON ve_prior.vuid = v2.vuid
-              WHERE v2.county = v.county AND ve_prior.election_date < '2026-03-03'
-                AND ve_prior.party_voted != '' AND ve_prior.party_voted IS NOT NULL
-              LIMIT 1)
-          AND NOT EXISTS (SELECT 1 FROM voter_elections ve2
-              WHERE ve2.vuid = ve.vuid AND ve2.election_date < '2026-03-03'
-                AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL)
+        SELECT COUNT(*) FROM voter_elections
+        WHERE election_date = '2026-03-03' AND party_voted = 'Democratic' AND is_new_voter = 1
     """).fetchone()[0]
     insights['new_dem_2026'] = new_dem_2026
     
     new_rep_2026 = conn.execute("""
-        SELECT COUNT(*) FROM voter_elections ve
-        JOIN voters v ON ve.vuid = v.vuid
-        WHERE ve.election_date = '2026-03-03' AND ve.party_voted = 'Republican'
-          AND EXISTS (SELECT 1 FROM voter_elections ve_prior
-              JOIN voters v2 ON ve_prior.vuid = v2.vuid
-              WHERE v2.county = v.county AND ve_prior.election_date < '2026-03-03'
-                AND ve_prior.party_voted != '' AND ve_prior.party_voted IS NOT NULL
-              LIMIT 1)
-          AND NOT EXISTS (SELECT 1 FROM voter_elections ve2
-              WHERE ve2.vuid = ve.vuid AND ve2.election_date < '2026-03-03'
-                AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL)
+        SELECT COUNT(*) FROM voter_elections
+        WHERE election_date = '2026-03-03' AND party_voted = 'Republican' AND is_new_voter = 1
     """).fetchone()[0]
     insights['new_rep_2026'] = new_rep_2026
     print(f"✓ {time.time()-t0:.1f}s")
