@@ -1880,6 +1880,11 @@ body {
     pointer-events: none;
 }
 
+/* Allow pointer events on buttons inside stats box */
+.dataset-stats-box button {
+    pointer-events: auto;
+}
+
 .dataset-stats-box .stats-title {
     font-weight: 600;
     font-size: 13px;
