@@ -63,7 +63,15 @@ def add_computed_columns(conn, status):
     print()
 
 def compute_new_voters(conn, status):
-    """Compute is_new_voter flag (safe - only updates new column)."""
+    """Compute is_new_voter flag (safe - only updates new column).
+    
+    IMPORTANT: Only marks voters as "new" if their county has historical data.
+    A voter is "new" only if:
+    1. They haven't voted in any prior election in our data
+    2. Their county has at least 2 prior elections (so we have context)
+    
+    This prevents false positives in counties where we only have recent data.
+    """
     status.update('compute_new_voters', 'Computing new voter flags...', 0.3)
     print("Step 2: Computing new voter flags...")
     print("-" * 70)
@@ -79,20 +87,35 @@ def compute_new_voters(conn, status):
         print(f"  Processing {election_date}...", end=' ', flush=True)
         t0 = time.time()
         
-        # Mark voters who have no prior election records
+        # Mark voters as "new" ONLY if:
+        # 1. They have no prior voting history
+        # 2. Their county has at least 2 prior elections (reliable historical data)
         result = conn.execute("""
-            UPDATE voter_elections
+            UPDATE voter_elections ve
             SET is_new_voter = 1
-            WHERE election_date = ?
-              AND is_new_voter = 0
+            WHERE ve.election_date = ?
+              AND ve.is_new_voter = 0
               AND NOT EXISTS (
+                  -- No prior voting history for this voter
                   SELECT 1 FROM voter_elections ve2
-                  WHERE ve2.vuid = voter_elections.vuid
+                  WHERE ve2.vuid = ve.vuid
                     AND ve2.election_date < ?
                     AND ve2.party_voted != '' 
                     AND ve2.party_voted IS NOT NULL
               )
-        """, (election_date, election_date))
+              AND EXISTS (
+                  -- County has at least 2 prior elections (reliable data)
+                  SELECT 1 FROM voter_elections ve3
+                  JOIN voters v3 ON ve3.vuid = v3.vuid
+                  JOIN voters v_current ON ve.vuid = v_current.vuid
+                  WHERE v3.county = v_current.county
+                    AND ve3.election_date < ?
+                    AND ve3.party_voted != ''
+                    AND ve3.party_voted IS NOT NULL
+                  GROUP BY v3.county
+                  HAVING COUNT(DISTINCT ve3.election_date) >= 2
+              )
+        """, (election_date, election_date, election_date))
         
         count = result.rowcount
         print(f"✓ {count:,} new voters ({time.time()-t0:.1f}s)")
