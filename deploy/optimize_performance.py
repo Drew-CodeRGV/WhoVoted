@@ -11,10 +11,25 @@ from pathlib import Path
 
 DB_PATH = '/opt/whovoted/data/whovoted.db'
 CACHE_DIR = '/opt/whovoted/public/cache'
+STATUS_FILE = '/opt/whovoted/data/optimization_status.json'
+
+def write_status(status):
+    """Write current status to JSON file for monitoring."""
+    try:
+        with open(STATUS_FILE, 'w') as f:
+            json.dump(status, f, indent=2)
+    except Exception as e:
+        print(f"Warning: Could not write status file: {e}")
 
 def add_indexes(conn):
     """Add all missing indexes for fast lookups."""
     print("Adding database indexes...")
+    write_status({
+        'stage': 'indexes',
+        'status': 'running',
+        'message': 'Adding database indexes...',
+        'started_at': time.time()
+    })
     
     indexes = [
         # Household popup lookups (lat/lng + address)
@@ -47,11 +62,23 @@ def add_indexes(conn):
     
     conn.commit()
     print("Indexes added successfully\n")
+    write_status({
+        'stage': 'indexes',
+        'status': 'completed',
+        'message': f'Added {len(indexes)} indexes',
+        'completed_at': time.time()
+    })
 
 def precompute_gazette(conn):
     """Pre-compute gazette insights and save to static JSON."""
     print("Pre-computing gazette insights...")
     t0 = time.time()
+    write_status({
+        'stage': 'gazette',
+        'status': 'running',
+        'message': 'Computing gazette insights...',
+        'started_at': t0
+    })
     
     # This is the same logic as /api/election-insights but computed once
     insights = {}
@@ -252,12 +279,24 @@ def precompute_gazette(conn):
         json.dump(insights, f, separators=(',', ':'))
     
     print(f"  ✓ Gazette insights saved to {cache_file} ({time.time()-t0:.1f}s)\n")
+    write_status({
+        'stage': 'gazette',
+        'status': 'completed',
+        'message': f'Gazette cached ({time.time()-t0:.1f}s)',
+        'completed_at': time.time()
+    })
     return insights
 
 def precompute_district_stats(conn):
     """Pre-compute stats for all known districts and save to cache table."""
     print("Pre-computing district stats...")
     t0 = time.time()
+    write_status({
+        'stage': 'districts',
+        'status': 'running',
+        'message': 'Computing district stats...',
+        'started_at': t0
+    })
     
     # Create cache table if not exists
     conn.execute("""
@@ -278,6 +317,12 @@ def precompute_district_stats(conn):
     
     if not districts:
         print("  ⚠ No districts found in district_boundaries table\n")
+        write_status({
+            'stage': 'districts',
+            'status': 'skipped',
+            'message': 'No districts found',
+            'completed_at': time.time()
+        })
         return
     
     print(f"  Found {len(districts)} districts to pre-compute...")
@@ -334,6 +379,13 @@ def precompute_district_stats(conn):
             computed += 1
             if computed % 10 == 0:
                 print(f"    {computed}/{len(districts)} districts computed...")
+                write_status({
+                    'stage': 'districts',
+                    'status': 'running',
+                    'message': f'Computing district stats... {computed}/{len(districts)}',
+                    'progress': computed / len(districts),
+                    'started_at': t0
+                })
         
         except Exception as e:
             print(f"  ✗ Failed to compute {district_id}: {e}")
@@ -342,6 +394,12 @@ def precompute_district_stats(conn):
     conn.commit()
     
     print(f"  ✓ {computed} district stats cached ({time.time()-t0:.1f}s)\n")
+    write_status({
+        'stage': 'districts',
+        'status': 'completed',
+        'message': f'{computed} districts cached ({time.time()-t0:.1f}s)',
+        'completed_at': time.time()
+    })
 
 def main():
     if len(sys.argv) > 1:
@@ -350,6 +408,14 @@ def main():
         db_path = DB_PATH
     
     print(f"Optimizing database: {db_path}\n")
+    
+    overall_start = time.time()
+    write_status({
+        'stage': 'starting',
+        'status': 'running',
+        'message': 'Starting optimization...',
+        'started_at': overall_start
+    })
     
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -366,16 +432,37 @@ def main():
         
         # Step 4: Analyze tables for query planner
         print("Analyzing tables for query optimizer...")
+        write_status({
+            'stage': 'analyze',
+            'status': 'running',
+            'message': 'Analyzing tables...',
+            'started_at': time.time()
+        })
         conn.execute("ANALYZE")
         conn.commit()
         print("  ✓ Analysis complete\n")
         
-        print("✅ All optimizations complete!")
+        total_time = time.time() - overall_start
+        print(f"✅ All optimizations complete! ({total_time:.1f}s)")
+        write_status({
+            'stage': 'completed',
+            'status': 'success',
+            'message': f'All optimizations complete ({total_time:.1f}s)',
+            'completed_at': time.time(),
+            'total_time': total_time
+        })
         
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback
         traceback.print_exc()
+        write_status({
+            'stage': 'error',
+            'status': 'failed',
+            'message': str(e),
+            'error': traceback.format_exc(),
+            'failed_at': time.time()
+        })
         sys.exit(1)
     finally:
         conn.close()
