@@ -2219,6 +2219,76 @@ body {
     .gz-kpi { min-width: calc(50% - 4px); }
 }
 
+/* ============================================================
+   COUNTY REPORT — Mini-gazette for county-specific data
+   ============================================================ */
+.county-report-btn {
+    transition: background 0.2s, transform 0.1s;
+}
+.county-report-btn:hover {
+    background: #5568d3 !important;
+    transform: translateY(-1px);
+}
+.county-report-btn:active {
+    transform: translateY(0);
+}
+
+.county-report-content {
+    /* Reuse gazette styles */
+}
+
+.county-report-loading {
+    text-align: center;
+    color: #aaa;
+    padding: 40px 0;
+    font-size: 14px;
+}
+
+/* County report sections (cr-section) — same as gz-section */
+.cr-section {
+    margin-bottom: 14px;
+}
+.cr-section-title {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #666;
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #e5e5e5;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+.cr-section-title:hover { color: #555; }
+.cr-section-title::after {
+    content: '▾';
+    font-size: 12px;
+    transition: transform 0.2s;
+}
+.cr-section.collapsed .cr-section-title::after {
+    transform: rotate(-90deg);
+}
+.cr-section-title.gold {
+    color: #B8860B;
+    border-bottom-color: #F0E68C;
+}
+.cr-section-title.gold:hover { color: #8B6914; }
+.cr-section-body {
+    overflow: hidden;
+    max-height: 600px;
+    opacity: 1;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    margin-top: 6px;
+}
+.cr-section.collapsed .cr-section-body {
+    max-height: 0;
+    opacity: 0;
+}
+
 
 /* ============================================================
    CAMPAIGN DISTRICTS OVERLAY

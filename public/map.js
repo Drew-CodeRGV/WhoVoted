@@ -510,6 +510,11 @@ async function initializeDatasetControls() {
         // Initialize PartyFilter (restores saved filter)
         partyFilter.initialize();
         
+        // Initialize County Report button
+        if (typeof initCountyReport === 'function') {
+            initCountyReport();
+        }
+        
         console.log('Dataset controls initialized successfully');
         
     } catch (error) {

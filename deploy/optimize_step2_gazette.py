@@ -192,6 +192,183 @@ def main():
     
     print("Gazette will now load instantly!")
     print("Re-run this script after each scraper run to update data.\n")
+    
+    # Pre-compute county reports
+    print("\n" + "="*70)
+    print("Pre-computing County Reports")
+    print("="*70 + "\n")
+    
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    
+    # Get all unique county/election_date/voting_method combinations
+    print("Finding datasets to cache...", end=' ', flush=True)
+    datasets = conn.execute("""
+        SELECT DISTINCT v.county, ve.election_date, ve.voting_method
+        FROM voter_elections ve
+        JOIN voters v ON ve.vuid = v.vuid
+        WHERE v.county IS NOT NULL AND ve.election_date IS NOT NULL
+        ORDER BY ve.election_date DESC, v.county
+    """).fetchall()
+    print(f"✓ Found {len(datasets)} datasets")
+    
+    cached_count = 0
+    for ds in datasets:
+        county, election_date, voting_method = ds[0], ds[1], ds[2]
+        method_str = voting_method or 'all'
+        
+        print(f"  Caching {county}/{election_date}/{method_str}...", end=' ', flush=True)
+        t0 = time.time()
+        
+        try:
+            # Build WHERE clause
+            where_base = "WHERE v.county = ? AND ve.election_date = ?"
+            params_base = [county, election_date]
+            if voting_method:
+                where_base += " AND ve.voting_method = ?"
+                params_base.append(voting_method)
+            
+            report = {
+                'county': county,
+                'election_date': election_date,
+                'voting_method': voting_method or 'all',
+            }
+            
+            # Total voters
+            report['total_voters'] = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base}
+            """, params_base).fetchone()[0]
+            
+            # Party breakdown
+            report['dem_count'] = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base} AND ve.party_voted = 'Democratic'
+            """, params_base).fetchone()[0]
+            
+            report['rep_count'] = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base} AND ve.party_voted = 'Republican'
+            """, params_base).fetchone()[0]
+            
+            # New voters
+            report['new_voters'] = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base} AND ve.is_new_voter = 1
+            """, params_base).fetchone()[0]
+            
+            report['new_dem'] = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base} AND ve.party_voted = 'Democratic' AND ve.is_new_voter = 1
+            """, params_base).fetchone()[0]
+            
+            report['new_rep'] = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base} AND ve.party_voted = 'Republican' AND ve.is_new_voter = 1
+            """, params_base).fetchone()[0]
+            
+            # Flips
+            flip_rows = conn.execute(f"""
+                SELECT ve_current.party_voted as to_p, ve_prev.party_voted as from_p, COUNT(*) as cnt
+                FROM voter_elections ve_current
+                JOIN voters v ON ve_current.vuid = v.vuid
+                JOIN voter_elections ve_prev ON ve_current.vuid = ve_prev.vuid
+                WHERE v.county = ? AND ve_current.election_date = ?
+                    AND ve_prev.election_date = (
+                        SELECT MAX(ve2.election_date) FROM voter_elections ve2
+                        WHERE ve2.vuid = ve_current.vuid AND ve2.election_date < ve_current.election_date
+                            AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL)
+                    AND ve_current.party_voted != ve_prev.party_voted
+                    AND ve_current.party_voted != '' AND ve_prev.party_voted != ''
+                GROUP BY ve_current.party_voted, ve_prev.party_voted
+            """, [county, election_date]).fetchall()
+            
+            report['r2d'] = sum(r[2] for r in flip_rows if r[1] == 'Republican' and r[0] == 'Democratic')
+            report['d2r'] = sum(r[2] for r in flip_rows if r[1] == 'Democratic' and r[0] == 'Republican')
+            
+            # Gender
+            report['female_count'] = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base} AND v.sex = 'F'
+            """, params_base).fetchone()[0]
+            
+            report['male_count'] = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base} AND v.sex = 'M'
+            """, params_base).fetchone()[0]
+            
+            # Age groups
+            age_rows = conn.execute(f"""
+                SELECT
+                    CASE
+                        WHEN v.birth_year BETWEEN 2002 AND 2008 THEN '18-24'
+                        WHEN v.birth_year BETWEEN 1992 AND 2001 THEN '25-34'
+                        WHEN v.birth_year BETWEEN 1982 AND 1991 THEN '35-44'
+                        WHEN v.birth_year BETWEEN 1972 AND 1981 THEN '45-54'
+                        WHEN v.birth_year BETWEEN 1962 AND 1971 THEN '55-64'
+                        WHEN v.birth_year BETWEEN 1952 AND 1961 THEN '65-74'
+                        WHEN v.birth_year > 0 AND v.birth_year < 1952 THEN '75+'
+                        ELSE 'Unknown'
+                    END as age_group,
+                    ve.party_voted, COUNT(*) as cnt
+                FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base}
+                GROUP BY age_group, ve.party_voted
+            """, params_base).fetchall()
+            
+            age_groups = {}
+            for row in age_rows:
+                ag, party, cnt = row[0], row[1], row[2]
+                if ag not in age_groups:
+                    age_groups[ag] = {'total': 0, 'dem': 0, 'rep': 0}
+                age_groups[ag]['total'] += cnt
+                if party == 'Democratic':
+                    age_groups[ag]['dem'] += cnt
+                elif party == 'Republican':
+                    age_groups[ag]['rep'] += cnt
+            report['age_groups'] = age_groups
+            
+            # Calculate percentages
+            report['dem_share'] = round(report['dem_count'] / (report['dem_count'] + report['rep_count']) * 100, 1) if (report['dem_count'] + report['rep_count']) else 0
+            report['new_dem_pct'] = round(report['new_dem'] / report['new_voters'] * 100, 1) if report['new_voters'] else 0
+            report['female_pct'] = round(report['female_count'] / (report['female_count'] + report['male_count']) * 100, 1) if (report['female_count'] + report['male_count']) else 0
+            
+            # Last updated
+            last_row = conn.execute(f"""
+                SELECT MAX(ve.created_at) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base}
+            """, params_base).fetchone()
+            report['last_updated'] = last_row[0] if last_row and last_row[0] else None
+            
+            from datetime import datetime
+            report['generated_at'] = datetime.now().isoformat()
+            
+            # Save to cache file
+            cache_file = Path(CACHE_DIR) / f'county_report_{county}_{election_date}_{method_str}.json'
+            with open(cache_file, 'w') as f:
+                json.dump(report, f, separators=(',', ':'))
+            
+            cached_count += 1
+            print(f"✓ {time.time()-t0:.1f}s")
+            
+        except Exception as e:
+            print(f"✗ Error: {e}")
+    
+    conn.close()
+    
+    print(f"\n{'='*70}")
+    print(f"✅ Cached {cached_count} county reports")
+    print(f"{'='*70}\n")
 
 if __name__ == '__main__':
     main()
