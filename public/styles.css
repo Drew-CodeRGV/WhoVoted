@@ -2646,6 +2646,14 @@ body {
     text-align: left; font-weight: 600;
 }
 
+/* Other counties toggle */
+.other-counties-toggle:hover {
+    background: #f0f0f0 !important;
+}
+.other-counties-toggle.expanded i {
+    transform: rotate(90deg);
+}
+
 /* County tabs within campaign stats modal */
 .campaign-county-tabs {
     display: flex;
