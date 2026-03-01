@@ -13,6 +13,7 @@ SAFETY GUARANTEES:
 import sqlite3
 import time
 import sys
+from optimization_status import OptimizationStatus
 
 DB_PATH = '/opt/whovoted/data/whovoted.db'
 
@@ -33,8 +34,9 @@ def backup_reminder():
         sys.exit(0)
     print()
 
-def add_computed_columns(conn):
+def add_computed_columns(conn, status):
     """Add computed columns to voter_elections (safe - doesn't modify existing data)."""
+    status.update('add_columns', 'Adding computed columns to voter_elections...', 0.1)
     print("Step 1: Adding computed columns to voter_elections...")
     print("-" * 70)
     
@@ -60,8 +62,9 @@ def add_computed_columns(conn):
     conn.commit()
     print()
 
-def compute_new_voters(conn):
+def compute_new_voters(conn, status):
     """Compute is_new_voter flag (safe - only updates new column)."""
+    status.update('compute_new_voters', 'Computing new voter flags...', 0.3)
     print("Step 2: Computing new voter flags...")
     print("-" * 70)
     
@@ -97,8 +100,9 @@ def compute_new_voters(conn):
     conn.commit()
     print()
 
-def compute_previous_party(conn):
+def compute_previous_party(conn, status):
     """Compute previous_party and previous_election_date (safe - only updates new columns)."""
+    status.update('compute_previous_party', 'Computing previous party affiliations...', 0.5)
     print("Step 3: Computing previous party affiliations...")
     print("-" * 70)
     
@@ -146,8 +150,9 @@ def compute_previous_party(conn):
     conn.commit()
     print()
 
-def compute_flips(conn):
+def compute_flips(conn, status):
     """Compute has_flipped flag (safe - only updates new column)."""
+    status.update('compute_flips', 'Computing party flip flags...', 0.7)
     print("Step 4: Computing party flip flags...")
     print("-" * 70)
     
@@ -178,8 +183,9 @@ def compute_flips(conn):
     conn.commit()
     print()
 
-def create_indexes_on_computed_columns(conn):
+def create_indexes_on_computed_columns(conn, status):
     """Add indexes to new computed columns for fast queries."""
+    status.update('create_indexes', 'Adding indexes on computed columns...', 0.85)
     print("Step 5: Adding indexes on computed columns...")
     print("-" * 70)
     
@@ -198,8 +204,9 @@ def create_indexes_on_computed_columns(conn):
     conn.commit()
     print()
 
-def verify_data_integrity(conn):
+def verify_data_integrity(conn, status):
     """Verify original data wasn't modified."""
+    status.update('verify_integrity', 'Verifying data integrity...', 0.95)
     print("Step 6: Verifying data integrity...")
     print("-" * 70)
     
@@ -229,6 +236,8 @@ def verify_data_integrity(conn):
         sys.exit(1)
 
 def main():
+    status = OptimizationStatus('denormalization')
+    
     print("\n" + "="*70)
     print("SAFE DENORMALIZATION - Add Computed Columns")
     print("="*70)
@@ -241,14 +250,16 @@ def main():
     overall_start = time.time()
     
     try:
-        add_computed_columns(conn)
-        compute_new_voters(conn)
-        compute_previous_party(conn)
-        compute_flips(conn)
-        create_indexes_on_computed_columns(conn)
-        verify_data_integrity(conn)
+        add_computed_columns(conn, status)
+        compute_new_voters(conn, status)
+        compute_previous_party(conn, status)
+        compute_flips(conn, status)
+        create_indexes_on_computed_columns(conn, status)
+        verify_data_integrity(conn, status)
         
         total_time = time.time() - overall_start
+        status.complete(f'Denormalization complete in {total_time:.1f}s')
+        
         print("="*70)
         print(f"✅ Denormalization complete in {total_time:.1f}s")
         print("="*70)
@@ -264,6 +275,7 @@ def main():
         print()
         
     except Exception as e:
+        status.error(f'Denormalization failed: {e}', str(e))
         print(f"\n❌ Error: {e}")
         import traceback
         traceback.print_exc()
