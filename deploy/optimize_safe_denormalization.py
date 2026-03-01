@@ -91,29 +91,32 @@ def compute_new_voters(conn, status):
         # 1. They have no prior voting history
         # 2. Their county has at least 2 prior elections (reliable historical data)
         result = conn.execute("""
-            UPDATE voter_elections ve
+            UPDATE voter_elections
             SET is_new_voter = 1
-            WHERE ve.election_date = ?
-              AND ve.is_new_voter = 0
+            WHERE election_date = ?
+              AND is_new_voter = 0
               AND NOT EXISTS (
                   -- No prior voting history for this voter
                   SELECT 1 FROM voter_elections ve2
-                  WHERE ve2.vuid = ve.vuid
+                  WHERE ve2.vuid = voter_elections.vuid
                     AND ve2.election_date < ?
                     AND ve2.party_voted != '' 
                     AND ve2.party_voted IS NOT NULL
               )
-              AND EXISTS (
-                  -- County has at least 2 prior elections (reliable data)
-                  SELECT 1 FROM voter_elections ve3
-                  JOIN voters v3 ON ve3.vuid = v3.vuid
-                  JOIN voters v_current ON ve.vuid = v_current.vuid
-                  WHERE v3.county = v_current.county
-                    AND ve3.election_date < ?
-                    AND ve3.party_voted != ''
-                    AND ve3.party_voted IS NOT NULL
-                  GROUP BY v3.county
-                  HAVING COUNT(DISTINCT ve3.election_date) >= 2
+              AND vuid IN (
+                  -- Only voters in counties with 2+ prior elections
+                  SELECT DISTINCT v_current.vuid
+                  FROM voters v_current
+                  WHERE EXISTS (
+                      SELECT 1 FROM voter_elections ve3
+                      JOIN voters v3 ON ve3.vuid = v3.vuid
+                      WHERE v3.county = v_current.county
+                        AND ve3.election_date < ?
+                        AND ve3.party_voted != ''
+                        AND ve3.party_voted IS NOT NULL
+                      GROUP BY v3.county
+                      HAVING COUNT(DISTINCT ve3.election_date) >= 2
+                  )
               )
         """, (election_date, election_date, election_date))
         
