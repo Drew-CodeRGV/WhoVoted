@@ -613,9 +613,54 @@
         if (!stats) {
             bodyHtml = `
                 <div class="campaign-stats-loading">
+                    <div class="loading-progress-container">
+                        <div class="loading-progress-bar">
+                            <div class="loading-progress-fill"></div>
+                        </div>
+                    </div>
                     <div class="loading-spinner"></div>
-                    <p>Analyzing voters in district...</p>
+                    <p id="loadingMessage">Analyzing voters in district...</p>
                 </div>`;
+            
+            // Start rotating humorous messages
+            setTimeout(() => {
+                const messages = [
+                    "Counting fingers and toes...",
+                    "Crunching numbers...",
+                    "Splitting hairs...",
+                    "Checking voter receipts...",
+                    "Tallying ballots...",
+                    "Consulting the precinct captains...",
+                    "Reading tea leaves...",
+                    "Sharpening pencils...",
+                    "Organizing voter rolls...",
+                    "Calibrating the democracy meter...",
+                    "Herding cats... er, voters...",
+                    "Counting votes twice (just to be sure)...",
+                    "Asking voters nicely...",
+                    "Dusting off the ballot box...",
+                    "Warming up the calculators...",
+                    "Bribing the abacus...",
+                    "Consulting the electoral college...",
+                    "Flipping coins for ties...",
+                    "Recounting hanging chads...",
+                    "Summoning the poll workers..."
+                ];
+                
+                let messageIndex = 0;
+                const messageInterval = setInterval(() => {
+                    const msgEl = document.getElementById('loadingMessage');
+                    if (msgEl) {
+                        messageIndex = (messageIndex + 1) % messages.length;
+                        msgEl.textContent = messages[messageIndex];
+                    } else {
+                        clearInterval(messageInterval);
+                    }
+                }, 2000); // Change message every 2 seconds
+                
+                // Store interval ID so we can clear it later
+                overlay.dataset.messageInterval = messageInterval;
+            }, 100);
         } else {
             const allBodyHtml = buildStatsBodyHtml(stats, districtProps, oldMapStats);
             bodyHtml = `<div class="campaign-county-panel" data-county="__all__">${allBodyHtml}</div>`;
