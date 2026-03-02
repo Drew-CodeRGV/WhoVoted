@@ -114,9 +114,16 @@ function applyRoleRestrictions() {
     const cb = document.getElementById('campaignsBtn');
     if (cb) cb.style.display = full ? '' : 'none';
 
+    // Show reports button for full-access users
+    const reportsBtn = document.getElementById('reportsIconBtn');
+    if (reportsBtn) reportsBtn.style.display = full ? '' : 'none';
+
     // Show search icon for full-access users
     const searchBtn = document.querySelector('.search-icon-btn');
     if (searchBtn) searchBtn.style.display = full ? '' : 'none';
+    
+    // Dispatch event for other modules
+    window.dispatchEvent(new CustomEvent('authStateChanged', { detail: { fullAccess: full, role: userRole } }));
 }
 
 function updateAccountUI() {

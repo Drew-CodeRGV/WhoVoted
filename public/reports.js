@@ -7,11 +7,6 @@
     
     // Initialize reports system
     function initReports() {
-        // Show reports button only for logged-in users
-        if (window.authFullAccess) {
-            document.getElementById('reportsIconBtn').style.display = 'block';
-        }
-        
         // Reports button click
         document.getElementById('reportsIconBtn')?.addEventListener('click', openReportsModal);
         
@@ -441,13 +436,4 @@
     } else {
         initReports();
     }
-    
-    // Re-initialize when auth state changes
-    window.addEventListener('authStateChanged', function() {
-        if (window.authFullAccess) {
-            document.getElementById('reportsIconBtn').style.display = 'block';
-        } else {
-            document.getElementById('reportsIconBtn').style.display = 'none';
-        }
-    });
 })();
