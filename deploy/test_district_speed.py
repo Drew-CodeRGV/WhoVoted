@@ -11,7 +11,7 @@ def test_district(district_id, district_name):
     
     # Test with cache
     t0 = time.time()
-    response = requests.get(f'{BASE_URL}/api/district_stats', params={
+    response = requests.post(f'{BASE_URL}/api/district-stats', json={
         'district_id': district_id,
         'district_name': district_name
     })
