@@ -1,0 +1,386 @@
+<!-- Campaign Reports Modal -->
+<div id="reportsModal" class="reports-modal" style="display: none;">
+    <div class="reports-modal-content">
+        <div class="reports-modal-header">
+            <h2><i class="fas fa-chart-bar"></i> Campaign Reports</h2>
+            <button class="reports-modal-close" id="reportsModalClose">&times;</button>
+        </div>
+        
+        <div class="reports-modal-body">
+            <!-- Reports List -->
+            <div id="reportsListView" class="reports-list-view">
+                <p style="color: #666; margin-bottom: 20px;">Select a report to view campaign intelligence and export data for field operations.</p>
+                
+                <div class="report-card" data-report="precinct-performance">
+                    <div class="report-card-icon">
+                        <i class="fas fa-trophy"></i>
+                    </div>
+                    <div class="report-card-content">
+                        <h3>Precinct Performance</h3>
+                        <p>Identify high and low turnout precincts to optimize resource allocation</p>
+                    </div>
+                    <div class="report-card-action">
+                        <button class="btn-run-report">Run Report</button>
+                    </div>
+                </div>
+                
+                <div class="report-card" data-report="party-switchers">
+                    <div class="report-card-icon">
+                        <i class="fas fa-exchange-alt"></i>
+                    </div>
+                    <div class="report-card-content">
+                        <h3>Party Switchers</h3>
+                        <p>View voters who changed party affiliation with full contact information</p>
+                    </div>
+                    <div class="report-card-action">
+                        <button class="btn-run-report">Run Report</button>
+                    </div>
+                </div>
+                
+                <div class="report-card" data-report="turf-cuts">
+                    <div class="report-card-icon">
+                        <i class="fas fa-walking"></i>
+                    </div>
+                    <div class="report-card-content">
+                        <h3>Turf Cuts (Non-Voters)</h3>
+                        <p>Generate walk lists of registered voters who haven't voted</p>
+                    </div>
+                    <div class="report-card-action">
+                        <button class="btn-run-report">Run Report</button>
+                    </div>
+                </div>
+                
+                <div class="report-card" data-report="new-voters">
+                    <div class="report-card-icon">
+                        <i class="fas fa-star"></i>
+                    </div>
+                    <div class="report-card-content">
+                        <h3>New Voters</h3>
+                        <p>First-time voters with contact information for targeted outreach</p>
+                    </div>
+                    <div class="report-card-action">
+                        <button class="btn-run-report">Run Report</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Report View -->
+            <div id="reportView" class="report-view" style="display: none;">
+                <div class="report-view-header">
+                    <button class="btn-back-to-list"><i class="fas fa-arrow-left"></i> Back to Reports</button>
+                    <h3 id="reportTitle"></h3>
+                    <button class="btn-export-csv" id="btnExportCSV"><i class="fas fa-download"></i> Export CSV</button>
+                </div>
+                
+                <div class="report-filters" id="reportFilters">
+                    <!-- Dynamic filters will be inserted here -->
+                </div>
+                
+                <div class="report-content" id="reportContent">
+                    <div class="report-loading">
+                        <i class="fas fa-spinner fa-spin"></i> Loading report...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.reports-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.reports-modal-content {
+    background: white;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 1200px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.reports-modal-header {
+    padding: 20px 30px;
+    border-bottom: 2px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.reports-modal-header h2 {
+    margin: 0;
+    font-size: 24px;
+    color: #333;
+}
+
+.reports-modal-header h2 i {
+    color: #667eea;
+    margin-right: 10px;
+}
+
+.reports-modal-close {
+    background: none;
+    border: none;
+    font-size: 32px;
+    color: #999;
+    cursor: pointer;
+    padding: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.reports-modal-close:hover {
+    background: #f0f0f0;
+    color: #333;
+}
+
+.reports-modal-body {
+    padding: 30px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.report-card {
+    background: white;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.report-card:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    transform: translateY(-2px);
+}
+
+.report-card-icon {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.report-card-icon i {
+    font-size: 28px;
+    color: white;
+}
+
+.report-card-content {
+    flex: 1;
+}
+
+.report-card-content h3 {
+    margin: 0 0 8px 0;
+    font-size: 18px;
+    color: #333;
+}
+
+.report-card-content p {
+    margin: 0;
+    font-size: 14px;
+    color: #666;
+    line-height: 1.5;
+}
+
+.report-card-action {
+    flex-shrink: 0;
+}
+
+.btn-run-report {
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-run-report:hover {
+    background: #5568d3;
+    transform: scale(1.05);
+}
+
+.report-view-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.report-view-header h3 {
+    flex: 1;
+    margin: 0;
+    font-size: 20px;
+    color: #333;
+}
+
+.btn-back-to-list {
+    background: #f0f0f0;
+    color: #333;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-back-to-list:hover {
+    background: #e0e0e0;
+}
+
+.btn-export-csv {
+    background: #10b981;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-export-csv:hover {
+    background: #059669;
+}
+
+.report-filters {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.report-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.report-filter-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+}
+
+.report-filter-group select,
+.report-filter-group input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.report-content {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    min-height: 400px;
+}
+
+.report-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 400px;
+    font-size: 18px;
+    color: #999;
+}
+
+.report-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.report-table th {
+    background: #f8f9fa;
+    padding: 12px;
+    text-align: left;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    border-bottom: 2px solid #e0e0e0;
+    position: sticky;
+    top: 0;
+}
+
+.report-table td {
+    padding: 12px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 14px;
+    color: #666;
+}
+
+.report-table tr:hover {
+    background: #f8f9fa;
+}
+
+.report-summary {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    display: flex;
+    gap: 30px;
+}
+
+.report-summary-item {
+    flex: 1;
+}
+
+.report-summary-item .label {
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.report-summary-item .value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #333;
+}
+
+.panel-icon-btn.reports-icon-btn {
+    bottom: 140px;
+}
+</style>

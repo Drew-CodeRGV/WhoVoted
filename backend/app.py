@@ -4086,6 +4086,108 @@ def _warmup_cache():
 threading.Thread(target=_warmup_cache, name='cache-warmup', daemon=True).start()
 
 
+# ============================================================================
+# CAMPAIGN REPORTS ENDPOINTS
+# ============================================================================
+
+@app.route('/api/reports/precinct-performance')
+@require_auth
+def api_precinct_performance():
+    """Precinct performance report - turnout rankings."""
+    try:
+        from reports import get_precinct_performance
+        
+        county = request.args.get('county', 'Hidalgo')
+        election_date = request.args.get('election_date', '2026-03-03')
+        
+        with db.get_db() as conn:
+            precincts = get_precinct_performance(conn, county, election_date)
+        
+        return jsonify({
+            'success': True,
+            'precincts': precincts,
+            'county': county,
+            'election_date': election_date
+        })
+    except Exception as e:
+        logger.error(f"Precinct performance report error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/reports/party-switchers')
+@require_auth
+def api_party_switchers():
+    """Party switchers report with contact information."""
+    try:
+        from reports import get_party_switchers
+        
+        county = request.args.get('county', 'Hidalgo')
+        election_date = request.args.get('election_date', '2026-03-03')
+        direction = request.args.get('direction', 'both')
+        
+        with db.get_db() as conn:
+            result = get_party_switchers(conn, county, election_date, direction)
+        
+        return jsonify({
+            'success': True,
+            **result,
+            'county': county,
+            'election_date': election_date
+        })
+    except Exception as e:
+        logger.error(f"Party switchers report error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/reports/non-voters')
+@require_auth
+def api_non_voters():
+    """Turf cuts report - registered non-voters for canvassing."""
+    try:
+        from reports import get_non_voters
+        
+        county = request.args.get('county', 'Hidalgo')
+        precinct = request.args.get('precinct', 'all')
+        history = request.args.get('history', 'all')
+        
+        with db.get_db() as conn:
+            non_voters = get_non_voters(conn, county, precinct, history)
+        
+        return jsonify({
+            'success': True,
+            'non_voters': non_voters,
+            'county': county
+        })
+    except Exception as e:
+        logger.error(f"Non-voters report error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/reports/new-voters')
+@require_auth
+def api_new_voters():
+    """New voters report - first-time primary voters."""
+    try:
+        from reports import get_new_voters
+        
+        county = request.args.get('county', 'Hidalgo')
+        election_date = request.args.get('election_date', '2026-03-03')
+        party = request.args.get('party', 'both')
+        
+        with db.get_db() as conn:
+            result = get_new_voters(conn, county, election_date, party)
+        
+        return jsonify({
+            'success': True,
+            **result,
+            'county': county,
+            'election_date': election_date
+        })
+    except Exception as e:
+        logger.error(f"New voters report error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     logger.info("Starting WhoVoted backend server...")
     app.run(host='0.0.0.0', port=5000, debug=True)
