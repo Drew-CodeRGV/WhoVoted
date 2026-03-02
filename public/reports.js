@@ -392,12 +392,15 @@
             
             html += `
                 <div class="precinct-section">
-                    <div class="precinct-header">
-                        <h4>Precinct ${precinctName} <span style="color: #666; font-size: 14px; font-weight: normal;">${turnoutInfo}</span></h4>
+                    <div class="precinct-header" style="cursor: pointer;" data-precinct="${precinctName}">
+                        <div>
+                            <h4><i class="fas fa-chevron-right precinct-toggle"></i> Precinct ${precinctName} <span style="color: #666; font-size: 14px; font-weight: normal;">${turnoutInfo}</span></h4>
+                        </div>
                         <button class="btn-view-on-map" data-precinct="${precinctName}" style="background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px;">
                             <i class="fas fa-map-marked-alt"></i> View ${precinctData.voters.length} on Map
                         </button>
                     </div>
+                    <div class="precinct-table-container" style="display: none;">
                     <table class="report-table">
                         <thead>
                             <tr>
@@ -437,14 +440,36 @@
                     </tr>`;
             });
             
-            html += '</tbody></table></div>';
+            html += '</tbody></table></div></div>';
         }
         
         document.getElementById('reportContent').innerHTML = html;
         
+        // Add toggle handlers for precinct headers
+        document.querySelectorAll('.precinct-header').forEach(header => {
+            header.addEventListener('click', function(e) {
+                // Don't toggle if clicking the "View on Map" button
+                if (e.target.closest('.btn-view-on-map')) return;
+                
+                const container = this.nextElementSibling;
+                const toggle = this.querySelector('.precinct-toggle');
+                
+                if (container.style.display === 'none') {
+                    container.style.display = 'block';
+                    toggle.classList.remove('fa-chevron-right');
+                    toggle.classList.add('fa-chevron-down');
+                } else {
+                    container.style.display = 'none';
+                    toggle.classList.remove('fa-chevron-down');
+                    toggle.classList.add('fa-chevron-right');
+                }
+            });
+        });
+        
         // Add click handlers for "View on Map" buttons
         document.querySelectorAll('.btn-view-on-map').forEach(btn => {
-            btn.addEventListener('click', function() {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation(); // Prevent precinct toggle
                 const precinctName = this.dataset.precinct;
                 showPrecinctOnMap(precinctName, byPrecinct[precinctName].voters);
             });
@@ -463,13 +488,20 @@
             return;
         }
         
+        // Check if map is available
+        const mapInstance = window.map || (typeof map !== 'undefined' ? map : null);
+        if (!mapInstance) {
+            alert('Map is not available. Please refresh the page.');
+            return;
+        }
+        
         // Clear existing markers (but not the map itself)
         if (window.markerClusterGroup) {
             window.markerClusterGroup.clearLayers();
         }
         
         // Add star markers for each address
-        if (typeof L !== 'undefined' && window.map) {
+        if (typeof L !== 'undefined') {
             const starIcon = L.divIcon({
                 html: '<i class="fas fa-star" style="color: #FFD700; font-size: 24px; text-shadow: 0 0 3px #000;"></i>',
                 className: 'star-marker',
@@ -495,7 +527,7 @@
             // Fit map to show all markers
             if (markers.length > 0) {
                 const group = L.featureGroup(markers);
-                window.map.fitBounds(group.getBounds().pad(0.1));
+                mapInstance.fitBounds(group.getBounds().pad(0.1));
             }
             
             // Show route info
