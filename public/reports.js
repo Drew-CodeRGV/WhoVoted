@@ -278,8 +278,9 @@
         
         const precinct = document.getElementById('turfPrecinct')?.value || 'all';
         const history = document.getElementById('turfHistory')?.value || 'all';
+        const electionDate = currentDataset?.election_date || '2026-03-03';
         
-        const response = await fetch(`/api/reports/non-voters?county=${encodeURIComponent(county)}&precinct=${precinct}&history=${history}`);
+        const response = await fetch(`/api/reports/non-voters?county=${encodeURIComponent(county)}&election_date=${encodeURIComponent(electionDate)}&precinct=${precinct}&history=${history}`);
         const data = await response.json();
         
         if (!data.success) {

@@ -74,7 +74,7 @@ def get_party_switchers(conn, county, election_date, direction='both'):
     # Find voters who switched parties
     query = """
         SELECT 
-            v.first_name || ' ' || v.last_name as name,
+            v.firstname || ' ' || v.lastname as name,
             v.address,
             v.precinct,
             ve_prev.party_voted as from_party,
@@ -104,7 +104,7 @@ def get_party_switchers(conn, county, election_date, direction='both'):
     elif direction == 'r2d':
         query += " AND ve_prev.party_voted = 'Republican' AND ve_cur.party_voted = 'Democratic'"
     
-    query += " ORDER BY v.precinct, v.last_name"
+    query += " ORDER BY v.precinct, v.lastname"
     
     rows = conn.execute(query, params).fetchall()
     
@@ -135,7 +135,7 @@ def get_party_switchers(conn, county, election_date, direction='both'):
     }
 
 
-def get_non_voters(conn, county, precinct='all', history='all'):
+def get_non_voters(conn, county, election_date, precinct='all', history='all'):
     """
     Generate turf cuts report of registered non-voters.
     
@@ -149,7 +149,7 @@ def get_non_voters(conn, county, precinct='all', history='all'):
     """
     query = """
         SELECT 
-            v.first_name || ' ' || v.last_name as name,
+            v.firstname || ' ' || v.lastname as name,
             v.address,
             v.precinct,
             (SELECT MAX(ve2.election_date) 
@@ -171,7 +171,7 @@ def get_non_voters(conn, county, precinct='all', history='all'):
           )
     """
     
-    params = [datetime.now().year, county]
+    params = [datetime.now().year, county, election_date]
     
     # Add precinct filter
     if precinct != 'all':
@@ -179,7 +179,7 @@ def get_non_voters(conn, county, precinct='all', history='all'):
         params.append(precinct)
     
     # Note: We'll filter by history after fetching since it requires the vote_count
-    query += " ORDER BY v.precinct, v.last_name LIMIT 5000"
+    query += " ORDER BY v.precinct, v.lastname LIMIT 5000"
     
     rows = conn.execute(query, params).fetchall()
     
@@ -222,7 +222,7 @@ def get_new_voters(conn, county, election_date, party='both'):
     """
     query = """
         SELECT 
-            v.first_name || ' ' || v.last_name as name,
+            v.firstname || ' ' || v.lastname as name,
             v.address,
             v.precinct,
             ve.party_voted as party,
@@ -247,7 +247,7 @@ def get_new_voters(conn, county, election_date, party='both'):
         query += " AND ve.party_voted = ?"
         params.append(party)
     
-    query += " ORDER BY v.precinct, v.last_name"
+    query += " ORDER BY v.precinct, v.lastname"
     
     rows = conn.execute(query, params).fetchall()
     

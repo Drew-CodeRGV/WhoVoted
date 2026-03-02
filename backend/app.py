@@ -4147,11 +4147,12 @@ def api_non_voters():
         from reports import get_non_voters
         
         county = request.args.get('county', 'Hidalgo')
+        election_date = request.args.get('election_date', '2026-03-03')
         precinct = request.args.get('precinct', 'all')
         history = request.args.get('history', 'all')
         
         with db.get_db() as conn:
-            non_voters = get_non_voters(conn, county, precinct, history)
+            non_voters = get_non_voters(conn, county, election_date, precinct, history)
         
         return jsonify({
             'success': True,
