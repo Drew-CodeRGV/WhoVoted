@@ -7,16 +7,37 @@
     
     // Initialize reports system
     function initReports() {
+        console.log('initReports called');
+        
         // Wait for modal HTML to be loaded
         const modal = document.getElementById('reportsModal');
-        if (!modal || !document.getElementById('reportsModalClose')) {
+        const closeBtn = document.getElementById('reportsModalClose');
+        
+        console.log('Modal element:', modal);
+        console.log('Close button:', closeBtn);
+        
+        if (!modal || !closeBtn) {
             // Modal not ready yet, wait for event
+            console.log('Modal not ready, waiting for reportsModalReady event');
             window.addEventListener('reportsModalReady', initReports, { once: true });
             return;
         }
         
+        console.log('Modal ready, attaching event listeners');
+        
         // Reports button click
-        document.getElementById('reportsIconBtn')?.addEventListener('click', openReportsModal);
+        const reportsBtn = document.getElementById('reportsIconBtn');
+        console.log('Reports button:', reportsBtn);
+        
+        if (reportsBtn) {
+            reportsBtn.addEventListener('click', function(e) {
+                console.log('Reports button clicked!');
+                openReportsModal();
+            });
+            console.log('Click listener attached to reports button');
+        } else {
+            console.error('Reports button not found!');
+        }
         
         // Close button
         document.getElementById('reportsModalClose')?.addEventListener('click', closeReportsModal);
@@ -54,8 +75,15 @@
     }
     
     function openReportsModal() {
-        document.getElementById('reportsModal').style.display = 'flex';
-        showReportsList();
+        console.log('openReportsModal called');
+        const modal = document.getElementById('reportsModal');
+        console.log('Opening modal:', modal);
+        if (modal) {
+            modal.style.display = 'flex';
+            showReportsList();
+        } else {
+            console.error('Modal not found when trying to open!');
+        }
     }
     
     function closeReportsModal() {
