@@ -96,10 +96,14 @@ function applyRoleRestrictions() {
     window.authFullAccess = full;
 
     // Hide these for visitors/pending
-    ['dataIconBtn', 'mapIconBtn'].forEach(id => {
+    ['dataIconBtn'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = full ? '' : 'none';
     });
+    
+    // Always hide map legend button (replaced by reports)
+    const mapBtn = document.getElementById('mapIconBtn');
+    if (mapBtn) mapBtn.style.display = 'none';
 
     // Show registered-not-voted toggle for full-access users
     const regSection = document.getElementById('registeredToggleSection');

@@ -7,6 +7,14 @@
     
     // Initialize reports system
     function initReports() {
+        // Wait for modal HTML to be loaded
+        const modal = document.getElementById('reportsModal');
+        if (!modal || !document.getElementById('reportsModalClose')) {
+            // Modal not ready yet, wait for event
+            window.addEventListener('reportsModalReady', initReports, { once: true });
+            return;
+        }
+        
         // Reports button click
         document.getElementById('reportsIconBtn')?.addEventListener('click', openReportsModal);
         

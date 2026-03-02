@@ -524,11 +524,13 @@
     <!-- Campaign Reports Modal -->
     <div id="reportsModal" class="reports-modal" style="display: none;"></div>
     <script>
-        // Load reports modal HTML
+        // Load reports modal HTML and dispatch event when ready
         fetch('reports.html')
             .then(r => r.text())
             .then(html => {
                 document.getElementById('reportsModal').outerHTML = html;
+                // Dispatch event to notify reports.js that modal is ready
+                window.dispatchEvent(new CustomEvent('reportsModalReady'));
             });
     </script>
 
