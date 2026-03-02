@@ -117,7 +117,7 @@ async function loadCountyOverview(electionDate, votingMethod) {
             maxOpacity: 0.8
         });
 
-        // Democratic heatmap - GRADIENT FROM LIGHT TO DARK BLUE based on margin
+        // Democratic heatmap - GRADIENT FROM LIGHT TO BRIGHT DARK BLUE
         heatmapLayerDemocratic = L.heatLayer(heatDataDem, {
             radius: 55, 
             blur: 35,
@@ -129,13 +129,13 @@ async function loadCountyOverview(electionDate, votingMethod) {
                 0.0: 'rgba(173, 216, 255, 0)',      // Very light blue (toss-up)
                 0.2: 'rgba(100, 180, 255, 0.6)',    // Light blue (lean)
                 0.4: 'rgba(50, 140, 255, 0.75)',    // Medium blue (moderate)
-                0.6: 'rgba(0, 100, 230, 0.85)',     // Dark blue (strong)
-                0.8: 'rgba(0, 70, 180, 0.92)',      // Darker blue (landslide)
-                1.0: 'rgba(0, 40, 120, 1.0)'        // Deep navy (overwhelming)
+                0.6: 'rgba(0, 100, 255, 0.85)',     // Bright blue (strong)
+                0.8: 'rgba(0, 70, 220, 0.92)',      // Bright dark blue (landslide)
+                1.0: 'rgba(0, 50, 200, 1.0)'        // Deep bright blue (overwhelming)
             }
         });
 
-        // Republican heatmap - GRADIENT FROM LIGHT TO DARK RED based on margin
+        // Republican heatmap - GRADIENT FROM LIGHT TO BRIGHT DARK RED
         heatmapLayerRepublican = L.heatLayer(heatDataRep, {
             radius: 55, 
             blur: 35,
@@ -147,9 +147,9 @@ async function loadCountyOverview(electionDate, votingMethod) {
                 0.0: 'rgba(255, 173, 173, 0)',      // Very light red/pink (toss-up)
                 0.2: 'rgba(255, 100, 100, 0.6)',    // Light red (lean)
                 0.4: 'rgba(255, 50, 50, 0.75)',     // Medium red (moderate)
-                0.6: 'rgba(230, 0, 40, 0.85)',      // Dark red (strong)
-                0.8: 'rgba(180, 0, 30, 0.92)',      // Darker red (landslide)
-                1.0: 'rgba(120, 0, 20, 1.0)'        // Deep crimson (overwhelming)
+                0.6: 'rgba(255, 0, 50, 0.85)',      // Bright red (strong)
+                0.8: 'rgba(220, 0, 60, 0.92)',      // Bright dark red (landslide)
+                1.0: 'rgba(200, 0, 70, 1.0)'        // Deep bright red (overwhelming)
             }
         });
 
