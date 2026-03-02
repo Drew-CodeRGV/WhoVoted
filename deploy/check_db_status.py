@@ -6,7 +6,7 @@ import sys
 
 def check_database():
     try:
-        conn = sqlite3.connect('/opt/whovoted/data/voters.db', timeout=5)
+        conn = sqlite3.connect('/opt/whovoted/data/whovoted.db', timeout=5)
         cursor = conn.cursor()
         
         # Check table structure
