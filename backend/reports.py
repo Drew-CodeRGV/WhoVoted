@@ -135,7 +135,7 @@ def get_party_switchers(conn, county, election_date, direction='both'):
     }
 
 
-def get_non_voters(conn, county, election_date, precinct='all', history='all'):
+def get_non_voters(conn, county, election_date, precinct='all', history='all', party_affinity='all'):
     """
     Generate turf cuts report of registered non-voters.
     
@@ -146,6 +146,7 @@ def get_non_voters(conn, county, election_date, precinct='all', history='all'):
     - Last voted date
     - Voting history score
     - Age
+    - Party affinity (based on voting history)
     """
     query = """
         SELECT 
@@ -160,6 +161,14 @@ def get_non_voters(conn, county, election_date, precinct='all', history='all'):
              FROM voter_elections ve2
              WHERE ve2.vuid = v.vuid
                AND ve2.party_voted IN ('Democratic', 'Republican')) as vote_count,
+            (SELECT COUNT(DISTINCT ve2.election_date)
+             FROM voter_elections ve2
+             WHERE ve2.vuid = v.vuid
+               AND ve2.party_voted = 'Democratic') as dem_count,
+            (SELECT COUNT(DISTINCT ve2.election_date)
+             FROM voter_elections ve2
+             WHERE ve2.vuid = v.vuid
+               AND ve2.party_voted = 'Republican') as rep_count,
             (? - v.birth_year) as age
         FROM voters v
         WHERE v.county = ?
@@ -178,6 +187,20 @@ def get_non_voters(conn, county, election_date, precinct='all', history='all'):
         query += " AND v.precinct = ?"
         params.append(precinct)
     
+    # Add party affinity filter
+    if party_affinity == 'democratic':
+        query += """ AND EXISTS (
+            SELECT 1 FROM voter_elections ve3
+            WHERE ve3.vuid = v.vuid
+              AND ve3.party_voted = 'Democratic'
+        )"""
+    elif party_affinity == 'republican':
+        query += """ AND EXISTS (
+            SELECT 1 FROM voter_elections ve3
+            WHERE ve3.vuid = v.vuid
+              AND ve3.party_voted = 'Republican'
+        )"""
+    
     # Note: We'll filter by history after fetching since it requires the vote_count
     query += " ORDER BY v.precinct, v.lastname LIMIT 5000"
     
@@ -186,12 +209,24 @@ def get_non_voters(conn, county, election_date, precinct='all', history='all'):
     non_voters = []
     for row in rows:
         vote_count = row['vote_count'] or 0
+        dem_count = row['dem_count'] or 0
+        rep_count = row['rep_count'] or 0
         
         # Apply history filter
         if history == 'never' and vote_count > 0:
             continue
         elif history == 'sporadic' and (vote_count == 0 or vote_count > 5):
             continue
+        
+        # Determine party affinity
+        if dem_count > rep_count:
+            affinity = 'Democratic'
+        elif rep_count > dem_count:
+            affinity = 'Republican'
+        elif dem_count > 0 and rep_count > 0:
+            affinity = 'Mixed'
+        else:
+            affinity = 'Unknown'
         
         # Calculate voting score (0-10 based on participation)
         voting_score = min(10, vote_count * 2)
@@ -202,7 +237,10 @@ def get_non_voters(conn, county, election_date, precinct='all', history='all'):
             'precinct': row['precinct'] or 'N/A',
             'last_voted': row['last_voted'] or 'Never',
             'voting_score': voting_score,
-            'age': row['age'] if row['age'] and row['age'] > 0 else None
+            'age': row['age'] if row['age'] and row['age'] > 0 else None,
+            'party_affinity': affinity,
+            'dem_history': dem_count,
+            'rep_history': rep_count
         })
     
     return non_voters

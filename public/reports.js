@@ -261,6 +261,14 @@
                 </select>
             </div>
             <div class="report-filter-group">
+                <label>Party Affinity</label>
+                <select id="turfPartyAffinity">
+                    <option value="all">All Voters</option>
+                    <option value="democratic">Democratic History</option>
+                    <option value="republican">Republican History</option>
+                </select>
+            </div>
+            <div class="report-filter-group">
                 <label>Voting History</label>
                 <select id="turfHistory">
                     <option value="all">All Non-Voters</option>
@@ -274,13 +282,15 @@
         // TODO: Populate precinct dropdown
         
         document.getElementById('turfPrecinct')?.addEventListener('change', () => loadTurfCuts());
+        document.getElementById('turfPartyAffinity')?.addEventListener('change', () => loadTurfCuts());
         document.getElementById('turfHistory')?.addEventListener('change', () => loadTurfCuts());
         
         const precinct = document.getElementById('turfPrecinct')?.value || 'all';
+        const partyAffinity = document.getElementById('turfPartyAffinity')?.value || 'all';
         const history = document.getElementById('turfHistory')?.value || 'all';
         const electionDate = currentDataset?.election_date || '2026-03-03';
         
-        const response = await fetch(`/api/reports/non-voters?county=${encodeURIComponent(county)}&election_date=${encodeURIComponent(electionDate)}&precinct=${precinct}&history=${history}`);
+        const response = await fetch(`/api/reports/non-voters?county=${encodeURIComponent(county)}&election_date=${encodeURIComponent(electionDate)}&precinct=${precinct}&history=${history}&party_affinity=${partyAffinity}`);
         const data = await response.json();
         
         if (!data.success) {
@@ -302,6 +312,7 @@
                         <th>Name</th>
                         <th>Address</th>
                         <th>Precinct</th>
+                        <th>Party Affinity</th>
                         <th>Last Voted</th>
                         <th>Voting Score</th>
                         <th>Age</th>
@@ -310,13 +321,28 @@
                 <tbody>`;
         
         data.non_voters.forEach(v => {
+            let affinityColor = '#666';
+            let affinityText = v.party_affinity;
+            
+            if (v.party_affinity === 'Democratic') {
+                affinityColor = '#0064FF';
+                affinityText = `D (${v.dem_history})`;
+            } else if (v.party_affinity === 'Republican') {
+                affinityColor = '#E6003C';
+                affinityText = `R (${v.rep_history})`;
+            } else if (v.party_affinity === 'Mixed') {
+                affinityColor = '#6A1B9A';
+                affinityText = `Mixed (${v.dem_history}D/${v.rep_history}R)`;
+            }
+            
             html += `
                 <tr>
                     <td><strong>${v.name}</strong></td>
                     <td>${v.address}</td>
-                    <td>${v.precinct || 'N/A'}</td>
-                    <td>${v.last_voted || 'Never'}</td>
-                    <td>${v.voting_score || 0}/10</td>
+                    <td>${v.precinct}</td>
+                    <td style="color: ${affinityColor}; font-weight: 600;">${affinityText}</td>
+                    <td>${v.last_voted}</td>
+                    <td>${v.voting_score}/10</td>
                     <td>${v.age || 'N/A'}</td>
                 </tr>`;
         });

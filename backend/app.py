@@ -4150,9 +4150,10 @@ def api_non_voters():
         election_date = request.args.get('election_date', '2026-03-03')
         precinct = request.args.get('precinct', 'all')
         history = request.args.get('history', 'all')
+        party_affinity = request.args.get('party_affinity', 'all')
         
         with db.get_db() as conn:
-            non_voters = get_non_voters(conn, county, election_date, precinct, history)
+            non_voters = get_non_voters(conn, county, election_date, precinct, history, party_affinity)
         
         return jsonify({
             'success': True,
