@@ -172,26 +172,91 @@ async function loadCountyOverview(electionDate, votingMethod) {
             const demPct = total > 0 ? ((c.dem / total) * 100).toFixed(1) : 0;
             const repPct = total > 0 ? ((c.rep / total) * 100).toFixed(1) : 0;
             const winner = c.dem > c.rep ? 'Democratic' : c.rep > c.dem ? 'Republican' : 'Tie';
-            const winnerColor = c.dem > c.rep ? '#0064FF' : c.rep > c.dem ? '#E6003C' : '#888';
             const margin = Math.abs(c.dem - c.rep);
             const marginPct = total > 0 ? ((margin / total) * 100).toFixed(1) : 0;
             
-            // Create invisible circle marker (visible on hover)
+            // Calculate color based on margin - deeper colors for bigger margins
+            // marginPct ranges from 0 (50/50 tie) to 100 (100% one party)
+            let fillColor, strokeColor;
+            
+            if (c.dem > c.rep) {
+                // Democratic - varying shades of blue
+                if (marginPct >= 60) {
+                    // Landslide (80%+) - Deep navy blue
+                    fillColor = '#001F5C';
+                    strokeColor = '#003399';
+                } else if (marginPct >= 40) {
+                    // Strong (70-80%) - Dark blue
+                    fillColor = '#0047AB';
+                    strokeColor = '#0066CC';
+                } else if (marginPct >= 20) {
+                    // Moderate (60-70%) - Medium blue
+                    fillColor = '#0066FF';
+                    strokeColor = '#3399FF';
+                } else if (marginPct >= 10) {
+                    // Lean (55-60%) - Light blue
+                    fillColor = '#4D94FF';
+                    strokeColor = '#66B3FF';
+                } else {
+                    // Toss-up (50-55%) - Very light blue
+                    fillColor = '#99CCFF';
+                    strokeColor = '#B3D9FF';
+                }
+            } else if (c.rep > c.dem) {
+                // Republican - varying shades of red
+                if (marginPct >= 60) {
+                    // Landslide (80%+) - Deep crimson
+                    fillColor = '#8B0000';
+                    strokeColor = '#B30000';
+                } else if (marginPct >= 40) {
+                    // Strong (70-80%) - Dark red
+                    fillColor = '#CC0000';
+                    strokeColor = '#E60000';
+                } else if (marginPct >= 20) {
+                    // Moderate (60-70%) - Medium red
+                    fillColor = '#FF0000';
+                    strokeColor = '#FF3333';
+                } else if (marginPct >= 10) {
+                    // Lean (55-60%) - Light red
+                    fillColor = '#FF4D4D';
+                    strokeColor = '#FF6666';
+                } else {
+                    // Toss-up (50-55%) - Very light red/pink
+                    fillColor = '#FF9999';
+                    strokeColor = '#FFB3B3';
+                }
+            } else {
+                // Perfect tie - gray
+                fillColor = '#888888';
+                strokeColor = '#AAAAAA';
+            }
+            
+            // Create circle marker with color based on margin
             const marker = L.circleMarker([c.lat, c.lng], {
-                radius: 8,
-                fillColor: winnerColor,
-                color: '#fff',
+                radius: 10,
+                fillColor: fillColor,
+                color: strokeColor,
                 weight: 2,
-                opacity: 0,
-                fillOpacity: 0
+                opacity: 0.8,
+                fillOpacity: 0.7
             });
             
-            // Show marker on hover
+            // Highlight on hover
             marker.on('mouseover', function() {
-                this.setStyle({ opacity: 0.8, fillOpacity: 0.6 });
+                this.setStyle({ 
+                    opacity: 1, 
+                    fillOpacity: 0.9,
+                    weight: 3,
+                    radius: 12
+                });
             });
             marker.on('mouseout', function() {
-                this.setStyle({ opacity: 0, fillOpacity: 0 });
+                this.setStyle({ 
+                    opacity: 0.8, 
+                    fillOpacity: 0.7,
+                    weight: 2,
+                    radius: 10
+                });
             });
             
             // Create popup with county stats
@@ -200,7 +265,7 @@ async function loadCountyOverview(electionDate, votingMethod) {
                     <div style="font-size: 16px; font-weight: 700; margin-bottom: 8px; color: #333;">
                         ${c.county} County
                     </div>
-                    <div style="font-size: 14px; font-weight: 600; color: ${winnerColor}; margin-bottom: 10px;">
+                    <div style="font-size: 14px; font-weight: 600; color: ${fillColor}; margin-bottom: 10px;">
                         ${winner} +${marginPct}%
                     </div>
                     <div style="margin-bottom: 8px;">
