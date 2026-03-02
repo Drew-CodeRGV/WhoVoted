@@ -445,4 +445,174 @@
     border: none;
 }
 
+.numbered-marker {
+    background: none;
+    border: none;
+}
+
+/* Walk List Panel */
+.walk-list-panel {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 400px;
+    max-height: calc(100vh - 40px);
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.walk-list-header {
+    padding: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.walk-list-header h3 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.walk-list-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-print-walk-list,
+.btn-close-walk-list {
+    background: rgba(255,255,255,0.2);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.btn-print-walk-list:hover,
+.btn-close-walk-list:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+.walk-list-summary {
+    padding: 15px 20px;
+    background: #f8f9fa;
+    display: flex;
+    justify-content: space-around;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 13px;
+    color: #666;
+}
+
+.walk-list-summary div {
+    text-align: center;
+}
+
+.walk-list-summary strong {
+    display: block;
+    font-size: 20px;
+    color: #333;
+    margin-bottom: 3px;
+}
+
+.walk-list-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.walk-list-item {
+    display: flex;
+    gap: 15px;
+    padding: 15px;
+    margin-bottom: 10px;
+    background: white;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.walk-list-item:hover {
+    border-color: #667eea;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+    transform: translateX(-3px);
+}
+
+.walk-list-item.active {
+    border-color: #667eea;
+    background: #f0f4ff;
+}
+
+.walk-list-number {
+    width: 36px;
+    height: 36px;
+    background: #FFD700;
+    color: #000;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.walk-list-details {
+    flex: 1;
+}
+
+.walk-list-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.walk-list-address {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 6px;
+}
+
+.walk-list-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+}
+
+.walk-list-party,
+.walk-list-age,
+.walk-list-score {
+    padding: 2px 6px;
+    background: #f0f0f0;
+    border-radius: 4px;
+}
+
+/* Print styles */
+@media print {
+    .walk-list-panel {
+        position: static;
+        width: 100%;
+        max-height: none;
+        box-shadow: none;
+    }
+    
+    .walk-list-actions {
+        display: none;
+    }
+    
+    .walk-list-item {
+        page-break-inside: avoid;
+    }
+}
+
 </style>

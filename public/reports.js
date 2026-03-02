@@ -569,13 +569,92 @@
             // Calculate total distance
             const totalDistance = calculateRouteDistance(optimizedRoute);
             
+            // Create walk list panel
+            createWalkListPanel(precinctName, optimizedRoute, totalDistance);
+            
             // Show route info
             alert(`Canvassing Route for Precinct ${precinctName}\n\n` +
                   `${optimizedRoute.length} stops\n` +
                   `Estimated distance: ${totalDistance.toFixed(2)} miles\n\n` +
-                  `Follow the numbered markers and blue arrows for the most efficient route.`);
+                  `Follow the numbered markers and blue arrows.\nSee the walk list panel on the right for details.`);
         }, 300);
     }
+    
+    // Create walk list panel
+    function createWalkListPanel(precinctName, route, totalDistance) {
+        // Remove existing panel if any
+        const existing = document.getElementById('walkListPanel');
+        if (existing) existing.remove();
+        
+        // Create panel
+        const panel = document.createElement('div');
+        panel.id = 'walkListPanel';
+        panel.className = 'walk-list-panel';
+        panel.innerHTML = `
+            <div class="walk-list-header">
+                <h3><i class="fas fa-route"></i> Walk List - Precinct ${precinctName}</h3>
+                <div class="walk-list-actions">
+                    <button class="btn-print-walk-list" onclick="printWalkList()">
+                        <i class="fas fa-print"></i> Print
+                    </button>
+                    <button class="btn-close-walk-list" onclick="closeWalkList()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="walk-list-summary">
+                <div><strong>${route.length}</strong> stops</div>
+                <div><strong>${totalDistance.toFixed(2)}</strong> miles</div>
+                <div><strong>${Math.ceil(totalDistance * 20)}</strong> min walk</div>
+            </div>
+            <div class="walk-list-content">
+                ${route.map((v, idx) => `
+                    <div class="walk-list-item" data-stop="${idx + 1}">
+                        <div class="walk-list-number">${idx + 1}</div>
+                        <div class="walk-list-details">
+                            <div class="walk-list-name">${v.name}</div>
+                            <div class="walk-list-address">${v.address}</div>
+                            <div class="walk-list-meta">
+                                <span class="walk-list-party" style="color: ${
+                                    v.party_affinity === 'Democratic' ? '#0064FF' : 
+                                    v.party_affinity === 'Republican' ? '#E6003C' : '#666'
+                                };">${v.party_affinity}</span>
+                                ${v.age ? `<span class="walk-list-age">Age ${v.age}</span>` : ''}
+                                <span class="walk-list-score">Score: ${v.voting_score}/10</span>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        
+        document.body.appendChild(panel);
+        
+        // Add click handlers to highlight markers
+        document.querySelectorAll('.walk-list-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const stopNum = parseInt(this.dataset.stop);
+                const voter = route[stopNum - 1];
+                
+                // Pan to marker and open popup
+                map.setView([voter.lat, voter.lng], 18);
+                
+                // Highlight this item
+                document.querySelectorAll('.walk-list-item').forEach(i => i.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    }
+    
+    // Global functions for walk list
+    window.printWalkList = function() {
+        window.print();
+    };
+    
+    window.closeWalkList = function() {
+        const panel = document.getElementById('walkListPanel');
+        if (panel) panel.remove();
+    };
     
     // Optimize route using nearest neighbor algorithm
     function optimizeRoute(voters) {
