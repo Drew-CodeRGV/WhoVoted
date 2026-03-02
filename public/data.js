@@ -160,6 +160,89 @@ async function loadCountyOverview(electionDate, votingMethod) {
         // Set the mode so UI controls know what's active
         window.heatmapMode = 'party';
 
+        // Add invisible markers for each county to enable popups
+        if (!countyOverviewLayer) {
+            countyOverviewLayer = L.layerGroup();
+        } else {
+            countyOverviewLayer.clearLayers();
+        }
+        
+        data.counties.forEach(c => {
+            const total = c.dem + c.rep;
+            const demPct = total > 0 ? ((c.dem / total) * 100).toFixed(1) : 0;
+            const repPct = total > 0 ? ((c.rep / total) * 100).toFixed(1) : 0;
+            const winner = c.dem > c.rep ? 'Democratic' : c.rep > c.dem ? 'Republican' : 'Tie';
+            const winnerColor = c.dem > c.rep ? '#0064FF' : c.rep > c.dem ? '#E6003C' : '#888';
+            const margin = Math.abs(c.dem - c.rep);
+            const marginPct = total > 0 ? ((margin / total) * 100).toFixed(1) : 0;
+            
+            // Create invisible circle marker (visible on hover)
+            const marker = L.circleMarker([c.lat, c.lng], {
+                radius: 8,
+                fillColor: winnerColor,
+                color: '#fff',
+                weight: 2,
+                opacity: 0,
+                fillOpacity: 0
+            });
+            
+            // Show marker on hover
+            marker.on('mouseover', function() {
+                this.setStyle({ opacity: 0.8, fillOpacity: 0.6 });
+            });
+            marker.on('mouseout', function() {
+                this.setStyle({ opacity: 0, fillOpacity: 0 });
+            });
+            
+            // Create popup with county stats
+            const popupContent = `
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-width: 200px;">
+                    <div style="font-size: 16px; font-weight: 700; margin-bottom: 8px; color: #333;">
+                        ${c.county} County
+                    </div>
+                    <div style="font-size: 14px; font-weight: 600; color: ${winnerColor}; margin-bottom: 10px;">
+                        ${winner} +${marginPct}%
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <span style="color: #0064FF; font-weight: 600;">🔵 Democratic</span>
+                            <span style="font-weight: 700; color: #0064FF;">${demPct}%</span>
+                        </div>
+                        <div style="background: #e0e0e0; height: 6px; border-radius: 3px; overflow: hidden;">
+                            <div style="background: #0064FF; height: 100%; width: ${demPct}%;"></div>
+                        </div>
+                        <div style="font-size: 12px; color: #666; margin-top: 2px;">
+                            ${c.dem.toLocaleString()} votes
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <span style="color: #E6003C; font-weight: 600;">🔴 Republican</span>
+                            <span style="font-weight: 700; color: #E6003C;">${repPct}%</span>
+                        </div>
+                        <div style="background: #e0e0e0; height: 6px; border-radius: 3px; overflow: hidden;">
+                            <div style="background: #E6003C; height: 100%; width: ${repPct}%;"></div>
+                        </div>
+                        <div style="font-size: 12px; color: #666; margin-top: 2px;">
+                            ${c.rep.toLocaleString()} votes
+                        </div>
+                    </div>
+                    <div style="border-top: 1px solid #ddd; padding-top: 8px; margin-top: 8px; font-size: 13px; color: #666;">
+                        <strong>${total.toLocaleString()}</strong> total votes
+                    </div>
+                </div>
+            `;
+            
+            marker.bindPopup(popupContent, {
+                maxWidth: 300,
+                className: 'county-popup'
+            });
+            
+            countyOverviewLayer.addLayer(marker);
+        });
+        
+        countyOverviewLayer.addTo(map);
+
         _countyOverviewLoaded = true;
 
         // Show aggregate stats
