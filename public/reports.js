@@ -501,42 +501,44 @@
                 markerClusterGroup.clearLayers();
             }
             
+            // Remove existing routing control if any
+            if (window.routingControl) {
+                try {
+                    map.removeControl(window.routingControl);
+                } catch (e) {
+                    console.log('Could not remove routing control:', e);
+                }
+                window.routingControl = null;
+            }
+            
+            // Remove existing route decorator if any
+            if (window.routeDecorator) {
+                try {
+                    map.removeLayer(window.routeDecorator);
+                } catch (e) {
+                    console.log('Could not remove route decorator:', e);
+                }
+                window.routeDecorator = null;
+            }
+            
+            // Remove existing canvassing markers if any
+            if (window.canvassingMarkers && window.canvassingMarkers.length > 0) {
+                window.canvassingMarkers.forEach(marker => {
+                    try {
+                        map.removeLayer(marker);
+                    } catch (e) {
+                        console.log('Could not remove marker:', e);
+                    }
+                });
+            }
+            
             // Optimize route using nearest neighbor algorithm
             const optimizedRoute = optimizeRoute(validVoters);
             
-            // Create route line coordinates
-            const routeCoords = optimizedRoute.map(v => [v.lat, v.lng]);
-            
-            // Draw route line with arrows
-            const routeLine = L.polyline(routeCoords, {
-                color: '#667eea',
-                weight: 4,
-                opacity: 0.7,
-                smoothFactor: 1
-            }).addTo(map);
-            
-            // Add arrow decorators to show direction
-            const arrowDecorator = L.polylineDecorator(routeLine, {
-                patterns: [
-                    {
-                        offset: '10%',
-                        repeat: 50,
-                        symbol: L.Symbol.arrowHead({
-                            pixelSize: 12,
-                            polygon: false,
-                            pathOptions: {
-                                stroke: true,
-                                weight: 3,
-                                color: '#667eea',
-                                opacity: 0.8
-                            }
-                        })
-                    }
-                ]
-            }).addTo(map);
+            // Store markers for click handling
+            window.canvassingMarkers = [];
             
             // Add numbered markers for each stop
-            const markers = [];
             optimizedRoute.forEach((v, idx) => {
                 // Create numbered marker
                 const numberIcon = L.divIcon({
@@ -552,36 +554,125 @@
                         ${v.address}<br>
                         <span style="color: #666;">Party: ${v.party_affinity}</span><br>
                         <span style="color: #999; font-size: 11px;">Age: ${v.age || 'N/A'}</span>
-                    `);
+                    `)
+                    .addTo(map);
                 
-                if (typeof markerClusterGroup !== 'undefined' && markerClusterGroup) {
-                    markerClusterGroup.addLayer(marker);
-                }
-                markers.push(marker);
+                window.canvassingMarkers.push(marker);
             });
             
-            // Fit map to show all markers
-            if (markers.length > 0) {
-                const group = L.featureGroup(markers);
+            console.log(`Created ${window.canvassingMarkers.length} markers for canvassing route`);
+            
+            // Create routing with street-based navigation
+            if (typeof L.Routing !== 'undefined' && L.Routing.control) {
+                const waypoints = optimizedRoute.map(v => L.latLng(v.lat, v.lng));
+                
+                console.log(`Creating route with ${waypoints.length} waypoints`);
+                
+                window.routingControl = L.Routing.control({
+                    waypoints: waypoints,
+                    router: L.Routing.osrm({
+                        serviceUrl: 'https://router.project-osrm.org/route/v1'
+                    }),
+                    lineOptions: {
+                        styles: [{
+                            color: '#667eea',
+                            opacity: 0.8,
+                            weight: 5
+                        }],
+                        addWaypoints: false
+                    },
+                    show: false, // Hide the default instructions panel
+                    createMarker: function() { return null; }, // Don't create default markers
+                    fitSelectedRoutes: true,
+                    routeWhileDragging: false
+                }).addTo(map);
+                
+                // Add arrows to the route
+                window.routingControl.on('routesfound', function(e) {
+                    console.log('Route found:', e);
+                    const routes = e.routes;
+                    const route = routes[0];
+                    
+                    // Add arrow decorators if polylineDecorator is available
+                    if (typeof L.polylineDecorator !== 'undefined') {
+                        if (window.routeDecorator) {
+                            map.removeLayer(window.routeDecorator);
+                        }
+                        
+                        window.routeDecorator = L.polylineDecorator(route.coordinates, {
+                            patterns: [
+                                {
+                                    offset: 25,
+                                    repeat: 75,
+                                    symbol: L.Symbol.arrowHead({
+                                        pixelSize: 12,
+                                        polygon: false,
+                                        pathOptions: {
+                                            stroke: true,
+                                            weight: 3,
+                                            color: '#667eea',
+                                            opacity: 0.8
+                                        }
+                                    })
+                                }
+                            ]
+                        }).addTo(map);
+                    }
+                    
+                    // Calculate total distance
+                    const totalDistance = route.summary.totalDistance / 1609.34; // Convert meters to miles
+                    const totalTime = Math.ceil(route.summary.totalTime / 60); // Convert seconds to minutes
+                    
+                    // Create walk list panel
+                    createWalkListPanel(precinctName, optimizedRoute, totalDistance, totalTime);
+                });
+                
+                // Handle routing errors
+                window.routingControl.on('routingerror', function(e) {
+                    console.error('Routing error:', e);
+                    alert('Could not calculate route. Showing direct path instead.');
+                    
+                    // Fallback to simple polyline
+                    const routeCoords = optimizedRoute.map(v => [v.lat, v.lng]);
+                    const routeLine = L.polyline(routeCoords, {
+                        color: '#667eea',
+                        weight: 4,
+                        opacity: 0.7
+                    }).addTo(map);
+                    
+                    const totalDistance = calculateRouteDistance(optimizedRoute);
+                    const totalTime = Math.ceil(totalDistance * 20);
+                    
+                    // Fit map to show all markers
+                    const group = L.featureGroup(window.canvassingMarkers);
+                    map.fitBounds(group.getBounds().pad(0.1));
+                    
+                    createWalkListPanel(precinctName, optimizedRoute, totalDistance, totalTime);
+                });
+            } else {
+                console.log('Leaflet Routing Machine not available, using simple polyline');
+                // Fallback to simple polyline if routing not available
+                const routeCoords = optimizedRoute.map(v => [v.lat, v.lng]);
+                const routeLine = L.polyline(routeCoords, {
+                    color: '#667eea',
+                    weight: 4,
+                    opacity: 0.7
+                }).addTo(map);
+                
+                const totalDistance = calculateRouteDistance(optimizedRoute);
+                const totalTime = Math.ceil(totalDistance * 20);
+                
+                // Fit map to show all markers
+                const group = L.featureGroup(window.canvassingMarkers);
                 map.fitBounds(group.getBounds().pad(0.1));
+                
+                createWalkListPanel(precinctName, optimizedRoute, totalDistance, totalTime);
             }
-            
-            // Calculate total distance
-            const totalDistance = calculateRouteDistance(optimizedRoute);
-            
-            // Create walk list panel
-            createWalkListPanel(precinctName, optimizedRoute, totalDistance);
-            
-            // Show route info
-            alert(`Canvassing Route for Precinct ${precinctName}\n\n` +
-                  `${optimizedRoute.length} stops\n` +
-                  `Estimated distance: ${totalDistance.toFixed(2)} miles\n\n` +
-                  `Follow the numbered markers and blue arrows.\nSee the walk list panel on the right for details.`);
         }, 300);
     }
     
     // Create walk list panel
-    function createWalkListPanel(precinctName, route, totalDistance) {
+    function createWalkListPanel(precinctName, route, totalDistance, totalTime) {
         // Remove existing panel if any
         const existing = document.getElementById('walkListPanel');
         if (existing) existing.remove();
@@ -605,11 +696,11 @@
             <div class="walk-list-summary">
                 <div><strong>${route.length}</strong> stops</div>
                 <div><strong>${totalDistance.toFixed(2)}</strong> miles</div>
-                <div><strong>${Math.ceil(totalDistance * 20)}</strong> min walk</div>
+                <div><strong>${totalTime}</strong> min</div>
             </div>
             <div class="walk-list-content">
                 ${route.map((v, idx) => `
-                    <div class="walk-list-item" data-stop="${idx + 1}">
+                    <div class="walk-list-item" data-stop="${idx}">
                         <div class="walk-list-number">${idx + 1}</div>
                         <div class="walk-list-details">
                             <div class="walk-list-name">${v.name}</div>
@@ -633,11 +724,14 @@
         // Add click handlers to highlight markers
         document.querySelectorAll('.walk-list-item').forEach(item => {
             item.addEventListener('click', function() {
-                const stopNum = parseInt(this.dataset.stop);
-                const voter = route[stopNum - 1];
+                const stopIdx = parseInt(this.dataset.stop);
                 
                 // Pan to marker and open popup
-                map.setView([voter.lat, voter.lng], 18);
+                if (window.canvassingMarkers && window.canvassingMarkers[stopIdx]) {
+                    const marker = window.canvassingMarkers[stopIdx];
+                    map.setView(marker.getLatLng(), 18);
+                    marker.openPopup();
+                }
                 
                 // Highlight this item
                 document.querySelectorAll('.walk-list-item').forEach(i => i.classList.remove('active'));
