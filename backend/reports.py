@@ -135,7 +135,7 @@ def get_party_switchers(conn, county, election_date, direction='both'):
     }
 
 
-def get_non_voters(conn, county, election_date, precinct='all', history='all', party_affinity='all'):
+def get_non_voters(conn, county, election_date, precinct='all', history='all', party_affinity='all', sort_by='precinct'):
     """
     Generate turf cuts report of registered non-voters.
     
@@ -147,12 +147,46 @@ def get_non_voters(conn, county, election_date, precinct='all', history='all', p
     - Voting history score
     - Age
     - Party affinity (based on voting history)
+    - Coordinates for mapping
+    
+    sort_by options: 'precinct', 'turnout_asc', 'turnout_desc'
     """
+    # First, get precinct turnout data if sorting by turnout
+    precinct_turnout = {}
+    if sort_by in ['turnout_asc', 'turnout_desc']:
+        turnout_rows = conn.execute("""
+            SELECT 
+                v.precinct,
+                COUNT(DISTINCT v.vuid) as registered,
+                COUNT(DISTINCT CASE WHEN ve.vuid IS NOT NULL THEN ve.vuid END) as voted
+            FROM voters v
+            LEFT JOIN voter_elections ve ON v.vuid = ve.vuid 
+                AND ve.election_date = ?
+                AND ve.party_voted IN ('Democratic', 'Republican')
+            WHERE v.county = ?
+              AND v.precinct IS NOT NULL
+              AND v.precinct != ''
+            GROUP BY v.precinct
+        """, [election_date, county]).fetchall()
+        
+        for row in turnout_rows:
+            registered = row['registered']
+            voted = row['voted']
+            turnout_pct = (voted / registered * 100) if registered > 0 else 0
+            precinct_turnout[row['precinct']] = {
+                'registered': registered,
+                'voted': voted,
+                'turnout_pct': round(turnout_pct, 1)
+            }
+    
     query = """
         SELECT 
+            v.vuid,
             v.firstname || ' ' || v.lastname as name,
             v.address,
             v.precinct,
+            v.lat,
+            v.lng,
             (SELECT MAX(ve2.election_date) 
              FROM voter_elections ve2 
              WHERE ve2.vuid = v.vuid 
@@ -172,6 +206,7 @@ def get_non_voters(conn, county, election_date, precinct='all', history='all', p
             (? - v.birth_year) as age
         FROM voters v
         WHERE v.county = ?
+          AND v.geocoded = 1
           AND NOT EXISTS (
               SELECT 1 FROM voter_elections ve
               WHERE ve.vuid = v.vuid
@@ -231,17 +266,34 @@ def get_non_voters(conn, county, election_date, precinct='all', history='all', p
         # Calculate voting score (0-10 based on participation)
         voting_score = min(10, vote_count * 2)
         
+        voter_precinct = row['precinct'] or 'N/A'
+        turnout_data = precinct_turnout.get(voter_precinct, {})
+        
         non_voters.append({
+            'vuid': row['vuid'],
             'name': row['name'],
             'address': row['address'] or 'N/A',
-            'precinct': row['precinct'] or 'N/A',
+            'precinct': voter_precinct,
+            'precinct_turnout': turnout_data.get('turnout_pct', 0),
+            'precinct_registered': turnout_data.get('registered', 0),
+            'precinct_voted': turnout_data.get('voted', 0),
             'last_voted': row['last_voted'] or 'Never',
             'voting_score': voting_score,
             'age': row['age'] if row['age'] and row['age'] > 0 else None,
             'party_affinity': affinity,
             'dem_history': dem_count,
-            'rep_history': rep_count
+            'rep_history': rep_count,
+            'lat': row['lat'],
+            'lng': row['lng']
         })
+    
+    # Sort based on sort_by parameter
+    if sort_by == 'turnout_asc':
+        non_voters.sort(key=lambda x: (x['precinct_turnout'], x['precinct'], x['name']))
+    elif sort_by == 'turnout_desc':
+        non_voters.sort(key=lambda x: (-x['precinct_turnout'], x['precinct'], x['name']))
+    else:
+        non_voters.sort(key=lambda x: (x['precinct'], x['name']))
     
     return non_voters
 

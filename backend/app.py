@@ -4151,9 +4151,10 @@ def api_non_voters():
         precinct = request.args.get('precinct', 'all')
         history = request.args.get('history', 'all')
         party_affinity = request.args.get('party_affinity', 'all')
+        sort_by = request.args.get('sort_by', 'precinct')
         
         with db.get_db() as conn:
-            non_voters = get_non_voters(conn, county, election_date, precinct, history, party_affinity)
+            non_voters = get_non_voters(conn, county, election_date, precinct, history, party_affinity, sort_by)
         
         return jsonify({
             'success': True,

@@ -256,10 +256,19 @@
         const precinct = document.getElementById('turfPrecinct')?.value || 'all';
         const partyAffinity = document.getElementById('turfPartyAffinity')?.value || 'all';
         const history = document.getElementById('turfHistory')?.value || 'all';
+        const sortBy = document.getElementById('turfSortBy')?.value || 'precinct';
         const electionDate = currentDataset?.election_date || '2026-03-03';
         
         // Add filters HTML
         document.getElementById('reportFilters').innerHTML = `
+            <div class="report-filter-group">
+                <label>Sort By</label>
+                <select id="turfSortBy">
+                    <option value="precinct">Precinct Name</option>
+                    <option value="turnout_asc">Lowest Turnout First</option>
+                    <option value="turnout_desc">Highest Turnout First</option>
+                </select>
+            </div>
             <div class="report-filter-group">
                 <label>Precinct</label>
                 <select id="turfPrecinct">
@@ -285,6 +294,9 @@
         `;
         
         // Restore selected values
+        if (document.getElementById('turfSortBy')) {
+            document.getElementById('turfSortBy').value = sortBy;
+        }
         if (document.getElementById('turfPrecinct')) {
             document.getElementById('turfPrecinct').value = precinct;
         }
@@ -296,11 +308,12 @@
         }
         
         // Add event listeners AFTER setting values
+        document.getElementById('turfSortBy')?.addEventListener('change', () => loadTurfCuts());
         document.getElementById('turfPrecinct')?.addEventListener('change', () => loadTurfCuts());
         document.getElementById('turfPartyAffinity')?.addEventListener('change', () => loadTurfCuts());
         document.getElementById('turfHistory')?.addEventListener('change', () => loadTurfCuts());
         
-        const response = await fetch(`/api/reports/non-voters?county=${encodeURIComponent(county)}&election_date=${encodeURIComponent(electionDate)}&precinct=${precinct}&history=${history}&party_affinity=${partyAffinity}`);
+        const response = await fetch(`/api/reports/non-voters?county=${encodeURIComponent(county)}&election_date=${encodeURIComponent(electionDate)}&precinct=${precinct}&history=${history}&party_affinity=${partyAffinity}&sort_by=${sortBy}`);
         const data = await response.json();
         
         if (!data.success) {
@@ -309,53 +322,145 @@
         
         currentReportData = data.non_voters;
         
+        // Group by precinct
+        const byPrecinct = {};
+        data.non_voters.forEach(v => {
+            if (!byPrecinct[v.precinct]) {
+                byPrecinct[v.precinct] = {
+                    voters: [],
+                    turnout: v.precinct_turnout,
+                    registered: v.precinct_registered,
+                    voted: v.precinct_voted
+                };
+            }
+            byPrecinct[v.precinct].voters.push(v);
+        });
+        
         let html = `
             <div class="report-summary">
                 <div class="report-summary-item">
                     <div class="label">Total Non-Voters</div>
                     <div class="value">${data.non_voters.length}</div>
                 </div>
-            </div>
-            <table class="report-table">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Address</th>
-                        <th>Precinct</th>
-                        <th>Party Affinity</th>
-                        <th>Last Voted</th>
-                        <th>Voting Score</th>
-                        <th>Age</th>
-                    </tr>
-                </thead>
-                <tbody>`;
+                <div class="report-summary-item">
+                    <div class="label">Precincts</div>
+                    <div class="value">${Object.keys(byPrecinct).length}</div>
+                </div>
+            </div>`;
         
-        data.non_voters.forEach(v => {
-            let affinityColor = '#666';
-            let affinityText = v.party_affinity;
-            
-            if (v.party_affinity === 'Democratic') {
-                affinityColor = '#0064FF';
-                affinityText = `D (${v.dem_history})`;
-            } else if (v.party_affinity === 'Republican') {
-                affinityColor = '#E6003C';
-                affinityText = `R (${v.rep_history})`;
-            } else if (v.party_affinity === 'Mixed') {
-                affinityColor = '#6A1B9A';
-                affinityText = `Mixed (${v.dem_history}D/${v.rep_history}R)`;
-            }
+        // Display by precinct
+        for (const [precinctName, precinctData] of Object.entries(byPrecinct)) {
+            const turnoutInfo = precinctData.turnout > 0 
+                ? `${precinctData.turnout}% turnout (${precinctData.voted}/${precinctData.registered})`
+                : '';
             
             html += `
-                <tr>
-                    <td><strong>${v.name}</strong></td>
-                    <td>${v.address}</td>
-                    <td>${v.precinct}</td>
-                    <td style="color: ${affinityColor}; font-weight: 600;">${affinityText}</td>
-                    <td>${v.last_voted}</td>
-                    <td>${v.voting_score}/10</td>
-                    <td>${v.age || 'N/A'}</td>
-                </tr>`;
+                <div class="precinct-section">
+                    <div class="precinct-header">
+                        <h4>Precinct ${precinctName} <span style="color: #666; font-size: 14px; font-weight: normal;">${turnoutInfo}</span></h4>
+                        <button class="btn-view-on-map" data-precinct="${precinctName}" style="background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                            <i class="fas fa-map-marked-alt"></i> View ${precinctData.voters.length} on Map
+                        </button>
+                    </div>
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Address</th>
+                                <th>Party Affinity</th>
+                                <th>Last Voted</th>
+                                <th>Score</th>
+                                <th>Age</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+            
+            precinctData.voters.forEach(v => {
+                let affinityColor = '#666';
+                let affinityText = v.party_affinity;
+                
+                if (v.party_affinity === 'Democratic') {
+                    affinityColor = '#0064FF';
+                    affinityText = `D (${v.dem_history})`;
+                } else if (v.party_affinity === 'Republican') {
+                    affinityColor = '#E6003C';
+                    affinityText = `R (${v.rep_history})`;
+                } else if (v.party_affinity === 'Mixed') {
+                    affinityColor = '#6A1B9A';
+                    affinityText = `Mixed (${v.dem_history}D/${v.rep_history}R)`;
+                }
+                
+                html += `
+                    <tr>
+                        <td><strong>${v.name}</strong></td>
+                        <td>${v.address}</td>
+                        <td style="color: ${affinityColor}; font-weight: 600;">${affinityText}</td>
+                        <td>${v.last_voted}</td>
+                        <td>${v.voting_score}/10</td>
+                        <td>${v.age || 'N/A'}</td>
+                    </tr>`;
+            });
+            
+            html += '</tbody></table></div>';
+        }
+        
+        document.getElementById('reportContent').innerHTML = html;
+        
+        // Add click handlers for "View on Map" buttons
+        document.querySelectorAll('.btn-view-on-map').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const precinctName = this.dataset.precinct;
+                showPrecinctOnMap(precinctName, byPrecinct[precinctName].voters);
+            });
         });
+    }
+    
+    function showPrecinctOnMap(precinctName, voters) {
+        // Close the reports modal
+        closeReportsModal();
+        
+        // Filter voters with valid coordinates
+        const validVoters = voters.filter(v => v.lat && v.lng);
+        
+        if (validVoters.length === 0) {
+            alert('No geocoded addresses found for this precinct');
+            return;
+        }
+        
+        // Clear existing markers
+        if (typeof clearMapMarkers === 'function') {
+            clearMapMarkers();
+        }
+        
+        // Add star markers for each address
+        if (typeof L !== 'undefined' && window.map) {
+            const starIcon = L.divIcon({
+                html: '<i class="fas fa-star" style="color: #FFD700; font-size: 24px; text-shadow: 0 0 3px #000;"></i>',
+                className: 'star-marker',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+            
+            const markers = [];
+            validVoters.forEach((v, idx) => {
+                const marker = L.marker([v.lat, v.lng], { icon: starIcon })
+                    .bindPopup(`
+                        <strong>${idx + 1}. ${v.name}</strong><br>
+                        ${v.address}<br>
+                        <span style="color: #666;">Party: ${v.party_affinity}</span>
+                    `);
+                marker.addTo(window.map);
+                markers.push(marker);
+            });
+            
+            // Fit map to show all markers
+            const group = L.featureGroup(markers);
+            window.map.fitBounds(group.getBounds().pad(0.1));
+            
+            // Show route info
+            alert(`Showing ${validVoters.length} addresses in Precinct ${precinctName}.\n\nMarkers are numbered in the most efficient walking order.`);
+        }
+    }
         
         html += '</tbody></table>';
         document.getElementById('reportContent').innerHTML = html;
