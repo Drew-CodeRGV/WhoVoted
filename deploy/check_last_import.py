@@ -55,9 +55,9 @@ conn.row_factory = sqlite3.Row
 result = conn.execute("""
     SELECT 
         COUNT(*) as total,
-        COUNT(DISTINCT vuid) as unique_vuids,
-        SUM(CASE WHEN party_voted = 'Democratic' THEN 1 ELSE 0 END) as dem,
-        SUM(CASE WHEN party_voted = 'Republican' THEN 1 ELSE 0 END) as rep
+        COUNT(DISTINCT ve.vuid) as unique_vuids,
+        SUM(CASE WHEN ve.party_voted = 'Democratic' THEN 1 ELSE 0 END) as dem,
+        SUM(CASE WHEN ve.party_voted = 'Republican' THEN 1 ELSE 0 END) as rep
     FROM voter_elections ve
     JOIN voters v ON ve.vuid = v.vuid
     WHERE v.county = 'Hidalgo'
