@@ -463,9 +463,9 @@
             return;
         }
         
-        // Clear existing markers
-        if (typeof clearMapMarkers === 'function') {
-            clearMapMarkers();
+        // Clear existing markers (but not the map itself)
+        if (window.markerClusterGroup) {
+            window.markerClusterGroup.clearLayers();
         }
         
         // Add star markers for each address
@@ -485,13 +485,18 @@
                         ${v.address}<br>
                         <span style="color: #666;">Party: ${v.party_affinity}</span>
                     `);
-                marker.addTo(window.map);
+                
+                if (window.markerClusterGroup) {
+                    window.markerClusterGroup.addLayer(marker);
+                }
                 markers.push(marker);
             });
             
             // Fit map to show all markers
-            const group = L.featureGroup(markers);
-            window.map.fitBounds(group.getBounds().pad(0.1));
+            if (markers.length > 0) {
+                const group = L.featureGroup(markers);
+                window.map.fitBounds(group.getBounds().pad(0.1));
+            }
             
             // Show route info
             alert(`Showing ${validVoters.length} addresses in Precinct ${precinctName}.\n\nMarkers are numbered in the most efficient walking order.`);
