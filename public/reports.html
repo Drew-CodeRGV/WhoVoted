@@ -286,6 +286,8 @@
     display: flex;
     gap: 15px;
     flex-wrap: wrap;
+    position: relative;
+    z-index: 10;
 }
 
 .report-filter-group {
@@ -307,6 +309,18 @@
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 14px;
+    background: white;
+    cursor: pointer;
+    min-width: 180px;
+    position: relative;
+    z-index: 1;
+}
+
+.report-filter-group select:focus,
+.report-filter-group input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .report-content {
