@@ -85,48 +85,58 @@ async function loadCountyOverview(electionDate, votingMethod) {
             if (layer && map && map.hasLayer(layer)) map.removeLayer(layer);
         });
 
-        // Create the traditional heatmap with county-level data
+        // Create the traditional heatmap with county-level data (kept for compatibility)
         heatmapLayer = L.heatLayer(heatData, {
-            radius: 40,
-            blur: 50,
+            radius: 50,
+            blur: 40,
             maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
             max: 1.0,
-            minOpacity: 0.2,
-            maxOpacity: 0.6
+            minOpacity: 0.3,
+            maxOpacity: 0.8
         });
 
-        // Democratic heatmap
+        // Democratic heatmap - VIVID BLUE
         heatmapLayerDemocratic = L.heatLayer(heatDataDem, {
-            radius: 40, blur: 50,
+            radius: 50, 
+            blur: 40,
             maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
-            max: 1.0, minOpacity: 0.2, maxOpacity: 0.6,
+            max: 1.0, 
+            minOpacity: 0.4, 
+            maxOpacity: 0.85,
             gradient: {
-                0.0: 'rgba(30, 144, 255, 0)', 0.2: 'rgba(30, 144, 255, 0.3)',
-                0.5: 'rgba(30, 144, 255, 0.6)', 0.8: 'rgba(30, 144, 255, 0.8)',
-                1.0: 'rgba(30, 144, 255, 1.0)'
+                0.0: 'rgba(0, 100, 255, 0)',
+                0.2: 'rgba(0, 120, 255, 0.5)',
+                0.4: 'rgba(0, 140, 255, 0.65)',
+                0.6: 'rgba(0, 160, 255, 0.75)',
+                0.8: 'rgba(0, 180, 255, 0.85)',
+                1.0: 'rgba(0, 100, 255, 0.95)'
             }
         });
 
-        // Republican heatmap
+        // Republican heatmap - VIVID RED
         heatmapLayerRepublican = L.heatLayer(heatDataRep, {
-            radius: 40, blur: 50,
+            radius: 50, 
+            blur: 40,
             maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
-            max: 1.0, minOpacity: 0.2, maxOpacity: 0.6,
+            max: 1.0, 
+            minOpacity: 0.4, 
+            maxOpacity: 0.85,
             gradient: {
-                0.0: 'rgba(220, 20, 60, 0)', 0.2: 'rgba(220, 20, 60, 0.3)',
-                0.5: 'rgba(220, 20, 60, 0.6)', 0.8: 'rgba(220, 20, 60, 0.8)',
-                1.0: 'rgba(220, 20, 60, 1.0)'
+                0.0: 'rgba(255, 0, 50, 0)',
+                0.2: 'rgba(255, 20, 60, 0.5)',
+                0.4: 'rgba(255, 40, 70, 0.65)',
+                0.6: 'rgba(255, 60, 80, 0.75)',
+                0.8: 'rgba(255, 80, 90, 0.85)',
+                1.0: 'rgba(255, 0, 50, 0.95)'
             }
         });
 
-        // Show the active heatmap mode
-        const mode = window.heatmapMode || 'traditional';
-        if (mode === 'party') {
-            heatmapLayerDemocratic.addTo(map);
-            heatmapLayerRepublican.addTo(map);
-        } else {
-            heatmapLayer.addTo(map);
-        }
+        // DEFAULT: Show red vs blue party heatmap for county overview
+        heatmapLayerDemocratic.addTo(map);
+        heatmapLayerRepublican.addTo(map);
+        
+        // Set the mode so UI controls know what's active
+        window.heatmapMode = 'party';
 
         _countyOverviewLoaded = true;
 
