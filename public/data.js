@@ -83,10 +83,10 @@ async function loadCountyOverview(electionDate, votingMethod) {
             const demMargin = demShare; // 0 to 1
             const repMargin = repShare; // 0 to 1
             
-            // Amplify intensity based on margin - counties with bigger margins show more vividly
-            // Use exponential scaling to emphasize dominance
-            const demIntensity = baseIntensity * Math.pow(demMargin, 0.7); // 0.7 exponent for moderate emphasis
-            const repIntensity = baseIntensity * Math.pow(repMargin, 0.7);
+            // Amplify intensity based on margin - counties with bigger margins show darker/more vivid
+            // Use stronger exponential scaling (0.5 instead of 0.7) for more dramatic color variation
+            const demIntensity = baseIntensity * Math.pow(demMargin, 0.5);
+            const repIntensity = baseIntensity * Math.pow(repMargin, 0.5);
             
             heatData.push([c.lat, c.lng, baseIntensity]);
             
@@ -117,39 +117,39 @@ async function loadCountyOverview(electionDate, votingMethod) {
             maxOpacity: 0.8
         });
 
-        // Democratic heatmap - BOLD DARK BLUE
+        // Democratic heatmap - GRADIENT FROM LIGHT TO DARK BLUE based on margin
         heatmapLayerDemocratic = L.heatLayer(heatDataDem, {
             radius: 55, 
             blur: 35,
             maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
             max: 1.0, 
-            minOpacity: 0.55, 
+            minOpacity: 0.5, 
             maxOpacity: 0.95,
             gradient: {
-                0.0: 'rgba(0, 80, 200, 0)',
-                0.2: 'rgba(0, 90, 220, 0.6)',
-                0.4: 'rgba(0, 100, 240, 0.75)',
-                0.6: 'rgba(0, 110, 255, 0.85)',
-                0.8: 'rgba(0, 100, 255, 0.92)',
-                1.0: 'rgba(0, 90, 230, 1.0)'
+                0.0: 'rgba(173, 216, 255, 0)',      // Very light blue (toss-up)
+                0.2: 'rgba(100, 180, 255, 0.6)',    // Light blue (lean)
+                0.4: 'rgba(50, 140, 255, 0.75)',    // Medium blue (moderate)
+                0.6: 'rgba(0, 100, 230, 0.85)',     // Dark blue (strong)
+                0.8: 'rgba(0, 70, 180, 0.92)',      // Darker blue (landslide)
+                1.0: 'rgba(0, 40, 120, 1.0)'        // Deep navy (overwhelming)
             }
         });
 
-        // Republican heatmap - BOLD DARK RED
+        // Republican heatmap - GRADIENT FROM LIGHT TO DARK RED based on margin
         heatmapLayerRepublican = L.heatLayer(heatDataRep, {
             radius: 55, 
             blur: 35,
             maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
             max: 1.0, 
-            minOpacity: 0.55, 
+            minOpacity: 0.5, 
             maxOpacity: 0.95,
             gradient: {
-                0.0: 'rgba(200, 0, 40, 0)',
-                0.2: 'rgba(220, 0, 50, 0.6)',
-                0.4: 'rgba(240, 0, 60, 0.75)',
-                0.6: 'rgba(255, 20, 70, 0.85)',
-                0.8: 'rgba(255, 30, 80, 0.92)',
-                1.0: 'rgba(230, 0, 60, 1.0)'
+                0.0: 'rgba(255, 173, 173, 0)',      // Very light red/pink (toss-up)
+                0.2: 'rgba(255, 100, 100, 0.6)',    // Light red (lean)
+                0.4: 'rgba(255, 50, 50, 0.75)',     // Medium red (moderate)
+                0.6: 'rgba(230, 0, 40, 0.85)',      // Dark red (strong)
+                0.8: 'rgba(180, 0, 30, 0.92)',      // Darker red (landslide)
+                1.0: 'rgba(120, 0, 20, 1.0)'        // Deep crimson (overwhelming)
             }
         });
 
@@ -231,31 +231,29 @@ async function loadCountyOverview(electionDate, votingMethod) {
                 strokeColor = '#AAAAAA';
             }
             
-            // Create circle marker with color based on margin
+            // Create invisible circle marker for popup functionality only
             const marker = L.circleMarker([c.lat, c.lng], {
-                radius: 10,
+                radius: 15,
                 fillColor: fillColor,
                 color: strokeColor,
-                weight: 2,
-                opacity: 0.8,
-                fillOpacity: 0.7
+                weight: 0,
+                opacity: 0,
+                fillOpacity: 0
             });
             
-            // Highlight on hover
+            // Show subtle marker on hover
             marker.on('mouseover', function() {
                 this.setStyle({ 
-                    opacity: 1, 
-                    fillOpacity: 0.9,
-                    weight: 3,
-                    radius: 12
+                    opacity: 0.4, 
+                    fillOpacity: 0.3,
+                    weight: 2
                 });
             });
             marker.on('mouseout', function() {
                 this.setStyle({ 
-                    opacity: 0.8, 
-                    fillOpacity: 0.7,
-                    weight: 2,
-                    radius: 10
+                    opacity: 0, 
+                    fillOpacity: 0,
+                    weight: 0
                 });
             });
             
