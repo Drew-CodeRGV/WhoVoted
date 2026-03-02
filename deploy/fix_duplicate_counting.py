@@ -44,11 +44,11 @@ def fix_duplicates():
         
         print(f"\nVUID {vuid}: {len(records)} records")
         for r in records:
-            print(f"  rowid={r['rowid']}: {r['party_voted']} via {r['voting_method']}")
+            print(f"  rowid={r[0]}: {r[2]} via {r[1]}")
         
         # Keep first record, delete the rest
-        keep_rowid = records[0]['rowid']
-        delete_rowids = [r['rowid'] for r in records[1:]]
+        keep_rowid = records[0][0]
+        delete_rowids = [r[0] for r in records[1:]]
         
         print(f"  → Keeping rowid={keep_rowid}, deleting {len(delete_rowids)} duplicate(s)")
         
