@@ -1523,12 +1523,17 @@ def district_stats():
             safe_name = district_name.replace(' ', '_').replace('/', '_')
             cache_file = Path(f'/opt/whovoted/public/cache/district_report_{safe_name}.json')
             if cache_file.exists():
-                logger.info(f"District stats cache HIT for {district_name}")
                 with open(cache_file, 'r') as f:
                     cached_data = json.load(f)
-                    # Add success flag for API compatibility
-                    cached_data['success'] = True
-                    return jsonify(cached_data)
+                    # Verify cache has all required fields (some old caches are incomplete)
+                    required_fields = ['age_groups', 'new_age_gender', 'female', 'male', 'total_2024']
+                    if all(field in cached_data for field in required_fields):
+                        logger.info(f"District stats cache HIT for {district_name}")
+                        # Add success flag for API compatibility
+                        cached_data['success'] = True
+                        return jsonify(cached_data)
+                    else:
+                        logger.warning(f"District stats cache INCOMPLETE for {district_name} - missing fields, computing live")
         
         # Fallback: compute live (slower)
         logger.warning(f"District stats cache miss for {district_id} - computing live")
