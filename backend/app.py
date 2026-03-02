@@ -1449,12 +1449,44 @@ def _point_in_feature(lng, lat, geometry):
     return False
 
 
-def _lookup_vuids_by_polygon(conn, geometry, election_date):
+def _lookup_vuids_by_polygon(conn, geometry, election_date, district_id=None):
     """Find all VUIDs for voters whose geocoded location falls inside a polygon.
     
-    Uses bounding-box pre-filter in SQL, then Python point-in-polygon refinement.
+    OPTIMIZED: Uses precinct-based district columns for instant lookups when available.
+    Falls back to bounding-box + point-in-polygon for unmapped voters.
     Works across ALL counties — not limited to the currently loaded map data.
     """
+    vuids = []
+    
+    # FAST PATH: Use district columns if district_id provided
+    if district_id:
+        # Determine which district column to use based on district_id format
+        district_col = None
+        if district_id.startswith('TX-') and len(district_id) <= 5:
+            district_col = 'congressional_district'
+        elif district_id.startswith('HD-'):
+            district_col = 'state_house_district'
+        elif district_id.startswith('CC-'):
+            district_col = 'commissioner_district'
+        
+        if district_col:
+            # Query voters by district column (instant!)
+            district_rows = conn.execute(f"""
+                SELECT DISTINCT ve.vuid FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                WHERE ve.election_date = ?
+                  AND v.{district_col} = ?
+                  AND ve.party_voted != '' AND ve.party_voted IS NOT NULL
+            """, [election_date, district_id]).fetchall()
+            
+            vuids = [r['vuid'] for r in district_rows]
+            logger.info(f"District column lookup ({district_col}={district_id}): found {len(vuids)} voters")
+            
+            # If we got results from district column, we're done!
+            if vuids:
+                return vuids
+    
+    # FALLBACK: Traditional point-in-polygon for unmapped voters or when no district_id
     coords = geometry.get('coordinates', [])
     gtype = geometry.get('type', '')
     
@@ -1486,7 +1518,6 @@ def _lookup_vuids_by_polygon(conn, geometry, election_date):
     """, [election_date, min_lat, max_lat, min_lng, max_lng]).fetchall()
     
     # Refine with point-in-polygon
-    vuids = []
     for r in rows:
         if _point_in_feature(r['lng'], r['lat'], geometry):
             vuids.append(r['vuid'])
@@ -1549,7 +1580,7 @@ def district_stats():
             election_date = data.get('election_date', request.args.get('election_date', '2026-03-03'))
 
             if not vuids and polygon:
-                vuids = _lookup_vuids_by_polygon(conn, polygon, election_date)
+                vuids = _lookup_vuids_by_polygon(conn, polygon, election_date, district_id=district_id)
             elif not vuids and coords:
                 vuids = _lookup_vuids_by_coords(conn, coords, election_date)
         else:
