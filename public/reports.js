@@ -497,10 +497,6 @@
             alert(`Showing ${validVoters.length} addresses in Precinct ${precinctName}.\n\nMarkers are numbered in the most efficient walking order.`);
         }
     }
-        
-        html += '</tbody></table>';
-        document.getElementById('reportContent').innerHTML = html;
-    }
     
     async function loadNewVoters() {
         const county = selectedCountyFilter || 'Hidalgo';
