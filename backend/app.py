@@ -1510,14 +1510,20 @@ def district_stats():
     try:
         # Check for pre-computed cache file first (instant response)
         district_id = request.args.get('district_id', '')
-        if not district_id and request.method == 'POST':
+        district_name = request.args.get('district_name', '')
+        if request.method == 'POST':
             data = request.get_json() or {}
-            district_id = data.get('district_id', '')
+            if not district_id:
+                district_id = data.get('district_id', '')
+            if not district_name:
+                district_name = data.get('district_name', '')
         
-        if district_id:
-            safe_name = district_id.replace(' ', '_').replace('/', '_')
+        # Use district_name for cache lookup (matches how cache files are generated)
+        if district_name:
+            safe_name = district_name.replace(' ', '_').replace('/', '_')
             cache_file = Path(f'/opt/whovoted/public/cache/district_report_{safe_name}.json')
             if cache_file.exists():
+                logger.info(f"District stats cache HIT for {district_name}")
                 with open(cache_file, 'r') as f:
                     cached_data = json.load(f)
                     # Add success flag for API compatibility

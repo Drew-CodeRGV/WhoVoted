@@ -193,6 +193,7 @@
         try {
             const body = {
                 district_id: props.district_id,
+                district_name: props.district_name,
                 election_date: '2026-03-03',
                 polygon: feature.geometry
             };
@@ -228,6 +229,7 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 district_id: props.district_id,
+                                district_name: oldFeature.properties.district_name,
                                 election_date: '2026-03-03',
                                 polygon: oldFeature.geometry
                             })
