@@ -75,6 +75,7 @@ COUNTY_CENTROIDS = {
     'Delta': (33.4, -95.65),
     'Denton': (33.2, -97.1),
     'DeWitt': (29.05, -97.4),
+    'Dewitt': (29.05, -97.4),  # Alternate capitalization
     'Dickens': (33.65, -100.8),
     'Dimmit': (28.45, -99.75),
     'Donley': (35.0, -100.8),
@@ -155,6 +156,7 @@ COUNTY_CENTROIDS = {
     'Lamb': (34.05, -102.35),
     'Lampasas': (31.2, -98.2),
     'La Salle': (28.35, -99.1),
+    'Lasalle': (28.35, -99.1),  # Alternate capitalization
     'Lavaca': (29.4, -96.9),
     'Lee': (30.3, -96.95),
     'Leon': (31.3, -96.0),
@@ -167,8 +169,11 @@ COUNTY_CENTROIDS = {
     'Lubbock': (33.6, -101.85),
     'Lynn': (33.2, -101.8),
     'McCulloch': (31.2, -99.35),
+    'Mcculloch': (31.2, -99.35),  # Alternate capitalization
     'McLennan': (31.55, -97.2),
+    'Mclennan': (31.55, -97.2),  # Alternate capitalization
     'McMullen': (28.35, -98.55),
+    'Mcmullen': (28.35, -98.55),  # Alternate capitalization
     'Madison': (30.95, -95.9),
     'Marion': (32.8, -94.35),
     'Martin': (32.3, -101.95),
