@@ -117,39 +117,39 @@ async function loadCountyOverview(electionDate, votingMethod) {
             maxOpacity: 0.8
         });
 
-        // Democratic heatmap - VIVID BLUE
+        // Democratic heatmap - BOLD DARK BLUE
         heatmapLayerDemocratic = L.heatLayer(heatDataDem, {
-            radius: 50, 
-            blur: 40,
+            radius: 55, 
+            blur: 35,
             maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
             max: 1.0, 
-            minOpacity: 0.4, 
-            maxOpacity: 0.85,
+            minOpacity: 0.55, 
+            maxOpacity: 0.95,
             gradient: {
-                0.0: 'rgba(0, 100, 255, 0)',
-                0.2: 'rgba(0, 120, 255, 0.5)',
-                0.4: 'rgba(0, 140, 255, 0.65)',
-                0.6: 'rgba(0, 160, 255, 0.75)',
-                0.8: 'rgba(0, 180, 255, 0.85)',
-                1.0: 'rgba(0, 100, 255, 0.95)'
+                0.0: 'rgba(0, 80, 200, 0)',
+                0.2: 'rgba(0, 90, 220, 0.6)',
+                0.4: 'rgba(0, 100, 240, 0.75)',
+                0.6: 'rgba(0, 110, 255, 0.85)',
+                0.8: 'rgba(0, 100, 255, 0.92)',
+                1.0: 'rgba(0, 90, 230, 1.0)'
             }
         });
 
-        // Republican heatmap - VIVID RED
+        // Republican heatmap - BOLD DARK RED
         heatmapLayerRepublican = L.heatLayer(heatDataRep, {
-            radius: 50, 
-            blur: 40,
+            radius: 55, 
+            blur: 35,
             maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
             max: 1.0, 
-            minOpacity: 0.4, 
-            maxOpacity: 0.85,
+            minOpacity: 0.55, 
+            maxOpacity: 0.95,
             gradient: {
-                0.0: 'rgba(255, 0, 50, 0)',
-                0.2: 'rgba(255, 20, 60, 0.5)',
-                0.4: 'rgba(255, 40, 70, 0.65)',
-                0.6: 'rgba(255, 60, 80, 0.75)',
-                0.8: 'rgba(255, 80, 90, 0.85)',
-                1.0: 'rgba(255, 0, 50, 0.95)'
+                0.0: 'rgba(200, 0, 40, 0)',
+                0.2: 'rgba(220, 0, 50, 0.6)',
+                0.4: 'rgba(240, 0, 60, 0.75)',
+                0.6: 'rgba(255, 20, 70, 0.85)',
+                0.8: 'rgba(255, 30, 80, 0.92)',
+                1.0: 'rgba(230, 0, 60, 1.0)'
             }
         });
 
