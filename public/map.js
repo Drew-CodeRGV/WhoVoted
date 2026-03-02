@@ -44,7 +44,7 @@ function initMap() {
     });
     
     // Initialize heatmap layers
-    // Traditional heatmap (single color)
+    // Traditional heatmap (rainbow gradient for turnout density)
     heatmapLayer = L.heatLayer([], {
         radius: 25,
         blur: 35,
@@ -52,22 +52,24 @@ function initMap() {
         max: 1.0,
         minOpacity: 0.2,
         maxOpacity: 0.6
+        // Uses default rainbow gradient: blue → cyan → green → yellow → orange → red
     });
     
-    // Party-colored heatmaps
+    // Party-colored heatmaps - VIBRANT RED/BLUE matching county overview
     heatmapLayerDemocratic = L.heatLayer([], {
         radius: 25,
         blur: 35,
         maxZoom: config.HEATMAP_MAX_ZOOM,
         max: 1.0,
-        minOpacity: 0.2,
-        maxOpacity: 0.6,
+        minOpacity: 0.4,
+        maxOpacity: 0.85,
         gradient: {
-            0.0: 'rgba(30, 144, 255, 0)',      // Transparent blue
-            0.2: 'rgba(30, 144, 255, 0.3)',    // Light blue
-            0.5: 'rgba(30, 144, 255, 0.6)',    // Medium blue
-            0.8: 'rgba(30, 144, 255, 0.8)',    // Strong blue
-            1.0: 'rgba(30, 144, 255, 1.0)'     // Full blue
+            0.0: 'rgba(173, 216, 255, 0)',      // Very light blue
+            0.2: 'rgba(100, 180, 255, 0.6)',    // Light blue
+            0.4: 'rgba(50, 140, 255, 0.75)',    // Medium blue
+            0.6: 'rgba(0, 100, 255, 0.85)',     // Bright blue
+            0.8: 'rgba(0, 70, 220, 0.92)',      // Bright dark blue
+            1.0: 'rgba(0, 50, 200, 1.0)'        // Deep bright blue
         }
     });
     
@@ -76,14 +78,15 @@ function initMap() {
         blur: 35,
         maxZoom: config.HEATMAP_MAX_ZOOM,
         max: 1.0,
-        minOpacity: 0.2,
-        maxOpacity: 0.6,
+        minOpacity: 0.4,
+        maxOpacity: 0.85,
         gradient: {
-            0.0: 'rgba(220, 20, 60, 0)',       // Transparent red
-            0.2: 'rgba(220, 20, 60, 0.3)',     // Light red
-            0.5: 'rgba(220, 20, 60, 0.6)',     // Medium red
-            0.8: 'rgba(220, 20, 60, 0.8)',     // Strong red
-            1.0: 'rgba(220, 20, 60, 1.0)'      // Full red
+            0.0: 'rgba(255, 173, 173, 0)',      // Very light red/pink
+            0.2: 'rgba(255, 100, 100, 0.6)',    // Light red
+            0.4: 'rgba(255, 50, 50, 0.75)',     // Medium red
+            0.6: 'rgba(255, 0, 50, 0.85)',      // Bright red
+            0.8: 'rgba(220, 0, 60, 0.92)',      // Bright dark red
+            1.0: 'rgba(200, 0, 70, 1.0)'        // Deep bright red
         }
     });
     

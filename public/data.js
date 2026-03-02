@@ -1701,7 +1701,7 @@ function initializeDataLayers() {
     safeRemoveHeatLayer(flippedHeatmapLayer);
     safeRemoveHeatLayer(newVotersHeatmapLayer);
     
-    // Recreate traditional heatmap
+    // Recreate traditional heatmap (rainbow gradient for turnout)
     if (heatmapData.length > 0) {
         heatmapLayer = L.heatLayer(heatmapData, {
             radius: 25,
@@ -1710,25 +1710,27 @@ function initializeDataLayers() {
             max: 1.0,
             minOpacity: 0.2,
             maxOpacity: 0.6
+            // Uses default rainbow gradient: blue → cyan → green → yellow → orange → red
         });
         console.log('Updated traditional heatmap layer with', heatmapData.length, 'points');
     }
     
-    // Recreate Democratic heatmap
+    // Recreate Democratic heatmap - VIBRANT BLUE
     if (heatmapDataDemocratic.length > 0) {
         heatmapLayerDemocratic = L.heatLayer(heatmapDataDemocratic, {
             radius: 25,
             blur: 35,
             maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
             max: 1.0,
-            minOpacity: 0.2,
-            maxOpacity: 0.6,
+            minOpacity: 0.4,
+            maxOpacity: 0.85,
             gradient: {
-                0.0: 'rgba(30, 144, 255, 0)',
-                0.2: 'rgba(30, 144, 255, 0.3)',
-                0.5: 'rgba(30, 144, 255, 0.6)',
-                0.8: 'rgba(30, 144, 255, 0.8)',
-                1.0: 'rgba(30, 144, 255, 1.0)'
+                0.0: 'rgba(173, 216, 255, 0)',
+                0.2: 'rgba(100, 180, 255, 0.6)',
+                0.4: 'rgba(50, 140, 255, 0.75)',
+                0.6: 'rgba(0, 100, 255, 0.85)',
+                0.8: 'rgba(0, 70, 220, 0.92)',
+                1.0: 'rgba(0, 50, 200, 1.0)'
             }
         });
         console.log('Updated Democratic heatmap layer with', heatmapDataDemocratic.length, 'points');
@@ -1737,21 +1739,22 @@ function initializeDataLayers() {
         console.log('Democratic heatmap has no data');
     }
     
-    // Recreate Republican heatmap
+    // Recreate Republican heatmap - VIBRANT RED
     if (heatmapDataRepublican.length > 0) {
         heatmapLayerRepublican = L.heatLayer(heatmapDataRepublican, {
             radius: 25,
             blur: 35,
             maxZoom: typeof config !== 'undefined' ? config.HEATMAP_MAX_ZOOM : 16,
             max: 1.0,
-            minOpacity: 0.2,
-            maxOpacity: 0.6,
+            minOpacity: 0.4,
+            maxOpacity: 0.85,
             gradient: {
-                0.0: 'rgba(220, 20, 60, 0)',
-                0.2: 'rgba(220, 20, 60, 0.3)',
-                0.5: 'rgba(220, 20, 60, 0.6)',
-                0.8: 'rgba(220, 20, 60, 0.8)',
-                1.0: 'rgba(220, 20, 60, 1.0)'
+                0.0: 'rgba(255, 173, 173, 0)',
+                0.2: 'rgba(255, 100, 100, 0.6)',
+                0.4: 'rgba(255, 50, 50, 0.75)',
+                0.6: 'rgba(255, 0, 50, 0.85)',
+                0.8: 'rgba(220, 0, 60, 0.92)',
+                1.0: 'rgba(200, 0, 70, 1.0)'
             }
         });
         console.log('Updated Republican heatmap layer with', heatmapDataRepublican.length, 'points');
