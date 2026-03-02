@@ -501,21 +501,57 @@
                 markerClusterGroup.clearLayers();
             }
             
-            // Add star markers for each address
-            const starIcon = L.divIcon({
-                html: '<i class="fas fa-star" style="color: #FFD700; font-size: 24px; text-shadow: 0 0 3px #000;"></i>',
-                className: 'star-marker',
-                iconSize: [24, 24],
-                iconAnchor: [12, 12]
-            });
+            // Optimize route using nearest neighbor algorithm
+            const optimizedRoute = optimizeRoute(validVoters);
             
+            // Create route line coordinates
+            const routeCoords = optimizedRoute.map(v => [v.lat, v.lng]);
+            
+            // Draw route line with arrows
+            const routeLine = L.polyline(routeCoords, {
+                color: '#667eea',
+                weight: 4,
+                opacity: 0.7,
+                smoothFactor: 1
+            }).addTo(map);
+            
+            // Add arrow decorators to show direction
+            const arrowDecorator = L.polylineDecorator(routeLine, {
+                patterns: [
+                    {
+                        offset: '10%',
+                        repeat: 50,
+                        symbol: L.Symbol.arrowHead({
+                            pixelSize: 12,
+                            polygon: false,
+                            pathOptions: {
+                                stroke: true,
+                                weight: 3,
+                                color: '#667eea',
+                                opacity: 0.8
+                            }
+                        })
+                    }
+                ]
+            }).addTo(map);
+            
+            // Add numbered markers for each stop
             const markers = [];
-            validVoters.forEach((v, idx) => {
-                const marker = L.marker([v.lat, v.lng], { icon: starIcon })
+            optimizedRoute.forEach((v, idx) => {
+                // Create numbered marker
+                const numberIcon = L.divIcon({
+                    html: `<div style="background: #FFD700; color: #000; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">${idx + 1}</div>`,
+                    className: 'numbered-marker',
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 16]
+                });
+                
+                const marker = L.marker([v.lat, v.lng], { icon: numberIcon })
                     .bindPopup(`
-                        <strong>${idx + 1}. ${v.name}</strong><br>
+                        <strong>Stop ${idx + 1}: ${v.name}</strong><br>
                         ${v.address}<br>
-                        <span style="color: #666;">Party: ${v.party_affinity}</span>
+                        <span style="color: #666;">Party: ${v.party_affinity}</span><br>
+                        <span style="color: #999; font-size: 11px;">Age: ${v.age || 'N/A'}</span>
                     `);
                 
                 if (typeof markerClusterGroup !== 'undefined' && markerClusterGroup) {
@@ -530,9 +566,74 @@
                 map.fitBounds(group.getBounds().pad(0.1));
             }
             
+            // Calculate total distance
+            const totalDistance = calculateRouteDistance(optimizedRoute);
+            
             // Show route info
-            alert(`Showing ${validVoters.length} addresses in Precinct ${precinctName}.\n\nMarkers are numbered in the most efficient walking order.`);
-        }, 300); // Wait 300ms for modal to close
+            alert(`Canvassing Route for Precinct ${precinctName}\n\n` +
+                  `${optimizedRoute.length} stops\n` +
+                  `Estimated distance: ${totalDistance.toFixed(2)} miles\n\n` +
+                  `Follow the numbered markers and blue arrows for the most efficient route.`);
+        }, 300);
+    }
+    
+    // Optimize route using nearest neighbor algorithm
+    function optimizeRoute(voters) {
+        if (voters.length <= 1) return voters;
+        
+        const unvisited = [...voters];
+        const route = [];
+        
+        // Start with the first voter (could be optimized to find best starting point)
+        let current = unvisited.shift();
+        route.push(current);
+        
+        // Visit nearest unvisited voter each time
+        while (unvisited.length > 0) {
+            let nearestIndex = 0;
+            let nearestDistance = Infinity;
+            
+            for (let i = 0; i < unvisited.length; i++) {
+                const distance = getDistance(
+                    current.lat, current.lng,
+                    unvisited[i].lat, unvisited[i].lng
+                );
+                
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearestIndex = i;
+                }
+            }
+            
+            current = unvisited.splice(nearestIndex, 1)[0];
+            route.push(current);
+        }
+        
+        return route;
+    }
+    
+    // Calculate distance between two points (Haversine formula)
+    function getDistance(lat1, lon1, lat2, lon2) {
+        const R = 3959; // Earth's radius in miles
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+    
+    // Calculate total route distance
+    function calculateRouteDistance(route) {
+        let total = 0;
+        for (let i = 0; i < route.length - 1; i++) {
+            total += getDistance(
+                route[i].lat, route[i].lng,
+                route[i + 1].lat, route[i + 1].lng
+            );
+        }
+        return total;
     }
     
     async function loadNewVoters() {
