@@ -159,9 +159,9 @@ async function loadAdditionalLayers() {
         console.log('Initializing LayerControlPanel with layers:', Object.keys(layers));
         layerControlPanel = new LayerControlPanel(map, layers);
         
-        // Initialize color legend
-        console.log('Initializing ColorLegend');
-        new ColorLegend();
+        // Initialize color legend - DISABLED (replaced by reports system)
+        // console.log('Initializing ColorLegend');
+        // new ColorLegend();
         
     } catch (error) {
         console.error('Error loading additional layers:', error);
