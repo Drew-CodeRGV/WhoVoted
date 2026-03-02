@@ -1120,10 +1120,24 @@ function updateDatasetStatsBox() {
             const btn = document.createElement('button');
             btn.className = 'county-report-btn-stats';
             btn.innerHTML = '<i class="fas fa-file-alt"></i> County Report';
-            btn.style.cssText = 'margin-top: 8px; padding: 6px 12px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; transition: background 0.2s;';
+            btn.style.cssText = 'margin-top: 8px; padding: 6px 12px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; transition: background 0.2s; -webkit-tap-highlight-color: rgba(0,0,0,0.1); touch-action: manipulation;';
             btn.onmouseover = () => btn.style.background = '#5568d3';
             btn.onmouseout = () => btn.style.background = '#667eea';
-            btn.onclick = openCountyReport;
+            
+            // Use addEventListener for better mobile support
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openCountyReport();
+            });
+            
+            // Add touch event for better mobile responsiveness
+            btn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openCountyReport();
+            });
+            
             statsContent.appendChild(btn);
         }
     }
