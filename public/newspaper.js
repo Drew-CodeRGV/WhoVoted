@@ -47,13 +47,14 @@
     function pct(a, b) { return b ? Math.round(a / b * 100) : 0; }
 
     function buildGazette(d) {
-        const demPct = d.dem_share_2026;
+        const demPct = d.dem_share;
         const repPct = (100 - demPct).toFixed(1);
-        const netFlip = d.r2d_2026 - d.d2r_2026;
+        const netFlip = d.r2d - d.d2r;
         const netLabel = netFlip > 0 ? 'net D' : netFlip < 0 ? 'net R' : 'even';
-        const ratio = d.rep_2026 ? (d.dem_2026 / d.rep_2026).toFixed(1) : '—';
-        const newDemPct = d.new_2026 ? pct(d.new_dem_2026, d.new_2026) : 0;
-        const fPct = pct(d.female_2026, d.female_2026 + d.male_2026);
+        const ratio = d.rep ? (d.dem / d.rep).toFixed(1) : '—';
+        const fPct = pct(d.female, d.female + d.male);
+        const evPct = pct(d.early_voting, d.total);
+        const mailPct = pct(d.mail_in, d.total);
 
         let html = '';
 
@@ -61,8 +62,8 @@
         html += `
 <div class="gz-kpi-row">
     <div class="gz-kpi neutral">
-        <div class="gz-kpi-value">${f(d.ev_2026)}</div>
-        <div class="gz-kpi-label">Early Votes</div>
+        <div class="gz-kpi-value">${f(d.total)}</div>
+        <div class="gz-kpi-label">Total Votes</div>
     </div>
     <div class="gz-kpi dem">
         <div class="gz-kpi-value">${demPct}%</div>
@@ -73,8 +74,8 @@
         <div class="gz-kpi-label">Republican</div>
     </div>
     <div class="gz-kpi neutral">
-        <div class="gz-kpi-value">${d.pct_of_2024}%</div>
-        <div class="gz-kpi-label">of 2024 Total</div>
+        <div class="gz-kpi-value">${f(d.early_voting)}</div>
+        <div class="gz-kpi-label">Early Voting (${evPct}%)</div>
     </div>
 </div>`;
 
@@ -84,14 +85,14 @@
     <div class="gz-section-title">Party Breakdown</div>
     <div class="gz-section-body">
         <div class="gz-bar-labels">
-            <span class="gz-dem">${f(d.dem_2026)} Dem</span>
-            <span class="gz-rep">${f(d.rep_2026)} Rep</span>
+            <span class="gz-dem">${f(d.dem)} Dem</span>
+            <span class="gz-rep">${f(d.rep)} Rep</span>
         </div>
         <div class="gz-bar">
             <div class="gz-bar-dem" style="width:${demPct}%"></div>
             <div class="gz-bar-rep" style="width:${repPct}%"></div>
         </div>
-        <p class="gz-text">Democrats lead <span class="gz-dem gz-big">${ratio}</span>-to-1. Dem share up from ${d.dem_share_2024}% in '24 and ${d.dem_share_2022}% in '22.</p>
+        <p class="gz-text">Democrats lead <span class="gz-dem gz-big">${ratio}</span>-to-1 across Texas. Early voting: ${f(d.early_voting)} (${evPct}%) · Mail-in: ${f(d.mail_in)} (${mailPct}%)</p>
     </div>
 </div>`;
 
@@ -102,11 +103,11 @@
     <div class="gz-section-body">
         <div class="gz-kpi-row">
             <div class="gz-kpi dem">
-                <div class="gz-kpi-value">${f(d.r2d_2026)}</div>
+                <div class="gz-kpi-value">${f(d.r2d)}</div>
                 <div class="gz-kpi-label">R → D</div>
             </div>
             <div class="gz-kpi rep">
-                <div class="gz-kpi-value">${f(d.d2r_2026)}</div>
+                <div class="gz-kpi-value">${f(d.d2r)}</div>
                 <div class="gz-kpi-label">D → R</div>
             </div>
             <div class="gz-kpi ${netFlip > 0 ? 'dem' : netFlip < 0 ? 'rep' : 'neutral'}">
@@ -114,53 +115,7 @@
                 <div class="gz-kpi-label">${netLabel}</div>
             </div>
         </div>
-        <p class="gz-text">In 2024: ${f(d.d2r_2024)} D→R vs ${f(d.r2d_2024)} R→D (net <span class="gz-rep">+${f(d.d2r_2024 - d.r2d_2024)} R</span>).</p>
-    </div>
-</div>`;
-
-        // ── New Voters (golden) ──
-        html += `
-<div class="gz-section">
-    <div class="gz-section-title gold">★ New Voters</div>
-    <div class="gz-section-body">
-        <div class="gz-kpi-row">
-            <div class="gz-kpi gold">
-                <div class="gz-kpi-value">${f(d.new_2026)}</div>
-                <div class="gz-kpi-label">First-Time</div>
-            </div>
-            <div class="gz-kpi gold">
-                <div class="gz-kpi-value">${newDemPct}%</div>
-                <div class="gz-kpi-label">Chose Dem</div>
-            </div>
-        </div>
-        <div class="gz-bar-labels">
-            <span class="gz-dem">${f(d.new_dem_2026)} Dem</span>
-            <span class="gz-rep">${f(d.new_rep_2026)} Rep</span>
-        </div>
-        <div class="gz-bar">
-            <div class="gz-bar-dem" style="width:${newDemPct}%"></div>
-            <div class="gz-bar-rep" style="width:${100 - newDemPct}%"></div>
-        </div>${d.new_age_gender_2026 ? (() => {
-            const nag = d.new_age_gender_2026;
-            const sorted = Object.entries(nag)
-                .filter(([k]) => k !== 'Unknown')
-                .sort((a, b) => b[1].total - a[1].total)
-                .slice(0, 3);
-            if (!sorted.length) return '';
-            return `
-        <div style="margin-top:10px;">
-            <div style="font-size:11px;font-weight:700;color:#b8860b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Top Age Groups</div>
-            <div class="gz-kpi-row">${sorted.map(([age, v]) => {
-                const pctOfNew = d.new_2026 ? Math.round(v.total / d.new_2026 * 100) : 0;
-                return `
-                <div class="gz-kpi gold">
-                    <div class="gz-kpi-value">${f(v.total)}</div>
-                    <div class="gz-kpi-label">${age} (${pctOfNew}%)</div>
-                </div>`;
-            }).join('')}
-            </div>
-        </div>`;
-        })() : ''}
+        <p class="gz-text">Voters who switched parties from their last primary election.</p>
     </div>
 </div>`;
 
@@ -169,15 +124,15 @@
 <div class="gz-section">
     <div class="gz-section-title">Gender</div>
     <div class="gz-section-body">
-        <p class="gz-text"><span class="gz-big">${f(d.female_2026)}</span> women (${fPct}%) · <span class="gz-big">${f(d.male_2026)}</span> men (${100 - fPct}%)</p>
-        <p class="gz-text">Dem: <span class="gz-dem">${f(d.dem_female_2026)}F / ${f(d.dem_male_2026)}M</span> · Rep: <span class="gz-rep">${f(d.rep_female_2026)}F / ${f(d.rep_male_2026)}M</span></p>
+        <p class="gz-text"><span class="gz-big">${f(d.female)}</span> women (${fPct}%) · <span class="gz-big">${f(d.male)}</span> men (${100 - fPct}%)</p>
+        <p class="gz-text">Dem: <span class="gz-dem">${f(d.dem_female)}F / ${f(d.dem_male)}M</span> · Rep: <span class="gz-rep">${f(d.rep_female)}F / ${f(d.rep_male)}M</span></p>
     </div>
 </div>`;
 
         // ── Age Table ──
-        if (d.age_groups_2026) {
+        if (d.age_groups) {
             const order = ['18-24','25-34','35-44','45-54','55-64','65-74','75+'];
-            const ag = d.age_groups_2026;
+            const ag = d.age_groups;
             html += `
 <div class="gz-section">
     <div class="gz-section-title">Age Breakdown</div>
@@ -192,35 +147,39 @@
             html += `</table></div></div>`;
         }
 
-        // ── Turnout ──
-        html += `
+        // ── Top Counties ──
+        if (d.top_counties && d.top_counties.length) {
+            html += `
 <div class="gz-section">
-    <div class="gz-section-title">Turnout vs. 2024</div>
+    <div class="gz-section-title">🏆 Top Counties by Turnout</div>
     <div class="gz-section-body">
-        <div class="gz-kpi-row">
-            <div class="gz-kpi neutral">
-                <div class="gz-kpi-value">${f(d.both_24_26)}</div>
-                <div class="gz-kpi-label">Returned</div>
-            </div>
-            <div class="gz-kpi neutral">
-                <div class="gz-kpi-value">${f(d.voted_24_not_26)}</div>
-                <div class="gz-kpi-label">Haven't Voted</div>
-            </div>
-        </div>
-        <table class="gz-table">
-            <tr><th>Year</th><th class="r">Dem</th><th class="r">Rep</th><th class="r">Total</th><th class="r">Dem %</th></tr>
-            <tr><td>2022</td><td class="r dem-val">${f(Math.round(d.dem_share_2022/100*d.total_2022))}</td><td class="r rep-val">${f(Math.round((100-d.dem_share_2022)/100*d.total_2022))}</td><td class="r">${f(d.total_2022)}</td><td class="r">${d.dem_share_2022}%</td></tr>
-            <tr><td>2024</td><td class="r dem-val">${f(Math.round(d.dem_share_2024/100*d.total_2024))}</td><td class="r rep-val">${f(Math.round((100-d.dem_share_2024)/100*d.total_2024))}</td><td class="r">${f(d.total_2024)}</td><td class="r">${d.dem_share_2024}%</td></tr>
-            <tr><td>2026 EV</td><td class="r dem-val">${f(d.dem_2026)}</td><td class="r rep-val">${f(d.rep_2026)}</td><td class="r">${f(d.ev_2026)}</td><td class="r">${d.dem_share_2026}%</td></tr>
-        </table>
-    </div>
-</div>`;
+    <table class="gz-table">
+        <tr><th>County</th><th class="r">Total</th><th class="r">Dem</th><th class="r">Rep</th><th class="r">Dem %</th></tr>`;
+            d.top_counties.forEach(c => {
+                html += `<tr><td>${c.county}</td><td class="r">${f(c.total)}</td><td class="r dem-val">${f(c.dem)}</td><td class="r rep-val">${f(c.rep)}</td><td class="r">${c.dem_pct}%</td></tr>`;
+            });
+            html += `</table></div></div>`;
+        }
+
+        // ── Bottom Counties ──
+        if (d.bottom_counties && d.bottom_counties.length) {
+            html += `
+<div class="gz-section">
+    <div class="gz-section-title">📊 Lowest Turnout Counties</div>
+    <div class="gz-section-body">
+    <table class="gz-table">
+        <tr><th>County</th><th class="r">Total</th><th class="r">Dem</th><th class="r">Rep</th><th class="r">Dem %</th></tr>`;
+            d.bottom_counties.forEach(c => {
+                html += `<tr><td>${c.county}</td><td class="r">${f(c.total)}</td><td class="r dem-val">${f(c.dem)}</td><td class="r rep-val">${f(c.rep)}</td><td class="r">${c.dem_pct}%</td></tr>`;
+            });
+            html += `</table></div></div>`;
+        }
 
         // ── Footer ──
-        const updated = d.last_updated
-            ? new Date(d.last_updated + 'Z').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
+        const updated = d.generated_at
+            ? new Date(d.generated_at).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
             : 'during early voting';
-        html += `<div class="gz-footer">Politiquera.com · Hidalgo County Elections Dept. · Data updated ${updated}</div>`;
+        html += `<div class="gz-footer">Politiquera.com · Texas Secretary of State · Data updated ${updated}</div>`;
 
         // ── Share buttons ──
         html += `
