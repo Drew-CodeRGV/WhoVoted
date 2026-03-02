@@ -488,20 +488,20 @@
             return;
         }
         
-        // Check if map is available
-        const mapInstance = window.map || (typeof map !== 'undefined' ? map : null);
-        if (!mapInstance) {
-            alert('Map is not available. Please refresh the page.');
-            return;
-        }
-        
-        // Clear existing markers (but not the map itself)
-        if (window.markerClusterGroup) {
-            window.markerClusterGroup.clearLayers();
-        }
-        
-        // Add star markers for each address
-        if (typeof L !== 'undefined') {
+        // Wait a moment for the modal to close and map to be accessible
+        setTimeout(() => {
+            // Check if map and Leaflet are available
+            if (typeof map === 'undefined' || typeof L === 'undefined') {
+                alert('Map is not available. Please refresh the page.');
+                return;
+            }
+            
+            // Clear existing markers
+            if (typeof markerClusterGroup !== 'undefined' && markerClusterGroup) {
+                markerClusterGroup.clearLayers();
+            }
+            
+            // Add star markers for each address
             const starIcon = L.divIcon({
                 html: '<i class="fas fa-star" style="color: #FFD700; font-size: 24px; text-shadow: 0 0 3px #000;"></i>',
                 className: 'star-marker',
@@ -518,8 +518,8 @@
                         <span style="color: #666;">Party: ${v.party_affinity}</span>
                     `);
                 
-                if (window.markerClusterGroup) {
-                    window.markerClusterGroup.addLayer(marker);
+                if (typeof markerClusterGroup !== 'undefined' && markerClusterGroup) {
+                    markerClusterGroup.addLayer(marker);
                 }
                 markers.push(marker);
             });
@@ -527,12 +527,12 @@
             // Fit map to show all markers
             if (markers.length > 0) {
                 const group = L.featureGroup(markers);
-                mapInstance.fitBounds(group.getBounds().pad(0.1));
+                map.fitBounds(group.getBounds().pad(0.1));
             }
             
             // Show route info
             alert(`Showing ${validVoters.length} addresses in Precinct ${precinctName}.\n\nMarkers are numbered in the most efficient walking order.`);
-        }
+        }, 300); // Wait 300ms for modal to close
     }
     
     async function loadNewVoters() {
