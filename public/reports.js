@@ -252,7 +252,13 @@
     async function loadTurfCuts() {
         const county = selectedCountyFilter || 'Hidalgo';
         
-        // Add filters
+        // Get current filter values if they exist, otherwise use defaults
+        const precinct = document.getElementById('turfPrecinct')?.value || 'all';
+        const partyAffinity = document.getElementById('turfPartyAffinity')?.value || 'all';
+        const history = document.getElementById('turfHistory')?.value || 'all';
+        const electionDate = currentDataset?.election_date || '2026-03-03';
+        
+        // Add filters HTML
         document.getElementById('reportFilters').innerHTML = `
             <div class="report-filter-group">
                 <label>Precinct</label>
@@ -278,17 +284,21 @@
             </div>
         `;
         
-        // Load precincts for filter
-        // TODO: Populate precinct dropdown
+        // Restore selected values
+        if (document.getElementById('turfPrecinct')) {
+            document.getElementById('turfPrecinct').value = precinct;
+        }
+        if (document.getElementById('turfPartyAffinity')) {
+            document.getElementById('turfPartyAffinity').value = partyAffinity;
+        }
+        if (document.getElementById('turfHistory')) {
+            document.getElementById('turfHistory').value = history;
+        }
         
+        // Add event listeners AFTER setting values
         document.getElementById('turfPrecinct')?.addEventListener('change', () => loadTurfCuts());
         document.getElementById('turfPartyAffinity')?.addEventListener('change', () => loadTurfCuts());
         document.getElementById('turfHistory')?.addEventListener('change', () => loadTurfCuts());
-        
-        const precinct = document.getElementById('turfPrecinct')?.value || 'all';
-        const partyAffinity = document.getElementById('turfPartyAffinity')?.value || 'all';
-        const history = document.getElementById('turfHistory')?.value || 'all';
-        const electionDate = currentDataset?.election_date || '2026-03-03';
         
         const response = await fetch(`/api/reports/non-voters?county=${encodeURIComponent(county)}&election_date=${encodeURIComponent(electionDate)}&precinct=${precinct}&history=${history}&party_affinity=${partyAffinity}`);
         const data = await response.json();
