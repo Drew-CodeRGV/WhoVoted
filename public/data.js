@@ -63,7 +63,7 @@ async function loadCountyOverview(electionDate, votingMethod) {
         }
 
         // Build heatmap data: [lat, lng, intensity] per county
-        // Normalize intensity so the largest county = 1.0
+        // Weight intensity by party margin to emphasize which party dominates
         const maxTotal = Math.max(...data.counties.map(c => c.total));
         const heatData = [];
         const heatDataDem = [];
@@ -74,10 +74,32 @@ async function loadCountyOverview(electionDate, votingMethod) {
             grandTotal += c.total;
             grandDem += c.dem;
             grandRep += c.rep;
-            const intensity = c.total / maxTotal;
-            heatData.push([c.lat, c.lng, intensity]);
-            if (c.dem > 0) heatDataDem.push([c.lat, c.lng, c.dem / maxTotal]);
-            if (c.rep > 0) heatDataRep.push([c.lat, c.lng, c.rep / maxTotal]);
+            
+            const baseIntensity = c.total / maxTotal;
+            const demShare = c.dem / (c.dem + c.rep);
+            const repShare = c.rep / (c.dem + c.rep);
+            
+            // Calculate margin of victory (0.5 = tie, 1.0 = 100% one party)
+            const demMargin = demShare; // 0 to 1
+            const repMargin = repShare; // 0 to 1
+            
+            // Amplify intensity based on margin - counties with bigger margins show more vividly
+            // Use exponential scaling to emphasize dominance
+            const demIntensity = baseIntensity * Math.pow(demMargin, 0.7); // 0.7 exponent for moderate emphasis
+            const repIntensity = baseIntensity * Math.pow(repMargin, 0.7);
+            
+            heatData.push([c.lat, c.lng, baseIntensity]);
+            
+            // Only show the color for the party that won, weighted by margin
+            if (c.dem > c.rep) {
+                heatDataDem.push([c.lat, c.lng, demIntensity]);
+            } else if (c.rep > c.dem) {
+                heatDataRep.push([c.lat, c.lng, repIntensity]);
+            } else {
+                // Tie - show both at half intensity
+                heatDataDem.push([c.lat, c.lng, baseIntensity * 0.5]);
+                heatDataRep.push([c.lat, c.lng, baseIntensity * 0.5]);
+            }
         });
 
         // Remove any existing heatmap layers
