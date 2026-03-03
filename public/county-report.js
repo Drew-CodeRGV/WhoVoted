@@ -160,12 +160,13 @@
     function createCountyReportOverlay() {
         const overlay = document.createElement('div');
         overlay.id = 'countyReportOverlay';
-        overlay.className = 'newspaper-overlay';
+        overlay.className = 'gazette-overlay';
         overlay.style.display = 'none';
         
         overlay.innerHTML = `
-            <div class="newspaper-content county-report-content">
-                <button class="newspaper-close" onclick="closeCountyReport()">&times;</button>
+            <div class="gazette-backdrop" onclick="closeCountyReport()"></div>
+            <div class="gazette county-report-content">
+                <button class="gazette-close" onclick="closeCountyReport()">&times;</button>
                 <div class="gazette-inner">
                     <div class="gazette-header">
                         <h1 class="gazette-title">County Report</h1>
