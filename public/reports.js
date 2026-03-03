@@ -542,6 +542,16 @@
                 window.routingControl = null;
             }
             
+            // Remove existing route line if any
+            if (window.routeLine) {
+                try {
+                    map.removeLayer(window.routeLine);
+                } catch (e) {
+                    console.log('Could not remove route line:', e);
+                }
+                window.routeLine = null;
+            }
+            
             // Remove existing route decorator if any
             if (window.routeDecorator) {
                 try {
@@ -593,44 +603,33 @@
             
             console.log(`Created ${window.canvassingMarkers.length} markers for canvassing route`);
             
-            // Create routing with street-based navigation
-            if (typeof L.Routing !== 'undefined' && L.Routing.control) {
-                const waypoints = optimizedRoute.map(v => L.latLng(v.lat, v.lng));
-                
-                console.log(`Creating route with ${waypoints.length} waypoints`);
-                
-                window.routingControl = L.Routing.control({
-                    waypoints: waypoints,
-                    router: L.Routing.osrm({
-                        serviceUrl: 'https://router.project-osrm.org/route/v1'
-                    }),
-                    lineOptions: {
-                        styles: [{
-                            color: '#667eea',
-                            opacity: 0.8,
-                            weight: 5
-                        }],
-                        addWaypoints: false
-                    },
-                    show: false, // Hide the default instructions panel
-                    createMarker: function() { return null; }, // Don't create default markers
-                    fitSelectedRoutes: true,
-                    routeWhileDragging: false
-                }).addTo(map);
-                
-                // Add arrows to the route
-                window.routingControl.on('routesfound', function(e) {
-                    console.log('Route found:', e);
-                    const routes = e.routes;
-                    const route = routes[0];
+            // Create routing with street-based navigation using OSRM API directly
+            const waypoints = optimizedRoute.map(v => [v.lng, v.lat]); // OSRM uses [lng, lat] format
+            const coordinates = waypoints.map(w => `${w[0]},${w[1]}`).join(';');
+            
+            console.log(`Creating route with ${waypoints.length} waypoints`);
+            
+            // Fetch route from OSRM
+            fetch(`https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=geojson&steps=true`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
+                        throw new Error('No route found');
+                    }
                     
-                    // Add arrow decorators if polylineDecorator is available
+                    const route = data.routes[0];
+                    const routeCoordinates = route.geometry.coordinates.map(c => [c[1], c[0]]); // Convert to [lat, lng]
+                    
+                    // Draw route line
+                    window.routeLine = L.polyline(routeCoordinates, {
+                        color: '#667eea',
+                        opacity: 0.8,
+                        weight: 5
+                    }).addTo(map);
+                    
+                    // Add arrow decorators if available
                     if (typeof L.polylineDecorator !== 'undefined') {
-                        if (window.routeDecorator) {
-                            map.removeLayer(window.routeDecorator);
-                        }
-                        
-                        window.routeDecorator = L.polylineDecorator(route.coordinates, {
+                        window.routeDecorator = L.polylineDecorator(routeCoordinates, {
                             patterns: [
                                 {
                                     offset: 25,
@@ -650,22 +649,22 @@
                         }).addTo(map);
                     }
                     
-                    // Calculate total distance
-                    const totalDistance = route.summary.totalDistance / 1609.34; // Convert meters to miles
-                    const totalTime = Math.ceil(route.summary.totalTime / 60); // Convert seconds to minutes
+                    // Calculate total distance and time
+                    const totalDistance = route.distance / 1609.34; // Convert meters to miles
+                    const totalTime = Math.ceil(route.duration / 60); // Convert seconds to minutes
+                    
+                    // Fit map to show route
+                    map.fitBounds(window.routeLine.getBounds().pad(0.1));
                     
                     // Create walk list panel
                     createWalkListPanel(precinctName, optimizedRoute, totalDistance, totalTime);
-                });
-                
-                // Handle routing errors
-                window.routingControl.on('routingerror', function(e) {
-                    console.error('Routing error:', e);
-                    alert('Could not calculate route. Showing direct path instead.');
+                })
+                .catch(error => {
+                    console.error('Routing error:', error);
                     
                     // Fallback to simple polyline
                     const routeCoords = optimizedRoute.map(v => [v.lat, v.lng]);
-                    const routeLine = L.polyline(routeCoords, {
+                    window.routeLine = L.polyline(routeCoords, {
                         color: '#667eea',
                         weight: 4,
                         opacity: 0.7
@@ -680,25 +679,6 @@
                     
                     createWalkListPanel(precinctName, optimizedRoute, totalDistance, totalTime);
                 });
-            } else {
-                console.log('Leaflet Routing Machine not available, using simple polyline');
-                // Fallback to simple polyline if routing not available
-                const routeCoords = optimizedRoute.map(v => [v.lat, v.lng]);
-                const routeLine = L.polyline(routeCoords, {
-                    color: '#667eea',
-                    weight: 4,
-                    opacity: 0.7
-                }).addTo(map);
-                
-                const totalDistance = calculateRouteDistance(optimizedRoute);
-                const totalTime = Math.ceil(totalDistance * 20);
-                
-                // Fit map to show all markers
-                const group = L.featureGroup(window.canvassingMarkers);
-                map.fitBounds(group.getBounds().pad(0.1));
-                
-                createWalkListPanel(precinctName, optimizedRoute, totalDistance, totalTime);
-            }
         }, 300);
     }
     
@@ -727,6 +707,13 @@
                 map.removeControl(window.routingControl);
             } catch (e) {}
             window.routingControl = null;
+        }
+        
+        if (window.routeLine) {
+            try {
+                map.removeLayer(window.routeLine);
+            } catch (e) {}
+            window.routeLine = null;
         }
         
         if (window.routeDecorator) {
