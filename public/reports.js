@@ -610,12 +610,12 @@
             
             // Add numbered markers for each stop
             optimizedRoute.forEach((stop, idx) => {
-                // Create numbered marker
+                // Create numbered marker with larger size
                 const numberIcon = L.divIcon({
-                    html: `<div style="background: #FFD700; color: #000; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">${idx + 1}</div>`,
+                    html: `<div style="background: #FFD700; color: #000; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">${idx + 1}</div>`,
                     className: 'numbered-marker',
-                    iconSize: [32, 32],
-                    iconAnchor: [16, 16]
+                    iconSize: [40, 40],
+                    iconAnchor: [20, 20]
                 });
                 
                 // Build popup content with all voters at this address
@@ -879,7 +879,7 @@
             });
             
             // Cluster stops geographically
-            const clusters = clusterStops(allStops, 0.3); // 0.3 miles clustering distance
+            const clusters = clusterStops(allStops, 1.0); // 1 mile clustering distance
             
             console.log(`Created ${clusters.length} geographic clusters`);
             
@@ -896,8 +896,8 @@
                 const group = L.featureGroup(clusterMarkers);
                 map.fitBounds(group.getBounds().pad(0.1)); // 10% padding for clusters
                 
-                // Wait for map to render
-                await new Promise(resolve => setTimeout(resolve, 300));
+                // Wait longer for map tiles to load
+                await new Promise(resolve => setTimeout(resolve, 1500));
                 
                 // Capture screenshot
                 const mapElement = document.getElementById('map');
