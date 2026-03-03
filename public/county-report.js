@@ -22,8 +22,12 @@
     };
     
     window.openCountyReport = async function() {
+        console.log('openCountyReport called');
+        
         // Get current county from global filter
         const county = typeof selectedCountyFilter !== 'undefined' ? selectedCountyFilter : '';
+        
+        console.log('Current county:', county);
         
         if (!county || county === 'all') {
             alert('Please select a specific county to view its report.');
