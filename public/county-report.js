@@ -9,25 +9,39 @@
         const infoDiv = document.querySelector('.dataset-info-inline');
         console.log('Found dataset-info-inline:', infoDiv);
         
-        if (!infoDiv) return;
-        
-        // Check if button already exists
-        if (document.getElementById('countyReportBtn')) {
-            console.log('County report button already exists');
+        if (!infoDiv) {
+            console.log('dataset-info-inline not found, cannot create button');
             return;
         }
         
-        const btn = document.createElement('button');
+        // Check if button already exists
+        let btn = document.getElementById('countyReportBtn');
+        if (btn) {
+            console.log('County report button already exists, re-attaching event listener');
+            // Re-attach event listener in case it was lost
+            btn.onclick = function() {
+                console.log('Button clicked via onclick');
+                openCountyReport();
+            };
+            return;
+        }
+        
+        btn = document.createElement('button');
         btn.id = 'countyReportBtn';
         btn.className = 'county-report-btn';
         btn.innerHTML = '<i class="fas fa-file-alt"></i> County Report';
         btn.style.cssText = 'padding: 4px 10px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; margin-top: 8px; display: inline-flex; align-items: center; gap: 5px;';
         btn.title = 'View detailed report for this county';
         
-        btn.addEventListener('click', openCountyReport);
+        // Use onclick instead of addEventListener for better reliability
+        btn.onclick = function() {
+            console.log('Button clicked via onclick');
+            openCountyReport();
+        };
+        
         infoDiv.appendChild(btn);
         
-        console.log('County report button created and added');
+        console.log('County report button created and added with onclick handler');
     };
     
     window.openCountyReport = async function() {
@@ -47,49 +61,64 @@
         let electionDate = null;
         let votingMethod = null;
         
+        console.log('Checking datasetSelector:', window.datasetSelector);
+        
         // Try datasetSelector first
         if (window.datasetSelector) {
             const currentDataset = window.datasetSelector.getCurrentDataset();
+            console.log('Current dataset from datasetSelector:', currentDataset);
             if (currentDataset) {
                 electionDate = currentDataset.electionDate;
                 votingMethod = currentDataset.votingMethod || '';
+                console.log('Got election date from datasetSelector:', electionDate, votingMethod);
             }
         }
         
         // Fallback: try to get from availableDatasets and current selection
         if (!electionDate && typeof availableDatasets !== 'undefined' && availableDatasets.length > 0) {
+            console.log('Trying availableDatasets fallback');
             const datasetSelect = document.getElementById('dataset-selector') || document.getElementById('dataset-selector-inline');
             if (datasetSelect && datasetSelect.value !== '') {
                 const idx = parseInt(datasetSelect.value, 10);
                 if (!isNaN(idx) && availableDatasets[idx]) {
                     electionDate = availableDatasets[idx].electionDate;
                     votingMethod = availableDatasets[idx].votingMethod || '';
+                    console.log('Got election date from availableDatasets:', electionDate, votingMethod);
                 }
             }
         }
         
         // Last resort: use most recent election from availableDatasets
         if (!electionDate && typeof availableDatasets !== 'undefined' && availableDatasets.length > 0) {
+            console.log('Using most recent election from availableDatasets');
             electionDate = availableDatasets[0].electionDate;
             votingMethod = availableDatasets[0].votingMethod || '';
+            console.log('Got election date (last resort):', electionDate, votingMethod);
         }
         
         if (!electionDate) {
+            console.error('Could not determine election date');
             alert('Could not determine election date. Please try refreshing the page.');
             return;
         }
         
+        console.log('Creating/showing overlay');
+        
         // Show overlay
         let overlay = document.getElementById('countyReportOverlay');
         if (!overlay) {
+            console.log('Creating new overlay');
             createCountyReportOverlay();
             overlay = document.getElementById('countyReportOverlay');
         }
         
         const body = document.getElementById('countyReportBody');
+        console.log('Setting overlay display to flex');
         overlay.style.display = 'flex';
         
         body.innerHTML = '<p class="county-report-loading">Loading county data&hellip;</p>';
+        
+        console.log('Fetching county report data:', county, electionDate, votingMethod);
         
         try {
             const params = new URLSearchParams({
@@ -100,9 +129,16 @@
                 params.append('voting_method', votingMethod);
             }
             
-            const resp = await fetch(`/api/county-report?${params}`);
-            if (!resp.ok) throw new Error('API error');
+            const url = `/api/county-report?${params}`;
+            console.log('Fetching from:', url);
+            
+            const resp = await fetch(url);
+            console.log('Response status:', resp.status, resp.ok);
+            
+            if (!resp.ok) throw new Error('API error: ' + resp.status);
             const data = await resp.json();
+            
+            console.log('Received data:', data);
             
             body.innerHTML = buildCountyReport(data);
             
@@ -112,6 +148,8 @@
                     title.closest('.cr-section').classList.toggle('collapsed');
                 });
             });
+            
+            console.log('County report displayed successfully');
             
         } catch (e) {
             console.error('County report error:', e);
