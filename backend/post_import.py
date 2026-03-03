@@ -52,16 +52,22 @@ def run_pipeline(county: str, log_fn=None):
     log("Step 4/4: Checking priority geocoding needs...")
     priority_stats = check_priority_geocoding(county, log)
 
+    # Step 5: Generate county report caches
+    log("Step 5/5: Generating county report caches...")
+    cache_count = generate_county_report_caches(county, log)
+
     elapsed = time.time() - start
     log(f"Post-import pipeline complete in {elapsed:.1f}s — "
         f"{backfilled} coords backfilled, {election_records} election records, "
-        f"{party_updated} parties updated, {priority_stats['need_geocoding']} voters need geocoding")
+        f"{party_updated} parties updated, {priority_stats['need_geocoding']} voters need geocoding, "
+        f"{cache_count} report caches generated")
 
     return {
         'backfilled': backfilled,
         'election_records': election_records,
         'party_updated': party_updated,
         'priority_geocoding': priority_stats,
+        'cache_count': cache_count,
         'elapsed_seconds': round(elapsed, 1)
     }
 
@@ -319,3 +325,58 @@ def check_priority_geocoding(county: str, log=None):
         log(f"No election participation records found for {county} County")
 
     return stats
+
+
+
+def generate_county_report_caches(county: str, log=None):
+    """Generate county report cache files for all elections in this county."""
+    if log is None:
+        log = lambda msg: None
+    
+    import reports
+    
+    conn = db.get_connection()
+    
+    # Get all election_date + voting_method combinations for this county
+    elections = conn.execute("""
+        SELECT DISTINCT ve.election_date, ve.voting_method, COUNT(*) as cnt
+        FROM voter_elections ve
+        JOIN voters v ON ve.vuid = v.vuid
+        WHERE v.county = ?
+        GROUP BY ve.election_date, ve.voting_method
+        HAVING cnt > 0
+        ORDER BY ve.election_date DESC
+    """, (county,)).fetchall()
+    
+    if not elections:
+        log(f"  No elections found for {county} County")
+        return 0
+    
+    cache_dir = Config.PUBLIC_DIR / 'cache'
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    
+    cache_count = 0
+    for row in elections:
+        election_date = row[0]
+        voting_method = row[1]
+        voter_count = row[2]
+        
+        try:
+            # Generate the report data
+            report_data = reports.generate_county_report_data(county, election_date, voting_method)
+            
+            # Save to cache file
+            method_str = voting_method or 'all'
+            cache_file = cache_dir / f'county_report_{county}_{election_date}_{method_str}.json'
+            
+            with open(cache_file, 'w') as f:
+                json.dump(report_data, f, separators=(',', ':'))
+            
+            cache_count += 1
+            log(f"  ✓ {election_date} {voting_method}: {voter_count} voters")
+            
+        except Exception as e:
+            log(f"  ✗ {election_date} {voting_method}: ERROR {e}")
+    
+    log(f"Generated {cache_count} county report caches for {county} County")
+    return cache_count
