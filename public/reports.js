@@ -825,17 +825,22 @@
                     
                     await new Promise((resolve, reject) => {
                         img.onload = () => {
+                            // Set canvas to maintain aspect ratio
+                            const aspectRatio = img.width / img.height;
+                            const logoHeight = 15;
+                            const logoWidth = logoHeight * aspectRatio;
+                            
                             logoCanvas.width = img.width;
                             logoCanvas.height = img.height;
                             logoCtx.drawImage(img, 0, 0);
-                            resolve();
+                            resolve({ width: logoWidth, height: logoHeight });
                         };
                         img.onerror = reject;
                         img.src = 'assets/politiquera.png';
+                    }).then(dimensions => {
+                        const logoData = logoCanvas.toDataURL('image/png');
+                        doc.addImage(logoData, 'PNG', 10, 5, dimensions.width, dimensions.height);
                     });
-                    
-                    const logoData = logoCanvas.toDataURL('image/png');
-                    doc.addImage(logoData, 'PNG', 10, 5, 15, 15); // Small logo at top left
                 } catch (e) {
                     console.log('Could not load logo:', e);
                 }
@@ -846,6 +851,18 @@
             doc.setFont(undefined, 'bold');
             doc.text(`Walk List - Precinct ${window.turfCutData.precinctName}`, pageWidth / 2, 15, { align: 'center' });
             
+            // Temporarily zoom map to fit route with small padding before capturing
+            const originalZoom = map.getZoom();
+            const originalCenter = map.getCenter();
+            
+            if (window.canvassingMarkers && window.canvassingMarkers.length > 0) {
+                const group = L.featureGroup(window.canvassingMarkers);
+                map.fitBounds(group.getBounds().pad(0.05)); // 5% padding
+            }
+            
+            // Wait for map to render at new zoom
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
             // Capture map screenshot
             const mapElement = document.getElementById('map');
             const mapCanvas = await html2canvas(mapElement, {
@@ -854,6 +871,9 @@
                 backgroundColor: '#ffffff',
                 scale: 2
             });
+            
+            // Restore original map view
+            map.setView(originalCenter, originalZoom);
             
             const mapImgData = mapCanvas.toDataURL('image/png');
             
@@ -882,7 +902,9 @@
                         name: v.querySelector('.walk-list-name').textContent,
                         party: v.querySelector('.walk-list-party').textContent,
                         age: v.querySelector('.walk-list-age')?.textContent || '',
-                        score: v.querySelector('.walk-list-score')?.textContent || ''
+                        score: v.querySelector('.walk-list-score')?.textContent || '',
+                        history: v.querySelector('.walk-list-history')?.textContent || '',
+                        lastVoted: v.querySelector('.walk-list-last-voted')?.textContent || ''
                     }))
                 };
             });
@@ -956,7 +978,9 @@
                     doc.setFont(undefined, 'normal');
                     doc.setTextColor(102, 102, 102);
                     doc.setFontSize(7);
-                    const details = `${voter.party}  |  ${voter.age}  |  ${voter.score}`;
+                    let details = `${voter.party}  |  ${voter.age}  |  ${voter.score}`;
+                    if (voter.history) details += `  |  ${voter.history}`;
+                    if (voter.lastVoted) details += `  |  ${voter.lastVoted}`;
                     doc.text(details, listX + 15, yPos);
                     yPos += 4;
                 });
@@ -1044,6 +1068,8 @@
                                         };">${v.party_affinity}</span>
                                         ${v.age ? `<span class="walk-list-age">Age ${v.age}</span>` : ''}
                                         <span class="walk-list-score">Score: ${v.voting_score}/10</span>
+                                        ${v.dem_history || v.rep_history ? `<span class="walk-list-history" style="color: #999;">History: ${v.dem_history || 0}D/${v.rep_history || 0}R</span>` : ''}
+                                        ${v.last_voted && v.last_voted !== 'Never' ? `<span class="walk-list-last-voted" style="color: #999;">Last: ${v.last_voted}</span>` : ''}
                                     </div>
                                 </div>
                             `).join('')}
