@@ -528,9 +528,6 @@
                 <button class="btn-exit-turf-cut" onclick="exitTurfCutMode()">
                     <i class="fas fa-times"></i> Exit Turf Cut Mode
                 </button>
-                <button class="btn-generate-pdf" onclick="generateTurfCutPDF()">
-                    <i class="fas fa-file-pdf"></i> Generate PDF
-                </button>
             </div>
         `;
         document.body.appendChild(overlay);
