@@ -3,12 +3,19 @@
 (function () {
     // Initialize county report button
     window.initCountyReport = function() {
+        console.log('initCountyReport called');
+        
         // Add button to dataset info inline section
         const infoDiv = document.querySelector('.dataset-info-inline');
+        console.log('Found dataset-info-inline:', infoDiv);
+        
         if (!infoDiv) return;
         
         // Check if button already exists
-        if (document.getElementById('countyReportBtn')) return;
+        if (document.getElementById('countyReportBtn')) {
+            console.log('County report button already exists');
+            return;
+        }
         
         const btn = document.createElement('button');
         btn.id = 'countyReportBtn';
@@ -19,6 +26,8 @@
         
         btn.addEventListener('click', openCountyReport);
         infoDiv.appendChild(btn);
+        
+        console.log('County report button created and added');
     };
     
     window.openCountyReport = async function() {
