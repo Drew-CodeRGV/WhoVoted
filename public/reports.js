@@ -807,65 +807,129 @@
         pdfBtn.disabled = true;
         
         try {
-            // Use jsPDF library
             const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('p', 'mm', 'letter');
+            const doc = new jsPDF('landscape', 'mm', 'letter'); // Landscape for side-by-side layout
             
-            // Add title
-            doc.setFontSize(18);
-            doc.setFont(undefined, 'bold');
-            doc.text(`Turf Cut - Precinct ${window.turfCutData.precinctName}`, 105, 20, { align: 'center' });
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
             
-            // Capture map as image
+            // Capture map screenshot
             const mapElement = document.getElementById('map');
-            const canvas = await html2canvas(mapElement, {
+            const mapCanvas = await html2canvas(mapElement, {
                 useCORS: true,
                 allowTaint: true,
-                backgroundColor: '#ffffff'
+                backgroundColor: '#ffffff',
+                scale: 2
             });
             
-            const imgData = canvas.toDataURL('image/png');
-            const imgWidth = 190;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            const mapImgData = mapCanvas.toDataURL('image/png');
             
-            // Add map image
-            doc.addImage(imgData, 'PNG', 10, 30, imgWidth, Math.min(imgHeight, 120));
+            // Map takes left half of page
+            const mapWidth = (pageWidth / 2) - 15;
+            const mapHeight = pageHeight - 40;
+            doc.addImage(mapImgData, 'PNG', 10, 30, mapWidth, mapHeight);
             
-            // Add walk list
-            let yPos = 30 + Math.min(imgHeight, 120) + 10;
+            // Title at top
+            doc.setFontSize(18);
+            doc.setFont(undefined, 'bold');
+            doc.text(`Walk List - Precinct ${window.turfCutData.precinctName}`, pageWidth / 2, 15, { align: 'center' });
             
             // Get walk list data
-            const walkListItems = document.querySelectorAll('.walk-list-item');
+            const route = window.canvassingMarkers.map((marker, idx) => {
+                const stop = document.querySelectorAll('.walk-list-item')[idx];
+                return {
+                    number: idx + 1,
+                    address: stop.querySelector('.walk-list-address').textContent,
+                    voters: Array.from(stop.querySelectorAll('.walk-list-voter')).map(v => ({
+                        name: v.querySelector('.walk-list-name').textContent,
+                        party: v.querySelector('.walk-list-party').textContent,
+                        age: v.querySelector('.walk-list-age')?.textContent || '',
+                        score: v.querySelector('.walk-list-score')?.textContent || ''
+                    }))
+                };
+            });
             
-            doc.setFontSize(14);
-            doc.setFont(undefined, 'bold');
-            doc.text('Walk List', 10, yPos);
-            yPos += 8;
-            
+            // Summary stats at top right
+            const summaryX = (pageWidth / 2) + 10;
             doc.setFontSize(10);
             doc.setFont(undefined, 'normal');
             
-            walkListItems.forEach((item, idx) => {
-                if (yPos > 260) {
+            const stats = document.querySelector('.walk-list-summary');
+            const stops = stats.children[0].querySelector('strong').textContent;
+            const voters = stats.children[1].querySelector('strong').textContent;
+            const miles = stats.children[2].querySelector('strong').textContent;
+            const mins = stats.children[3].querySelector('strong').textContent;
+            
+            doc.text(`${stops} stops  |  ${voters} voters  |  ${miles} mi  |  ${mins} min`, summaryX, 25);
+            
+            // Walk list on right half
+            let yPos = 35;
+            const listX = summaryX;
+            const listWidth = (pageWidth / 2) - 20;
+            
+            doc.setFontSize(9);
+            
+            route.forEach((stop, idx) => {
+                // Check if we need a new page
+                if (yPos > pageHeight - 30) {
                     doc.addPage();
                     yPos = 20;
                 }
                 
-                const name = item.querySelector('.walk-list-name').textContent;
-                const address = item.querySelector('.walk-list-address').textContent;
-                const party = item.querySelector('.walk-list-party').textContent;
-                
+                // Stop number and address
                 doc.setFont(undefined, 'bold');
-                doc.text(`${idx + 1}. ${name}`, 10, yPos);
-                yPos += 5;
+                doc.setFillColor(255, 215, 0); // Gold
+                doc.circle(listX + 5, yPos - 2, 5, 'F');
+                doc.setTextColor(0, 0, 0);
+                doc.text(stop.number.toString(), listX + 5, yPos + 1, { align: 'center' });
                 
-                doc.setFont(undefined, 'normal');
-                doc.text(`   ${address}`, 10, yPos);
-                yPos += 5;
+                doc.setTextColor(80, 80, 80);
+                doc.setFontSize(9);
+                const addressLines = doc.splitTextToSize(stop.address, listWidth - 15);
+                doc.text(addressLines, listX + 12, yPos);
+                yPos += addressLines.length * 4 + 2;
                 
-                doc.text(`   Party: ${party}`, 10, yPos);
-                yPos += 8;
+                // Voters at this address
+                doc.setFontSize(8);
+                stop.voters.forEach(voter => {
+                    if (yPos > pageHeight - 20) {
+                        doc.addPage();
+                        yPos = 20;
+                    }
+                    
+                    // Party color bar
+                    if (voter.party.includes('Democratic')) {
+                        doc.setDrawColor(0, 100, 255);
+                    } else if (voter.party.includes('Republican')) {
+                        doc.setDrawColor(230, 0, 60);
+                    } else {
+                        doc.setDrawColor(102, 102, 102);
+                    }
+                    doc.setLineWidth(1);
+                    doc.line(listX + 12, yPos - 3, listX + 12, yPos + 3);
+                    
+                    // Voter name
+                    doc.setFont(undefined, 'normal');
+                    doc.setTextColor(51, 51, 51);
+                    doc.text(voter.name, listX + 15, yPos);
+                    yPos += 4;
+                    
+                    // Voter details
+                    doc.setFont(undefined, 'normal');
+                    doc.setTextColor(102, 102, 102);
+                    doc.setFontSize(7);
+                    const details = `${voter.party}  |  ${voter.age}  |  ${voter.score}`;
+                    doc.text(details, listX + 15, yPos);
+                    yPos += 4;
+                });
+                
+                yPos += 3; // Space between stops
             });
+            
+            // Footer
+            doc.setFontSize(8);
+            doc.setTextColor(150, 150, 150);
+            doc.text(`Generated ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, pageWidth / 2, pageHeight - 5, { align: 'center' });
             
             // Save PDF
             const fileName = `turf-cut-precinct-${window.turfCutData.precinctName}-${new Date().toISOString().split('T')[0]}.pdf`;
