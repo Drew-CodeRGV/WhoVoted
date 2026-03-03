@@ -488,11 +488,42 @@
             return;
         }
         
-        // Wait a moment for the modal to close and map to be accessible
+        // Enter Turf Cut Mode
+        enterTurfCutMode(precinctName, validVoters);
+    }
+    
+    function enterTurfCutMode(precinctName, voters) {
+        // Hide all UI elements
+        document.querySelectorAll('.panel-icon-btn, .dataset-stats-box, .info-strip, .overlay-image').forEach(el => {
+            el.style.display = 'none';
+        });
+        
+        // Store original state
+        window.turfCutModeActive = true;
+        window.turfCutData = { precinctName, voters };
+        
+        // Create Turf Cut Mode overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'turfCutModeOverlay';
+        overlay.className = 'turf-cut-mode-overlay';
+        overlay.innerHTML = `
+            <div class="turf-cut-controls">
+                <button class="btn-exit-turf-cut" onclick="exitTurfCutMode()">
+                    <i class="fas fa-times"></i> Exit Turf Cut Mode
+                </button>
+                <button class="btn-generate-pdf" onclick="generateTurfCutPDF()">
+                    <i class="fas fa-file-pdf"></i> Generate PDF
+                </button>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        
+        // Wait a moment for UI to update
         setTimeout(() => {
             // Check if map and Leaflet are available
             if (typeof map === 'undefined' || typeof L === 'undefined') {
                 alert('Map is not available. Please refresh the page.');
+                exitTurfCutMode();
                 return;
             }
             
@@ -533,7 +564,7 @@
             }
             
             // Optimize route using nearest neighbor algorithm
-            const optimizedRoute = optimizeRoute(validVoters);
+            const optimizedRoute = optimizeRoute(voters);
             
             // Store markers for click handling
             window.canvassingMarkers = [];
@@ -671,16 +702,151 @@
         }, 300);
     }
     
+    // Global function to exit Turf Cut Mode
+    window.exitTurfCutMode = function() {
+        // Remove overlay
+        const overlay = document.getElementById('turfCutModeOverlay');
+        if (overlay) overlay.remove();
+        
+        // Remove walk list panel
+        const walkList = document.getElementById('walkListPanel');
+        if (walkList) walkList.remove();
+        
+        // Clear markers and routes
+        if (window.canvassingMarkers && window.canvassingMarkers.length > 0) {
+            window.canvassingMarkers.forEach(marker => {
+                try {
+                    map.removeLayer(marker);
+                } catch (e) {}
+            });
+            window.canvassingMarkers = [];
+        }
+        
+        if (window.routingControl) {
+            try {
+                map.removeControl(window.routingControl);
+            } catch (e) {}
+            window.routingControl = null;
+        }
+        
+        if (window.routeDecorator) {
+            try {
+                map.removeLayer(window.routeDecorator);
+            } catch (e) {}
+            window.routeDecorator = null;
+        }
+        
+        // Restore UI elements
+        document.querySelectorAll('.panel-icon-btn, .dataset-stats-box, .info-strip, .overlay-image').forEach(el => {
+            el.style.display = '';
+        });
+        
+        window.turfCutModeActive = false;
+        window.turfCutData = null;
+    };
+    
+    // Global function to generate PDF
+    window.generateTurfCutPDF = async function() {
+        if (!window.turfCutData) {
+            alert('No turf cut data available');
+            return;
+        }
+        
+        // Show loading indicator
+        const pdfBtn = document.querySelector('.btn-generate-pdf');
+        const originalHTML = pdfBtn.innerHTML;
+        pdfBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+        pdfBtn.disabled = true;
+        
+        try {
+            // Use jsPDF library
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'letter');
+            
+            // Add title
+            doc.setFontSize(18);
+            doc.setFont(undefined, 'bold');
+            doc.text(`Turf Cut - Precinct ${window.turfCutData.precinctName}`, 105, 20, { align: 'center' });
+            
+            // Capture map as image
+            const mapElement = document.getElementById('map');
+            const canvas = await html2canvas(mapElement, {
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#ffffff'
+            });
+            
+            const imgData = canvas.toDataURL('image/png');
+            const imgWidth = 190;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            
+            // Add map image
+            doc.addImage(imgData, 'PNG', 10, 30, imgWidth, Math.min(imgHeight, 120));
+            
+            // Add walk list
+            let yPos = 30 + Math.min(imgHeight, 120) + 10;
+            
+            // Get walk list data
+            const walkListItems = document.querySelectorAll('.walk-list-item');
+            
+            doc.setFontSize(14);
+            doc.setFont(undefined, 'bold');
+            doc.text('Walk List', 10, yPos);
+            yPos += 8;
+            
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            
+            walkListItems.forEach((item, idx) => {
+                if (yPos > 260) {
+                    doc.addPage();
+                    yPos = 20;
+                }
+                
+                const name = item.querySelector('.walk-list-name').textContent;
+                const address = item.querySelector('.walk-list-address').textContent;
+                const party = item.querySelector('.walk-list-party').textContent;
+                
+                doc.setFont(undefined, 'bold');
+                doc.text(`${idx + 1}. ${name}`, 10, yPos);
+                yPos += 5;
+                
+                doc.setFont(undefined, 'normal');
+                doc.text(`   ${address}`, 10, yPos);
+                yPos += 5;
+                
+                doc.text(`   Party: ${party}`, 10, yPos);
+                yPos += 8;
+            });
+            
+            // Save PDF
+            const fileName = `turf-cut-precinct-${window.turfCutData.precinctName}-${new Date().toISOString().split('T')[0]}.pdf`;
+            doc.save(fileName);
+            
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            alert('Error generating PDF. Please try again.');
+        } finally {
+            // Restore button
+            pdfBtn.innerHTML = originalHTML;
+            pdfBtn.disabled = false;
+        }
+    };
+    
     // Create walk list panel
     function createWalkListPanel(precinctName, route, totalDistance, totalTime) {
         // Remove existing panel if any
         const existing = document.getElementById('walkListPanel');
         if (existing) existing.remove();
         
+        // Determine position based on mode
+        const topPosition = window.turfCutModeActive ? '120px' : '20px';
+        
         // Create panel
         const panel = document.createElement('div');
         panel.id = 'walkListPanel';
         panel.className = 'walk-list-panel';
+        panel.style.top = topPosition;
         panel.innerHTML = `
             <div class="walk-list-header">
                 <h3><i class="fas fa-route"></i> Walk List - Precinct ${precinctName}</h3>
@@ -688,9 +854,7 @@
                     <button class="btn-print-walk-list" onclick="printWalkList()">
                         <i class="fas fa-print"></i> Print
                     </button>
-                    <button class="btn-close-walk-list" onclick="closeWalkList()">
-                        <i class="fas fa-times"></i>
-                    </button>
+                    ${!window.turfCutModeActive ? '<button class="btn-close-walk-list" onclick="closeWalkList()"><i class="fas fa-times"></i></button>' : ''}
                 </div>
             </div>
             <div class="walk-list-summary">

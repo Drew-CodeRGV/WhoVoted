@@ -466,6 +466,82 @@
     overflow: hidden;
 }
 
+/* Turf Cut Mode Overlay */
+.turf-cut-mode-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1500;
+    pointer-events: none;
+}
+
+.turf-cut-controls {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 2001;
+    pointer-events: all;
+}
+
+.btn-exit-turf-cut,
+.btn-generate-pdf {
+    background: white;
+    color: #333;
+    border: 2px solid #667eea;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.btn-exit-turf-cut {
+    background: #dc3545;
+    color: white;
+    border-color: #dc3545;
+}
+
+.btn-exit-turf-cut:hover {
+    background: #c82333;
+    border-color: #c82333;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(220, 53, 69, 0.3);
+}
+
+.btn-generate-pdf {
+    background: #10b981;
+    color: white;
+    border-color: #10b981;
+}
+
+.btn-generate-pdf:hover {
+    background: #059669;
+    border-color: #059669;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
+}
+
+.btn-generate-pdf:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Adjust walk list panel position in Turf Cut Mode */
+body.turf-cut-mode .walk-list-panel {
+    top: 120px;
+}
+
 .walk-list-header {
     padding: 20px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
