@@ -498,6 +498,23 @@
             el.style.display = 'none';
         });
         
+        // Hide heatmap layers
+        if (typeof traditionalHeatmapLayer !== 'undefined' && traditionalHeatmapLayer) {
+            map.removeLayer(traditionalHeatmapLayer);
+        }
+        if (typeof democraticHeatmapLayer !== 'undefined' && democraticHeatmapLayer) {
+            map.removeLayer(democraticHeatmapLayer);
+        }
+        if (typeof republicanHeatmapLayer !== 'undefined' && republicanHeatmapLayer) {
+            map.removeLayer(republicanHeatmapLayer);
+        }
+        if (typeof flippedHeatmapLayer !== 'undefined' && flippedHeatmapLayer) {
+            map.removeLayer(flippedHeatmapLayer);
+        }
+        if (typeof newVotersHeatmapLayer !== 'undefined' && newVotersHeatmapLayer) {
+            map.removeLayer(newVotersHeatmapLayer);
+        }
+        
         // Store original state
         window.turfCutModeActive = true;
         window.turfCutData = { precinctName, voters };
@@ -793,6 +810,35 @@
         window.turfCutData = null;
     };
     
+    // Helper function to cluster stops geographically
+    function clusterStops(stops, maxDistance = 0.5) {
+        // maxDistance in miles - stops within this distance are clustered together
+        const clusters = [];
+        const used = new Set();
+        
+        stops.forEach((stop, idx) => {
+            if (used.has(idx)) return;
+            
+            const cluster = [idx];
+            used.add(idx);
+            
+            // Find nearby stops
+            for (let i = idx + 1; i < stops.length; i++) {
+                if (used.has(i)) continue;
+                
+                const distance = getDistance(stop.lat, stop.lng, stops[i].lat, stops[i].lng);
+                if (distance <= maxDistance) {
+                    cluster.push(i);
+                    used.add(i);
+                }
+            }
+            
+            clusters.push(cluster);
+        });
+        
+        return clusters;
+    }
+    
     // Global function to generate PDF
     window.generateTurfCutPDF = async function() {
         if (!window.turfCutData) {
@@ -813,90 +859,13 @@
             const pageWidth = doc.internal.pageSize.getWidth();
             const pageHeight = doc.internal.pageSize.getHeight();
             
-            // Add Politiquera logo at top left
-            const logoImg = document.querySelector('.overlay-image');
-            if (logoImg) {
-                try {
-                    // Create a canvas to load the logo
-                    const logoCanvas = document.createElement('canvas');
-                    const logoCtx = logoCanvas.getContext('2d');
-                    const img = new Image();
-                    img.crossOrigin = 'anonymous';
-                    
-                    await new Promise((resolve, reject) => {
-                        img.onload = () => {
-                            // Set canvas to maintain aspect ratio
-                            const aspectRatio = img.width / img.height;
-                            const logoHeight = 15;
-                            const logoWidth = logoHeight * aspectRatio;
-                            
-                            logoCanvas.width = img.width;
-                            logoCanvas.height = img.height;
-                            logoCtx.drawImage(img, 0, 0);
-                            resolve({ width: logoWidth, height: logoHeight });
-                        };
-                        img.onerror = reject;
-                        img.src = 'assets/politiquera.png';
-                    }).then(dimensions => {
-                        const logoData = logoCanvas.toDataURL('image/png');
-                        doc.addImage(logoData, 'PNG', 10, 5, dimensions.width, dimensions.height);
-                    });
-                } catch (e) {
-                    console.log('Could not load logo:', e);
-                }
-            }
-            
-            // Title at top center
-            doc.setFontSize(18);
-            doc.setFont(undefined, 'bold');
-            doc.text(`Walk List - Precinct ${window.turfCutData.precinctName}`, pageWidth / 2, 15, { align: 'center' });
-            
-            // Temporarily zoom map to fit route with small padding before capturing
-            const originalZoom = map.getZoom();
-            const originalCenter = map.getCenter();
-            
-            if (window.canvassingMarkers && window.canvassingMarkers.length > 0) {
-                const group = L.featureGroup(window.canvassingMarkers);
-                map.fitBounds(group.getBounds().pad(0.05)); // 5% padding
-            }
-            
-            // Wait for map to render at new zoom
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            // Capture map screenshot
-            const mapElement = document.getElementById('map');
-            const mapCanvas = await html2canvas(mapElement, {
-                useCORS: true,
-                allowTaint: true,
-                backgroundColor: '#ffffff',
-                scale: 2
-            });
-            
-            // Restore original map view
-            map.setView(originalCenter, originalZoom);
-            
-            const mapImgData = mapCanvas.toDataURL('image/png');
-            
-            // Calculate proper aspect ratio for map
-            const mapWidth = (pageWidth / 2) - 15;
-            const mapAspectRatio = mapCanvas.width / mapCanvas.height;
-            const mapHeight = mapWidth / mapAspectRatio;
-            
-            // Ensure map doesn't exceed page height
-            const maxMapHeight = pageHeight - 40;
-            const finalMapHeight = Math.min(mapHeight, maxMapHeight);
-            const finalMapWidth = finalMapHeight * mapAspectRatio;
-            
-            // Center the map vertically if it's shorter than max height
-            const mapY = 30 + (maxMapHeight - finalMapHeight) / 2;
-            
-            doc.addImage(mapImgData, 'PNG', 10, mapY, finalMapWidth, finalMapHeight);
-            
-            // Get walk list data
-            const route = window.canvassingMarkers.map((marker, idx) => {
+            // Get all stops data first
+            const allStops = window.canvassingMarkers.map((marker, idx) => {
                 const stop = document.querySelectorAll('.walk-list-item')[idx];
                 return {
                     number: idx + 1,
+                    lat: marker.getLatLng().lat,
+                    lng: marker.getLatLng().lng,
                     address: stop.querySelector('.walk-list-address').textContent,
                     voters: Array.from(stop.querySelectorAll('.walk-list-voter')).map(v => ({
                         name: v.querySelector('.walk-list-name').textContent,
@@ -909,89 +878,192 @@
                 };
             });
             
-            // Summary stats at top right
-            const summaryX = (pageWidth / 2) + 10;
-            doc.setFontSize(10);
-            doc.setFont(undefined, 'normal');
+            // Cluster stops geographically
+            const clusters = clusterStops(allStops, 0.3); // 0.3 miles clustering distance
             
-            const stats = document.querySelector('.walk-list-summary');
-            const stops = stats.children[0].querySelector('strong').textContent;
-            const voters = stats.children[1].querySelector('strong').textContent;
-            const miles = stats.children[2].querySelector('strong').textContent;
-            const mins = stats.children[3].querySelector('strong').textContent;
+            console.log(`Created ${clusters.length} geographic clusters`);
             
-            doc.text(`${stops} stops  |  ${voters} voters  |  ${miles} mi  |  ${mins} min`, summaryX, 25);
+            // Capture map images for each cluster
+            const clusterImages = [];
+            const originalZoom = map.getZoom();
+            const originalCenter = map.getCenter();
             
-            // Walk list on right half
-            let yPos = 35;
-            const listX = summaryX;
-            const listWidth = (pageWidth / 2) - 20;
-            
-            doc.setFontSize(9);
-            
-            route.forEach((stop, idx) => {
-                // Check if we need a new page
-                if (yPos > pageHeight - 30) {
-                    doc.addPage();
-                    yPos = 20;
-                }
+            for (let clusterIdx = 0; clusterIdx < clusters.length; clusterIdx++) {
+                const cluster = clusters[clusterIdx];
+                const clusterMarkers = cluster.map(stopIdx => window.canvassingMarkers[stopIdx]);
                 
-                // Stop number and address
-                doc.setFont(undefined, 'bold');
-                doc.setFillColor(255, 215, 0); // Gold
-                doc.circle(listX + 5, yPos - 2, 5, 'F');
-                doc.setTextColor(0, 0, 0);
-                doc.text(stop.number.toString(), listX + 5, yPos + 1, { align: 'center' });
+                // Zoom to this cluster
+                const group = L.featureGroup(clusterMarkers);
+                map.fitBounds(group.getBounds().pad(0.1)); // 10% padding for clusters
                 
-                doc.setTextColor(80, 80, 80);
-                doc.setFontSize(9);
-                const addressLines = doc.splitTextToSize(stop.address, listWidth - 15);
-                doc.text(addressLines, listX + 12, yPos);
-                yPos += addressLines.length * 4 + 2;
+                // Wait for map to render
+                await new Promise(resolve => setTimeout(resolve, 300));
                 
-                // Voters at this address
-                doc.setFontSize(8);
-                stop.voters.forEach(voter => {
-                    if (yPos > pageHeight - 20) {
-                        doc.addPage();
-                        yPos = 20;
-                    }
-                    
-                    // Party color bar
-                    if (voter.party.includes('Democratic')) {
-                        doc.setDrawColor(0, 100, 255);
-                    } else if (voter.party.includes('Republican')) {
-                        doc.setDrawColor(230, 0, 60);
-                    } else {
-                        doc.setDrawColor(102, 102, 102);
-                    }
-                    doc.setLineWidth(1);
-                    doc.line(listX + 12, yPos - 3, listX + 12, yPos + 3);
-                    
-                    // Voter name
-                    doc.setFont(undefined, 'normal');
-                    doc.setTextColor(51, 51, 51);
-                    doc.text(voter.name, listX + 15, yPos);
-                    yPos += 4;
-                    
-                    // Voter details
-                    doc.setFont(undefined, 'normal');
-                    doc.setTextColor(102, 102, 102);
-                    doc.setFontSize(7);
-                    let details = `${voter.party}  |  ${voter.age}  |  ${voter.score}`;
-                    if (voter.history) details += `  |  ${voter.history}`;
-                    if (voter.lastVoted) details += `  |  ${voter.lastVoted}`;
-                    doc.text(details, listX + 15, yPos);
-                    yPos += 4;
+                // Capture screenshot
+                const mapElement = document.getElementById('map');
+                const mapCanvas = await html2canvas(mapElement, {
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff',
+                    scale: 2
                 });
                 
-                yPos += 3; // Space between stops
-            });
+                clusterImages.push({
+                    data: mapCanvas.toDataURL('image/png'),
+                    width: mapCanvas.width,
+                    height: mapCanvas.height,
+                    stops: cluster.map(idx => allStops[idx])
+                });
+            }
             
-            // Footer
-            doc.setFontSize(8);
-            doc.setTextColor(150, 150, 150);
-            doc.text(`Generated ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, pageWidth / 2, pageHeight - 5, { align: 'center' });
+            // Restore original map view
+            // Restore original map view
+            map.setView(originalCenter, originalZoom);
+            
+            // Load logo
+            let logoData = null;
+            let logoDimensions = null;
+            try {
+                const logoCanvas = document.createElement('canvas');
+                const logoCtx = logoCanvas.getContext('2d');
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                
+                const logoResult = await new Promise((resolve, reject) => {
+                    img.onload = () => {
+                        const aspectRatio = img.width / img.height;
+                        const logoHeight = 15;
+                        const logoWidth = logoHeight * aspectRatio;
+                        
+                        logoCanvas.width = img.width;
+                        logoCanvas.height = img.height;
+                        logoCtx.drawImage(img, 0, 0);
+                        resolve({ 
+                            data: logoCanvas.toDataURL('image/png'),
+                            width: logoWidth, 
+                            height: logoHeight 
+                        });
+                    };
+                    img.onerror = () => resolve(null);
+                    img.src = 'assets/politiquera.png';
+                });
+                
+                if (logoResult) {
+                    logoData = logoResult.data;
+                    logoDimensions = { width: logoResult.width, height: logoResult.height };
+                }
+            } catch (e) {
+                console.log('Could not load logo:', e);
+            }
+            
+            // Get summary stats
+            const stats = document.querySelector('.walk-list-summary');
+            const totalStops = stats.children[0].querySelector('strong').textContent;
+            const totalVoters = stats.children[1].querySelector('strong').textContent;
+            const totalMiles = stats.children[2].querySelector('strong').textContent;
+            const totalMins = stats.children[3].querySelector('strong').textContent;
+            
+            // Generate PDF pages - max 2 map clusters per page
+            for (let pageIdx = 0; pageIdx < Math.ceil(clusterImages.length / 2); pageIdx++) {
+                if (pageIdx > 0) doc.addPage();
+                
+                // Add logo and title on first page only
+                if (pageIdx === 0) {
+                    if (logoData && logoDimensions) {
+                        doc.addImage(logoData, 'PNG', 10, 5, logoDimensions.width, logoDimensions.height);
+                    }
+                    
+                    doc.setFontSize(18);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`Walk List - Precinct ${window.turfCutData.precinctName}`, pageWidth / 2, 15, { align: 'center' });
+                    
+                    doc.setFontSize(10);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(`${totalStops} stops  |  ${totalVoters} voters  |  ${totalMiles} mi  |  ${totalMins} min`, pageWidth / 2, 22, { align: 'center' });
+                }
+                
+                const startY = pageIdx === 0 ? 30 : 15;
+                let currentY = startY;
+                
+                // Add up to 2 clusters on this page
+                for (let i = 0; i < 2; i++) {
+                    const clusterIdx = pageIdx * 2 + i;
+                    if (clusterIdx >= clusterImages.length) break;
+                    
+                    const cluster = clusterImages[clusterIdx];
+                    
+                    // Calculate map dimensions
+                    const mapWidth = (pageWidth / 2) - 15;
+                    const mapAspectRatio = cluster.width / cluster.height;
+                    const mapHeight = Math.min(mapWidth / mapAspectRatio, (pageHeight - currentY - 15) / 2);
+                    const finalMapWidth = mapHeight * mapAspectRatio;
+                    
+                    // Add map image
+                    doc.addImage(cluster.data, 'PNG', 10, currentY, finalMapWidth, mapHeight);
+                    
+                    // Add stops list next to map
+                    let listY = currentY + 5;
+                    const listX = (pageWidth / 2) + 10;
+                    const listWidth = (pageWidth / 2) - 20;
+                    
+                    doc.setFontSize(9);
+                    
+                    cluster.stops.forEach(stop => {
+                        if (listY > currentY + mapHeight - 10) return; // Don't overflow map area
+                        
+                        // Stop number and address
+                        doc.setFont(undefined, 'bold');
+                        doc.setFillColor(255, 215, 0);
+                        doc.circle(listX + 5, listY - 2, 5, 'F');
+                        doc.setTextColor(0, 0, 0);
+                        doc.text(stop.number.toString(), listX + 5, listY + 1, { align: 'center' });
+                        
+                        doc.setTextColor(80, 80, 80);
+                        doc.setFontSize(8);
+                        const addressLines = doc.splitTextToSize(stop.address, listWidth - 15);
+                        doc.text(addressLines, listX + 12, listY);
+                        listY += addressLines.length * 3.5 + 1;
+                        
+                        // Voters
+                        doc.setFontSize(7);
+                        stop.voters.forEach(voter => {
+                            if (listY > currentY + mapHeight - 5) return;
+                            
+                            // Party color bar
+                            if (voter.party.includes('Democratic')) {
+                                doc.setDrawColor(0, 100, 255);
+                            } else if (voter.party.includes('Republican')) {
+                                doc.setDrawColor(230, 0, 60);
+                            } else {
+                                doc.setDrawColor(102, 102, 102);
+                            }
+                            doc.setLineWidth(0.5);
+                            doc.line(listX + 12, listY - 2, listX + 12, listY + 2);
+                            
+                            doc.setFont(undefined, 'normal');
+                            doc.setTextColor(51, 51, 51);
+                            doc.text(voter.name, listX + 14, listY);
+                            listY += 3;
+                            
+                            doc.setTextColor(102, 102, 102);
+                            doc.setFontSize(6);
+                            let details = `${voter.party}  |  ${voter.age}  |  ${voter.score}`;
+                            if (voter.history) details += `  |  ${voter.history}`;
+                            doc.text(details, listX + 14, listY);
+                            listY += 3;
+                        });
+                        
+                        listY += 2;
+                    });
+                    
+                    currentY += mapHeight + 10;
+                }
+                
+                // Footer
+                doc.setFontSize(8);
+                doc.setTextColor(150, 150, 150);
+                doc.text(`Generated ${new Date().toLocaleDateString()} - Page ${pageIdx + 1}`, pageWidth / 2, pageHeight - 5, { align: 'center' });
+            }
             
             // Save PDF
             const fileName = `turf-cut-precinct-${window.turfCutData.precinctName}-${new Date().toISOString().split('T')[0]}.pdf`;
