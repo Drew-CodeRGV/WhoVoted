@@ -580,7 +580,7 @@
             window.canvassingMarkers = [];
             
             // Add numbered markers for each stop
-            optimizedRoute.forEach((v, idx) => {
+            optimizedRoute.forEach((stop, idx) => {
                 // Create numbered marker
                 const numberIcon = L.divIcon({
                     html: `<div style="background: #FFD700; color: #000; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">${idx + 1}</div>`,
@@ -589,13 +589,17 @@
                     iconAnchor: [16, 16]
                 });
                 
-                const marker = L.marker([v.lat, v.lng], { icon: numberIcon })
-                    .bindPopup(`
-                        <strong>Stop ${idx + 1}: ${v.name}</strong><br>
-                        ${v.address}<br>
-                        <span style="color: #666;">Party: ${v.party_affinity}</span><br>
-                        <span style="color: #999; font-size: 11px;">Age: ${v.age || 'N/A'}</span>
-                    `)
+                // Build popup content with all voters at this address
+                let popupContent = `<strong>Stop ${idx + 1}</strong><br>${stop.address}<br><br>`;
+                stop.voters.forEach((v, vIdx) => {
+                    popupContent += `<strong>${v.name}</strong><br>`;
+                    popupContent += `<span style="color: #666;">Party: ${v.party_affinity}</span>`;
+                    if (v.age) popupContent += ` | Age: ${v.age}`;
+                    if (vIdx < stop.voters.length - 1) popupContent += '<br><br>';
+                });
+                
+                const marker = L.marker([stop.lat, stop.lng], { icon: numberIcon })
+                    .bindPopup(popupContent)
                     .addTo(map);
                 
                 window.canvassingMarkers.push(marker);
@@ -829,6 +833,9 @@
         // Determine position based on mode
         const topPosition = window.turfCutModeActive ? '120px' : '20px';
         
+        // Count total voters
+        const totalVoters = route.reduce((sum, stop) => sum + stop.voters.length, 0);
+        
         // Create panel
         const panel = document.createElement('div');
         panel.id = 'walkListPanel';
@@ -846,27 +853,45 @@
             </div>
             <div class="walk-list-summary">
                 <div><strong>${route.length}</strong> stops</div>
-                <div><strong>${totalDistance.toFixed(2)}</strong> miles</div>
+                <div><strong>${totalVoters}</strong> voters</div>
+                <div><strong>${totalDistance.toFixed(2)}</strong> mi</div>
                 <div><strong>${totalTime}</strong> min</div>
             </div>
             <div class="walk-list-content">
-                ${route.map((v, idx) => `
+                ${route.map((stop, idx) => {
+                    // Get party affinity for the stop (use first voter's or determine majority)
+                    const partyColors = stop.voters.map(v => {
+                        if (v.party_affinity === 'Democratic') return '#0064FF';
+                        if (v.party_affinity === 'Republican') return '#E6003C';
+                        return '#666';
+                    });
+                    const primaryColor = partyColors[0];
+                    
+                    return `
                     <div class="walk-list-item" data-stop="${idx}">
                         <div class="walk-list-number">${idx + 1}</div>
                         <div class="walk-list-details">
-                            <div class="walk-list-name">${v.name}</div>
-                            <div class="walk-list-address">${v.address}</div>
-                            <div class="walk-list-meta">
-                                <span class="walk-list-party" style="color: ${
+                            <div class="walk-list-address" style="font-weight: 600; margin-bottom: 6px;">${stop.address}</div>
+                            ${stop.voters.map(v => `
+                                <div class="walk-list-voter" style="margin-bottom: 4px; padding-left: 8px; border-left: 3px solid ${
                                     v.party_affinity === 'Democratic' ? '#0064FF' : 
                                     v.party_affinity === 'Republican' ? '#E6003C' : '#666'
-                                };">${v.party_affinity}</span>
-                                ${v.age ? `<span class="walk-list-age">Age ${v.age}</span>` : ''}
-                                <span class="walk-list-score">Score: ${v.voting_score}/10</span>
-                            </div>
+                                };">
+                                    <div class="walk-list-name" style="font-size: 13px; color: #333;">${v.name}</div>
+                                    <div class="walk-list-meta" style="display: flex; gap: 8px; font-size: 11px; margin-top: 2px;">
+                                        <span class="walk-list-party" style="color: ${
+                                            v.party_affinity === 'Democratic' ? '#0064FF' : 
+                                            v.party_affinity === 'Republican' ? '#E6003C' : '#666'
+                                        };">${v.party_affinity}</span>
+                                        ${v.age ? `<span class="walk-list-age">Age ${v.age}</span>` : ''}
+                                        <span class="walk-list-score">Score: ${v.voting_score}/10</span>
+                                    </div>
+                                </div>
+                            `).join('')}
                         </div>
                     </div>
-                `).join('')}
+                `;
+                }).join('')}
             </div>
         `;
         
@@ -905,14 +930,34 @@
     function optimizeRoute(voters) {
         if (voters.length <= 1) return voters;
         
-        const unvisited = [...voters];
+        // First, group voters by address
+        const addressGroups = {};
+        voters.forEach(v => {
+            const key = `${v.lat.toFixed(6)},${v.lng.toFixed(6)}`; // Group by coordinates
+            if (!addressGroups[key]) {
+                addressGroups[key] = {
+                    lat: v.lat,
+                    lng: v.lng,
+                    address: v.address,
+                    voters: []
+                };
+            }
+            addressGroups[key].voters.push(v);
+        });
+        
+        // Convert to array of stops
+        const stops = Object.values(addressGroups);
+        
+        if (stops.length <= 1) return stops;
+        
+        const unvisited = [...stops];
         const route = [];
         
-        // Start with the first voter (could be optimized to find best starting point)
+        // Start with the first stop
         let current = unvisited.shift();
         route.push(current);
         
-        // Visit nearest unvisited voter each time
+        // Visit nearest unvisited stop each time
         while (unvisited.length > 0) {
             let nearestIndex = 0;
             let nearestDistance = Infinity;
