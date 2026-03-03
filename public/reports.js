@@ -813,6 +813,39 @@
             const pageWidth = doc.internal.pageSize.getWidth();
             const pageHeight = doc.internal.pageSize.getHeight();
             
+            // Add Politiquera logo at top left
+            const logoImg = document.querySelector('.overlay-image');
+            if (logoImg) {
+                try {
+                    // Create a canvas to load the logo
+                    const logoCanvas = document.createElement('canvas');
+                    const logoCtx = logoCanvas.getContext('2d');
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    
+                    await new Promise((resolve, reject) => {
+                        img.onload = () => {
+                            logoCanvas.width = img.width;
+                            logoCanvas.height = img.height;
+                            logoCtx.drawImage(img, 0, 0);
+                            resolve();
+                        };
+                        img.onerror = reject;
+                        img.src = 'assets/politiquera.png';
+                    });
+                    
+                    const logoData = logoCanvas.toDataURL('image/png');
+                    doc.addImage(logoData, 'PNG', 10, 5, 15, 15); // Small logo at top left
+                } catch (e) {
+                    console.log('Could not load logo:', e);
+                }
+            }
+            
+            // Title at top center
+            doc.setFontSize(18);
+            doc.setFont(undefined, 'bold');
+            doc.text(`Walk List - Precinct ${window.turfCutData.precinctName}`, pageWidth / 2, 15, { align: 'center' });
+            
             // Capture map screenshot
             const mapElement = document.getElementById('map');
             const mapCanvas = await html2canvas(mapElement, {
@@ -824,15 +857,20 @@
             
             const mapImgData = mapCanvas.toDataURL('image/png');
             
-            // Map takes left half of page
+            // Calculate proper aspect ratio for map
             const mapWidth = (pageWidth / 2) - 15;
-            const mapHeight = pageHeight - 40;
-            doc.addImage(mapImgData, 'PNG', 10, 30, mapWidth, mapHeight);
+            const mapAspectRatio = mapCanvas.width / mapCanvas.height;
+            const mapHeight = mapWidth / mapAspectRatio;
             
-            // Title at top
-            doc.setFontSize(18);
-            doc.setFont(undefined, 'bold');
-            doc.text(`Walk List - Precinct ${window.turfCutData.precinctName}`, pageWidth / 2, 15, { align: 'center' });
+            // Ensure map doesn't exceed page height
+            const maxMapHeight = pageHeight - 40;
+            const finalMapHeight = Math.min(mapHeight, maxMapHeight);
+            const finalMapWidth = finalMapHeight * mapAspectRatio;
+            
+            // Center the map vertically if it's shorter than max height
+            const mapY = 30 + (maxMapHeight - finalMapHeight) / 2;
+            
+            doc.addImage(mapImgData, 'PNG', 10, mapY, finalMapWidth, finalMapHeight);
             
             // Get walk list data
             const route = window.canvassingMarkers.map((marker, idx) => {
