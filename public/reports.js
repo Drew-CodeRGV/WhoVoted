@@ -552,6 +552,18 @@
                 window.routeLine = null;
             }
             
+            // Remove existing route segments if any
+            if (window.routeSegments && window.routeSegments.length > 0) {
+                window.routeSegments.forEach(segment => {
+                    try {
+                        map.removeLayer(segment);
+                    } catch (e) {
+                        console.log('Could not remove route segment:', e);
+                    }
+                });
+                window.routeSegments = [];
+            }
+            
             // Remove existing route decorator if any
             if (window.routeDecorator) {
                 try {
@@ -607,49 +619,118 @@
             
             console.log(`Created ${window.canvassingMarkers.length} markers for canvassing route`);
             
-            // Create simple walking route with straight lines between stops
-            // This allows flexibility - canvassers can walk in any direction
-            const routeCoords = optimizedRoute.map(stop => [stop.lat, stop.lng]);
+            // Create street-based routing segment by segment
+            // This allows the route to change direction at each stop
+            console.log(`Creating route with ${optimizedRoute.length} waypoints`);
             
-            window.routeLine = L.polyline(routeCoords, {
-                color: '#667eea',
-                weight: 4,
-                opacity: 0.7,
-                dashArray: '10, 10' // Dashed line to indicate flexible walking path
-            }).addTo(map);
+            // Store all route segments
+            window.routeSegments = [];
+            let totalDistance = 0;
+            let totalTime = 0;
+            let segmentsCompleted = 0;
             
-            // Add arrow decorators to show direction
-            if (typeof L.polylineDecorator !== 'undefined') {
-                window.routeDecorator = L.polylineDecorator(routeCoords, {
-                    patterns: [
-                        {
-                            offset: 25,
-                            repeat: 75,
-                            symbol: L.Symbol.arrowHead({
-                                pixelSize: 12,
-                                polygon: false,
-                                pathOptions: {
-                                    stroke: true,
-                                    weight: 3,
-                                    color: '#667eea',
-                                    opacity: 0.8
-                                }
-                            })
-                        }
-                    ]
-                }).addTo(map);
+            // Function to fetch route segment between two stops
+            const fetchSegment = async (fromStop, toStop, segmentIndex) => {
+                const coords = `${fromStop.lng},${fromStop.lat};${toStop.lng},${toStop.lat}`;
+                
+                try {
+                    const response = await fetch(`https://router.project-osrm.org/route/v1/walking/${coords}?overview=full&geometries=geojson`);
+                    const data = await response.json();
+                    
+                    if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                        const route = data.routes[0];
+                        const routeCoordinates = route.geometry.coordinates.map(c => [c[1], c[0]]);
+                        
+                        return {
+                            coordinates: routeCoordinates,
+                            distance: route.distance / 1609.34, // meters to miles
+                            duration: route.duration / 60 // seconds to minutes
+                        };
+                    }
+                } catch (error) {
+                    console.error(`Error fetching segment ${segmentIndex}:`, error);
+                }
+                
+                // Fallback to straight line
+                return {
+                    coordinates: [[fromStop.lat, fromStop.lng], [toStop.lat, toStop.lng]],
+                    distance: getDistance(fromStop.lat, fromStop.lng, toStop.lat, toStop.lng),
+                    duration: getDistance(fromStop.lat, fromStop.lng, toStop.lat, toStop.lng) * 20
+                };
+            };
+            
+            // Fetch all segments
+            const segmentPromises = [];
+            for (let i = 0; i < optimizedRoute.length - 1; i++) {
+                segmentPromises.push(fetchSegment(optimizedRoute[i], optimizedRoute[i + 1], i));
             }
             
-            // Calculate total distance (straight line)
-            const totalDistance = calculateRouteDistance(optimizedRoute);
-            const totalTime = Math.ceil(totalDistance * 20); // Estimate 20 min per mile walking
-            
-            // Fit map to show all markers
-            const group = L.featureGroup(window.canvassingMarkers);
-            map.fitBounds(group.getBounds().pad(0.1));
-            
-            // Create walk list panel
-            createWalkListPanel(precinctName, optimizedRoute, totalDistance, totalTime);
+            // Wait for all segments and draw them
+            Promise.all(segmentPromises).then(segments => {
+                // Combine all coordinates
+                let allCoordinates = [];
+                segments.forEach((segment, idx) => {
+                    totalDistance += segment.distance;
+                    totalTime += segment.duration;
+                    
+                    // Draw each segment
+                    const segmentLine = L.polyline(segment.coordinates, {
+                        color: '#667eea',
+                        weight: 4,
+                        opacity: 0.7
+                    }).addTo(map);
+                    
+                    window.routeSegments.push(segmentLine);
+                    allCoordinates = allCoordinates.concat(segment.coordinates);
+                });
+                
+                // Add arrow decorators to show direction
+                if (typeof L.polylineDecorator !== 'undefined' && allCoordinates.length > 0) {
+                    window.routeDecorator = L.polylineDecorator(allCoordinates, {
+                        patterns: [
+                            {
+                                offset: 25,
+                                repeat: 75,
+                                symbol: L.Symbol.arrowHead({
+                                    pixelSize: 12,
+                                    polygon: false,
+                                    pathOptions: {
+                                        stroke: true,
+                                        weight: 3,
+                                        color: '#667eea',
+                                        opacity: 0.8
+                                    }
+                                })
+                            }
+                        ]
+                    }).addTo(map);
+                }
+                
+                // Fit map to show all markers
+                const group = L.featureGroup(window.canvassingMarkers);
+                map.fitBounds(group.getBounds().pad(0.1));
+                
+                // Create walk list panel
+                createWalkListPanel(precinctName, optimizedRoute, totalDistance, Math.ceil(totalTime));
+            }).catch(error => {
+                console.error('Error creating route:', error);
+                
+                // Fallback to simple polyline
+                const routeCoords = optimizedRoute.map(stop => [stop.lat, stop.lng]);
+                window.routeLine = L.polyline(routeCoords, {
+                    color: '#667eea',
+                    weight: 4,
+                    opacity: 0.7
+                }).addTo(map);
+                
+                const fallbackDistance = calculateRouteDistance(optimizedRoute);
+                const fallbackTime = Math.ceil(fallbackDistance * 20);
+                
+                const group = L.featureGroup(window.canvassingMarkers);
+                map.fitBounds(group.getBounds().pad(0.1));
+                
+                createWalkListPanel(precinctName, optimizedRoute, fallbackDistance, fallbackTime);
+            });
         }, 300);
     }
     
@@ -685,6 +766,15 @@
                 map.removeLayer(window.routeLine);
             } catch (e) {}
             window.routeLine = null;
+        }
+        
+        if (window.routeSegments && window.routeSegments.length > 0) {
+            window.routeSegments.forEach(segment => {
+                try {
+                    map.removeLayer(segment);
+                } catch (e) {}
+            });
+            window.routeSegments = [];
         }
         
         if (window.routeDecorator) {
