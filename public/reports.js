@@ -1100,8 +1100,8 @@
             <div class="walk-list-header">
                 <h3><i class="fas fa-route"></i> Walk List - Precinct ${precinctName}</h3>
                 <div class="walk-list-actions">
-                    <button class="btn-print-walk-list" onclick="printWalkList()">
-                        <i class="fas fa-print"></i> Print
+                    <button class="btn-generate-pdf-inline" onclick="generateTurfCutPDF()">
+                        <i class="fas fa-file-pdf"></i> Generate PDF
                     </button>
                     ${!window.turfCutModeActive ? '<button class="btn-close-walk-list" onclick="closeWalkList()"><i class="fas fa-times"></i></button>' : ''}
                 </div>
@@ -1174,10 +1174,6 @@
     }
     
     // Global functions for walk list
-    window.printWalkList = function() {
-        window.print();
-    };
-    
     window.closeWalkList = function() {
         const panel = document.getElementById('walkListPanel');
         if (panel) panel.remove();
