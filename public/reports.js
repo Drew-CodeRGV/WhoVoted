@@ -607,82 +607,49 @@
             
             console.log(`Created ${window.canvassingMarkers.length} markers for canvassing route`);
             
-            // Create routing with street-based navigation using OSRM API directly
-            const waypoints = optimizedRoute.map(v => [v.lng, v.lat]); // OSRM uses [lng, lat] format
-            const coordinates = waypoints.map(w => `${w[0]},${w[1]}`).join(';');
+            // Create simple walking route with straight lines between stops
+            // This allows flexibility - canvassers can walk in any direction
+            const routeCoords = optimizedRoute.map(stop => [stop.lat, stop.lng]);
             
-            console.log(`Creating route with ${waypoints.length} waypoints`);
+            window.routeLine = L.polyline(routeCoords, {
+                color: '#667eea',
+                weight: 4,
+                opacity: 0.7,
+                dashArray: '10, 10' // Dashed line to indicate flexible walking path
+            }).addTo(map);
             
-            // Fetch route from OSRM
-            fetch(`https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=geojson&steps=true`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
-                        throw new Error('No route found');
-                    }
-                    
-                    const route = data.routes[0];
-                    const routeCoordinates = route.geometry.coordinates.map(c => [c[1], c[0]]); // Convert to [lat, lng]
-                    
-                    // Draw route line
-                    window.routeLine = L.polyline(routeCoordinates, {
-                        color: '#667eea',
-                        opacity: 0.8,
-                        weight: 5
-                    }).addTo(map);
-                    
-                    // Add arrow decorators if available
-                    if (typeof L.polylineDecorator !== 'undefined') {
-                        window.routeDecorator = L.polylineDecorator(routeCoordinates, {
-                            patterns: [
-                                {
-                                    offset: 25,
-                                    repeat: 75,
-                                    symbol: L.Symbol.arrowHead({
-                                        pixelSize: 12,
-                                        polygon: false,
-                                        pathOptions: {
-                                            stroke: true,
-                                            weight: 3,
-                                            color: '#667eea',
-                                            opacity: 0.8
-                                        }
-                                    })
+            // Add arrow decorators to show direction
+            if (typeof L.polylineDecorator !== 'undefined') {
+                window.routeDecorator = L.polylineDecorator(routeCoords, {
+                    patterns: [
+                        {
+                            offset: 25,
+                            repeat: 75,
+                            symbol: L.Symbol.arrowHead({
+                                pixelSize: 12,
+                                polygon: false,
+                                pathOptions: {
+                                    stroke: true,
+                                    weight: 3,
+                                    color: '#667eea',
+                                    opacity: 0.8
                                 }
-                            ]
-                        }).addTo(map);
-                    }
-                    
-                    // Calculate total distance and time
-                    const totalDistance = route.distance / 1609.34; // Convert meters to miles
-                    const totalTime = Math.ceil(route.duration / 60); // Convert seconds to minutes
-                    
-                    // Fit map to show route
-                    map.fitBounds(window.routeLine.getBounds().pad(0.1));
-                    
-                    // Create walk list panel
-                    createWalkListPanel(precinctName, optimizedRoute, totalDistance, totalTime);
-                })
-                .catch(error => {
-                    console.error('Routing error:', error);
-                    
-                    // Fallback to simple polyline
-                    const routeCoords = optimizedRoute.map(v => [v.lat, v.lng]);
-                    window.routeLine = L.polyline(routeCoords, {
-                        color: '#667eea',
-                        weight: 4,
-                        opacity: 0.7
-                    }).addTo(map);
-                    
-                    const totalDistance = calculateRouteDistance(optimizedRoute);
-                    const totalTime = Math.ceil(totalDistance * 20);
-                    
-                    // Fit map to show all markers
-                    const group = L.featureGroup(window.canvassingMarkers);
-                    map.fitBounds(group.getBounds().pad(0.1));
-                    
-                    createWalkListPanel(precinctName, optimizedRoute, totalDistance, totalTime);
-                });
+                            })
+                        }
+                    ]
+                }).addTo(map);
+            }
+            
+            // Calculate total distance (straight line)
+            const totalDistance = calculateRouteDistance(optimizedRoute);
+            const totalTime = Math.ceil(totalDistance * 20); // Estimate 20 min per mile walking
+            
+            // Fit map to show all markers
+            const group = L.featureGroup(window.canvassingMarkers);
+            map.fitBounds(group.getBounds().pad(0.1));
+            
+            // Create walk list panel
+            createWalkListPanel(precinctName, optimizedRoute, totalDistance, totalTime);
         }, 300);
     }
     
