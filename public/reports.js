@@ -610,12 +610,12 @@
             
             // Add numbered markers for each stop
             optimizedRoute.forEach((stop, idx) => {
-                // Create numbered marker with larger size
+                // Create numbered marker with larger size for better visibility in PDF
                 const numberIcon = L.divIcon({
-                    html: `<div style="background: #FFD700; color: #000; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">${idx + 1}</div>`,
+                    html: `<div style="background: #FFD700; color: #000; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 24px; border: 4px solid #fff; box-shadow: 0 3px 8px rgba(0,0,0,0.4);">${idx + 1}</div>`,
                     className: 'numbered-marker',
-                    iconSize: [40, 40],
-                    iconAnchor: [20, 20]
+                    iconSize: [50, 50],
+                    iconAnchor: [25, 25]
                 });
                 
                 // Build popup content with all voters at this address
@@ -894,7 +894,7 @@
                 
                 // Zoom to this cluster
                 const group = L.featureGroup(clusterMarkers);
-                map.fitBounds(group.getBounds().pad(0.1)); // 10% padding for clusters
+                map.fitBounds(group.getBounds().pad(0.05)); // 5% padding for tighter zoom
                 
                 // Wait longer for map tiles to load
                 await new Promise(resolve => setTimeout(resolve, 1500));
