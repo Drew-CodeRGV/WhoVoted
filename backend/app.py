@@ -1235,48 +1235,90 @@ def county_report():
             {where_base} AND ve.party_voted = 'Republican'
         """, params_base).fetchone()[0]
         
-        # New voters (county-specific, only if county has prior data)
-        new_voters = conn.execute(f"""
-            SELECT COUNT(*) FROM voter_elections ve
-            JOIN voters v ON ve.vuid = v.vuid
-            {where_base}
-              AND EXISTS (SELECT 1 FROM voter_elections ve_prior
-                  JOIN voters v2 ON ve_prior.vuid = v2.vuid
-                  WHERE v2.county = v.county AND ve_prior.election_date < ?
-                    AND ve_prior.party_voted != '' AND ve_prior.party_voted IS NOT NULL
-                  LIMIT 1)
-              AND NOT EXISTS (SELECT 1 FROM voter_elections ve2
-                  WHERE ve2.vuid = ve.vuid AND ve2.election_date < ?
-                    AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL)
-        """, params_base + [election_date, election_date]).fetchone()[0]
+        # New voters - only count if we can reliably determine they're first-time voters
+        # Logic: They're "new" if:
+        #   1. They're 18-19 years old (just turned 18), OR
+        #   2. We have 3+ prior elections in DB and they didn't vote in any of them
         
-        new_dem = conn.execute(f"""
-            SELECT COUNT(*) FROM voter_elections ve
-            JOIN voters v ON ve.vuid = v.vuid
-            {where_base} AND ve.party_voted = 'Democratic'
-              AND EXISTS (SELECT 1 FROM voter_elections ve_prior
-                  JOIN voters v2 ON ve_prior.vuid = v2.vuid
-                  WHERE v2.county = v.county AND ve_prior.election_date < ?
-                    AND ve_prior.party_voted != '' AND ve_prior.party_voted IS NOT NULL
-                  LIMIT 1)
-              AND NOT EXISTS (SELECT 1 FROM voter_elections ve2
-                  WHERE ve2.vuid = ve.vuid AND ve2.election_date < ?
-                    AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL)
-        """, params_base + [election_date, election_date]).fetchone()[0]
+        # First, check how many prior elections we have
+        prior_election_count = conn.execute("""
+            SELECT COUNT(DISTINCT election_date) 
+            FROM voter_elections 
+            WHERE election_date < ?
+        """, [election_date]).fetchone()[0]
         
-        new_rep = conn.execute(f"""
-            SELECT COUNT(*) FROM voter_elections ve
-            JOIN voters v ON ve.vuid = v.vuid
-            {where_base} AND ve.party_voted = 'Republican'
-              AND EXISTS (SELECT 1 FROM voter_elections ve_prior
-                  JOIN voters v2 ON ve_prior.vuid = v2.vuid
-                  WHERE v2.county = v.county AND ve_prior.election_date < ?
-                    AND ve_prior.party_voted != '' AND ve_prior.party_voted IS NOT NULL
-                  LIMIT 1)
-              AND NOT EXISTS (SELECT 1 FROM voter_elections ve2
-                  WHERE ve2.vuid = ve.vuid AND ve2.election_date < ?
-                    AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL)
-        """, params_base + [election_date, election_date]).fetchone()[0]
+        # Calculate birth year range for 18-19 year olds at election time
+        election_year = int(election_date.split('-')[0])
+        min_birth_year_18 = election_year - 19  # 19 years old
+        max_birth_year_18 = election_year - 18  # 18 years old
+        
+        if prior_election_count >= 3:
+            # We have enough history - count voters who are either:
+            # - Just turned 18, OR
+            # - Didn't vote in any of the 3+ prior elections
+            new_voters = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base}
+                  AND (
+                    (v.birth_year BETWEEN ? AND ?)
+                    OR NOT EXISTS (
+                        SELECT 1 FROM voter_elections ve2
+                        WHERE ve2.vuid = ve.vuid AND ve2.election_date < ?
+                          AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL
+                    )
+                  )
+            """, params_base + [min_birth_year_18, max_birth_year_18, election_date]).fetchone()[0]
+            
+            new_dem = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base} AND ve.party_voted = 'Democratic'
+                  AND (
+                    (v.birth_year BETWEEN ? AND ?)
+                    OR NOT EXISTS (
+                        SELECT 1 FROM voter_elections ve2
+                        WHERE ve2.vuid = ve.vuid AND ve2.election_date < ?
+                          AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL
+                    )
+                  )
+            """, params_base + [min_birth_year_18, max_birth_year_18, election_date]).fetchone()[0]
+            
+            new_rep = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base} AND ve.party_voted = 'Republican'
+                  AND (
+                    (v.birth_year BETWEEN ? AND ?)
+                    OR NOT EXISTS (
+                        SELECT 1 FROM voter_elections ve2
+                        WHERE ve2.vuid = ve.vuid AND ve2.election_date < ?
+                          AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL
+                    )
+                  )
+            """, params_base + [min_birth_year_18, max_birth_year_18, election_date]).fetchone()[0]
+        else:
+            # Not enough history - only count voters who just turned 18
+            new_voters = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base}
+                  AND v.birth_year BETWEEN ? AND ?
+            """, params_base + [min_birth_year_18, max_birth_year_18]).fetchone()[0]
+            
+            new_dem = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base} AND ve.party_voted = 'Democratic'
+                  AND v.birth_year BETWEEN ? AND ?
+            """, params_base + [min_birth_year_18, max_birth_year_18]).fetchone()[0]
+            
+            new_rep = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base} AND ve.party_voted = 'Republican'
+                  AND v.birth_year BETWEEN ? AND ?
+            """, params_base + [min_birth_year_18, max_birth_year_18]).fetchone()[0]
         
         # Party switchers (flips)
         flip_rows = conn.execute(f"""
@@ -4194,3 +4236,166 @@ def api_new_voters():
 if __name__ == '__main__':
     logger.info("Starting WhoVoted backend server...")
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+
+
+# ============================================================================
+# DISTRICT 15 ELECTION NIGHT DASHBOARD
+# ============================================================================
+
+@app.route('/api/d15/results')
+def d15_results():
+    """Get real-time election results for District 15."""
+    try:
+        conn = db.get_connection()
+        
+        # Get the most recent election date with results
+        latest_election = conn.execute("""
+            SELECT election_date FROM election_results
+            ORDER BY election_date DESC, updated_at DESC
+            LIMIT 1
+        """).fetchone()
+        
+        if not latest_election:
+            return jsonify({
+                'totals': {'dem': 0, 'rep': 0},
+                'counties': [],
+                'precincts': []
+            })
+        
+        election_date = latest_election[0]
+        
+        # Get district-wide totals
+        totals = conn.execute("""
+            SELECT 
+                SUM(dem_votes) as dem,
+                SUM(rep_votes) as rep
+            FROM election_results
+            WHERE election_date = ? AND district = '15'
+        """, [election_date]).fetchone()
+        
+        # Get county breakdowns
+        counties = conn.execute("""
+            SELECT 
+                county,
+                SUM(dem_votes) as dem,
+                SUM(rep_votes) as rep
+            FROM election_results
+            WHERE election_date = ? AND district = '15'
+            GROUP BY county
+            ORDER BY (dem_votes + rep_votes) DESC
+        """, [election_date]).fetchall()
+        
+        # Get precinct breakdowns
+        precincts = conn.execute("""
+            SELECT 
+                county,
+                precinct,
+                dem_votes as dem,
+                rep_votes as rep
+            FROM election_results
+            WHERE election_date = ? AND district = '15'
+            ORDER BY (dem_votes + rep_votes) DESC
+        """, [election_date]).fetchall()
+        
+        return jsonify({
+            'totals': {
+                'dem': totals[0] or 0,
+                'rep': totals[1] or 0
+            },
+            'counties': [
+                {
+                    'name': row[0],
+                    'dem': row[1] or 0,
+                    'rep': row[2] or 0
+                }
+                for row in counties
+            ],
+            'precincts': [
+                {
+                    'county': row[0],
+                    'number': row[1],
+                    'dem': row[2] or 0,
+                    'rep': row[3] or 0
+                }
+                for row in precincts
+            ]
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching D15 results: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/d15/upload', methods=['POST'])
+@require_auth
+def d15_upload_results():
+    """Upload election results for District 15.
+    
+    Expects CSV with columns: county, precinct, dem_votes, rep_votes
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    try:
+        import csv
+        import io
+        from datetime import datetime
+        
+        # Read CSV
+        stream = io.StringIO(file.stream.read().decode('UTF8'), newline=None)
+        csv_reader = csv.DictReader(stream)
+        
+        conn = db.get_connection()
+        election_date = datetime.now().strftime('%Y-%m-%d')
+        updated_at = datetime.now().isoformat()
+        
+        # Create table if it doesn't exist
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS election_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                election_date TEXT NOT NULL,
+                district TEXT NOT NULL,
+                county TEXT NOT NULL,
+                precinct TEXT NOT NULL,
+                dem_votes INTEGER DEFAULT 0,
+                rep_votes INTEGER DEFAULT 0,
+                updated_at TEXT,
+                UNIQUE(election_date, district, county, precinct)
+            )
+        """)
+        
+        count = 0
+        for row in csv_reader:
+            county = row.get('county', '').strip()
+            precinct = row.get('precinct', '').strip()
+            dem_votes = int(row.get('dem_votes', 0) or 0)
+            rep_votes = int(row.get('rep_votes', 0) or 0)
+            
+            if not county or not precinct:
+                continue
+            
+            conn.execute("""
+                INSERT INTO election_results 
+                (election_date, district, county, precinct, dem_votes, rep_votes, updated_at)
+                VALUES (?, '15', ?, ?, ?, ?, ?)
+                ON CONFLICT(election_date, district, county, precinct) 
+                DO UPDATE SET
+                    dem_votes = excluded.dem_votes,
+                    rep_votes = excluded.rep_votes,
+                    updated_at = excluded.updated_at
+            """, [election_date, county, precinct, dem_votes, rep_votes, updated_at])
+            count += 1
+        
+        conn.commit()
+        
+        logger.info(f"Uploaded {count} election results for District 15")
+        return jsonify({'success': True, 'count': count})
+        
+    except Exception as e:
+        logger.error(f"Error uploading D15 results: {e}")
+        return jsonify({'error': str(e)}), 500

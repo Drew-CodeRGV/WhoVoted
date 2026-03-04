@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload D15 Results</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        
+        h1 {
+            color: #333;
+        }
+        
+        .upload-form {
+            background: #f5f5f5;
+            padding: 30px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+        
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px dashed #ccc;
+            border-radius: 4px;
+            background: white;
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+        }
+        
+        button:hover {
+            background: #5568d3;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+        }
+        
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .format-info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        
+        .format-info h3 {
+            margin-top: 0;
+            color: #0066cc;
+        }
+        
+        code {
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>Upload District 15 Election Results</h1>
+    
+    <div class="upload-form">
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="file">Select CSV File:</label>
+                <input type="file" id="file" name="file" accept=".csv" required>
+            </div>
+            
+            <button type="submit" id="submitBtn">Upload Results</button>
+        </form>
+        
+        <div class="message" id="message"></div>
+    </div>
+    
+    <div class="format-info">
+        <h3>CSV Format</h3>
+        <p>Your CSV file should have the following columns:</p>
+        <ul>
+            <li><code>county</code> - County name (e.g., "Hidalgo")</li>
+            <li><code>precinct</code> - Precinct number (e.g., "101")</li>
+            <li><code>dem_votes</code> - Democratic votes count</li>
+            <li><code>rep_votes</code> - Republican votes count</li>
+        </ul>
+        <p><strong>Example:</strong></p>
+        <pre>county,precinct,dem_votes,rep_votes
+Hidalgo,101,450,320
+Hidalgo,102,380,290
+Cameron,201,520,410</pre>
+    </div>
+    
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('file');
+            const submitBtn = document.getElementById('submitBtn');
+            const message = document.getElementById('message');
+            
+            if (!fileInput.files[0]) {
+                showMessage('Please select a file', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Uploading...';
+            message.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/d15/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showMessage(`Success! Uploaded ${data.count} results.`, 'success');
+                    fileInput.value = '';
+                } else {
+                    showMessage(`Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Upload Results';
+            }
+        });
+        
+        function showMessage(text, type) {
+            const message = document.getElementById('message');
+            message.textContent = text;
+            message.className = `message ${type}`;
+            message.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
