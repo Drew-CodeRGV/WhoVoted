@@ -425,89 +425,116 @@ def generate_county_report_data(county: str, election_date: str, voting_method: 
     r2d = sum(r[2] for r in flip_rows if r[1] == 'Republican' and r[0] == 'Democratic')
     d2r = sum(r[2] for r in flip_rows if r[1] == 'Democratic' and r[0] == 'Republican')
     
-    # New voters - only count if we can reliably determine they're first-time voters
-    # Logic: They're "new" if:
-    #   1. They're 18-19 years old (just turned 18), OR
-    #   2. We have 3+ prior elections in DB and they didn't vote in any of them
+    # New voters - conservative two-rule approach:
+    # Rule 1: Voters who were under 18 for all prior elections (newly eligible)
+    # Rule 2: County has 3+ prior elections AND voter has no prior history
     
-    # First, check how many prior elections we have
-    prior_election_count = conn.execute("""
-        SELECT COUNT(DISTINCT election_date) 
-        FROM voter_elections 
-        WHERE election_date < ?
-    """, [election_date]).fetchone()[0]
-    
-    # Calculate birth year range for 18-19 year olds at election time
-    election_year = int(election_date.split('-')[0])
-    min_birth_year_18 = election_year - 19  # 19 years old
-    max_birth_year_18 = election_year - 18  # 18 years old
+    # First, check how many prior elections we have for this county
+    prior_election_count = conn.execute(f"""
+        SELECT COUNT(DISTINCT ve.election_date) 
+        FROM voter_elections ve
+        JOIN voters v ON ve.vuid = v.vuid
+        WHERE v.county = ?
+          AND ve.election_date < ?
+          AND ve.party_voted != '' AND ve.party_voted IS NOT NULL
+    """, [county, election_date]).fetchone()[0]
     
     if prior_election_count >= 3:
-        # We have enough history - count voters who are either:
-        # - Just turned 18, OR
-        # - Didn't vote in any of the 3+ prior elections
+        # Rule 2 applies: County has sufficient history
+        # Count all voters with no prior primary voting history
         new_voters = conn.execute(f"""
             SELECT COUNT(*) FROM voter_elections ve
             JOIN voters v ON ve.vuid = v.vuid
             {where_base}
-              AND (
-                (v.birth_year BETWEEN ? AND ?)
-                OR NOT EXISTS (
-                    SELECT 1 FROM voter_elections ve2
-                    WHERE ve2.vuid = ve.vuid AND ve2.election_date < ?
-                      AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL
-                )
+              AND NOT EXISTS (
+                SELECT 1 FROM voter_elections ve2
+                WHERE ve2.vuid = ve.vuid
+                  AND ve2.election_date < ?
+                  AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL
               )
-        """, params_base + [min_birth_year_18, max_birth_year_18, election_date]).fetchone()[0]
+        """, params_base + [election_date]).fetchone()[0]
         
         new_dem = conn.execute(f"""
             SELECT COUNT(*) FROM voter_elections ve
             JOIN voters v ON ve.vuid = v.vuid
             {where_base} AND ve.party_voted = 'Democratic'
-              AND (
-                (v.birth_year BETWEEN ? AND ?)
-                OR NOT EXISTS (
-                    SELECT 1 FROM voter_elections ve2
-                    WHERE ve2.vuid = ve.vuid AND ve2.election_date < ?
-                      AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL
-                )
+              AND NOT EXISTS (
+                SELECT 1 FROM voter_elections ve2
+                WHERE ve2.vuid = ve.vuid
+                  AND ve2.election_date < ?
+                  AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL
               )
-        """, params_base + [min_birth_year_18, max_birth_year_18, election_date]).fetchone()[0]
+        """, params_base + [election_date]).fetchone()[0]
         
         new_rep = conn.execute(f"""
             SELECT COUNT(*) FROM voter_elections ve
             JOIN voters v ON ve.vuid = v.vuid
             {where_base} AND ve.party_voted = 'Republican'
-              AND (
-                (v.birth_year BETWEEN ? AND ?)
-                OR NOT EXISTS (
-                    SELECT 1 FROM voter_elections ve2
-                    WHERE ve2.vuid = ve.vuid AND ve2.election_date < ?
-                      AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL
-                )
+              AND NOT EXISTS (
+                SELECT 1 FROM voter_elections ve2
+                WHERE ve2.vuid = ve.vuid
+                  AND ve2.election_date < ?
+                  AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL
               )
-        """, params_base + [min_birth_year_18, max_birth_year_18, election_date]).fetchone()[0]
+        """, params_base + [election_date]).fetchone()[0]
     else:
-        # Not enough history - only count voters who just turned 18
-        new_voters = conn.execute(f"""
-            SELECT COUNT(*) FROM voter_elections ve
-            JOIN voters v ON ve.vuid = v.vuid
-            {where_base}
-              AND v.birth_year BETWEEN ? AND ?
-        """, params_base + [min_birth_year_18, max_birth_year_18]).fetchone()[0]
+        # Rule 1 only: Count voters who were under 18 for all prior elections
+        # Get earliest prior election
+        earliest = conn.execute("""
+            SELECT MIN(election_date) FROM voter_elections
+            WHERE election_date < ?
+              AND party_voted != '' AND party_voted IS NOT NULL
+        """, [election_date]).fetchone()[0]
         
-        new_dem = conn.execute(f"""
-            SELECT COUNT(*) FROM voter_elections ve
-            JOIN voters v ON ve.vuid = v.vuid
-            {where_base} AND ve.party_voted = 'Democratic'
-              AND v.birth_year BETWEEN ? AND ?
-        """, params_base + [min_birth_year_18, max_birth_year_18]).fetchone()[0]
-        
-        new_rep = conn.execute(f"""
-            SELECT COUNT(*) FROM voter_elections ve
-            JOIN voters v ON ve.vuid = v.vuid
-            {where_base} AND ve.party_voted = 'Republican'
-              AND v.birth_year BETWEEN ? AND ?
+        if earliest:
+            earliest_year = int(earliest.split('-')[0])
+            
+            new_voters = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base}
+                  AND NOT EXISTS (
+                    SELECT 1 FROM voter_elections ve2
+                    WHERE ve2.vuid = ve.vuid
+                      AND ve2.election_date < ?
+                      AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL
+                  )
+                  AND v.birth_year IS NOT NULL
+                  AND (? - v.birth_year) < 18
+            """, params_base + [election_date, earliest_year]).fetchone()[0]
+            
+            new_dem = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base} AND ve.party_voted = 'Democratic'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM voter_elections ve2
+                    WHERE ve2.vuid = ve.vuid
+                      AND ve2.election_date < ?
+                      AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL
+                  )
+                  AND v.birth_year IS NOT NULL
+                  AND (? - v.birth_year) < 18
+            """, params_base + [election_date, earliest_year]).fetchone()[0]
+            
+            new_rep = conn.execute(f"""
+                SELECT COUNT(*) FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                {where_base} AND ve.party_voted = 'Republican'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM voter_elections ve2
+                    WHERE ve2.vuid = ve.vuid
+                      AND ve2.election_date < ?
+                      AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL
+                  )
+                  AND v.birth_year IS NOT NULL
+                  AND (? - v.birth_year) < 18
+            """, params_base + [election_date, earliest_year]).fetchone()[0]
+        else:
+            # No prior elections - can't determine new voters
+            new_voters = 0
+            new_dem = 0
+            new_rep = 0
         """, params_base + [min_birth_year_18, max_birth_year_18]).fetchone()[0]
     
     # Gender

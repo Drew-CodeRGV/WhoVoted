@@ -774,10 +774,31 @@ def generate_geojson_for_election(county: str, election_date: str, party: str = 
             if prev_party and current_party_in_election and prev_party != current_party_in_election:
                 has_switched = True
             
-            # New voter detection: voter has no election records before this one
-            # Only flag as new if this county has prior election data to compare against
-            has_prior = _county_has_prior_data(conn, county, election_date)
-            is_new_voter = (r['vuid'] not in prior_vuids) if has_prior else False
+            # New voter detection using conservative two-rule approach:
+            # Rule 1: Voter was under 18 for all prior elections (newly eligible)
+            # Rule 2: County has 3+ prior elections AND voter has no prior history
+            is_new_voter = False
+            
+            if r['vuid'] not in prior_vuids:
+                # No prior voting history - check if we can confidently call them "new"
+                
+                # Rule 1: Was voter under 18 for all prior elections?
+                if r['birth_year']:
+                    was_eligible_before = _was_eligible_in_prior_elections(
+                        conn, r['vuid'], r['birth_year'], election_date
+                    )
+                    if not was_eligible_before:
+                        # Voter was too young before, now eligible - definitely new
+                        is_new_voter = True
+                
+                # Rule 2: Does county have 3+ prior elections?
+                if not is_new_voter:
+                    has_sufficient_history = _county_has_sufficient_history(conn, county, election_date)
+                    if has_sufficient_history:
+                        # County has good data, voter never appeared - new voter
+                        is_new_voter = True
+                
+                # If neither rule applies, is_new_voter stays False (better safe than sorry)
             
             props = {
                 'vuid': r['vuid'],
@@ -1015,22 +1036,50 @@ def get_election_summary() -> dict:
         }
 
 
-def _county_has_prior_data(conn, county: str, election_date: str) -> bool:
-    """Check if a county has any voter_elections records before the given election date.
+def _county_has_sufficient_history(conn, county: str, election_date: str) -> bool:
+    """Check if a county has 3+ prior elections to reliably detect new voters.
     
-    Used to determine if we can reliably detect 'new voters' for this county.
-    If a county only has data from the current election (e.g. statewide EVR data
-    with no prior county-level uploads), every voter would falsely appear as 'new'.
+    Used to determine if we can confidently identify first-time voters.
+    If a county has fewer than 3 prior elections, we can't reliably distinguish
+    between true first-time voters and voters who voted before our data coverage.
+    
+    Returns True only if county has 3+ distinct prior election dates.
     """
-    row = conn.execute("""
-        SELECT 1 FROM voter_elections ve
+    count = conn.execute("""
+        SELECT COUNT(DISTINCT ve.election_date)
+        FROM voter_elections ve
         JOIN voters v ON ve.vuid = v.vuid
         WHERE v.county = ?
           AND ve.election_date < ?
           AND ve.party_voted != '' AND ve.party_voted IS NOT NULL
-        LIMIT 1
-    """, (county, election_date)).fetchone()
-    return row is not None
+    """, (county, election_date)).fetchone()[0]
+    return count >= 3
+
+
+def _was_eligible_in_prior_elections(conn, vuid: str, birth_year: int, election_date: str) -> bool:
+    """Check if voter was 18+ during any prior election.
+    
+    Returns True if voter was eligible (18+) in at least one prior election.
+    Returns False if voter was under 18 for all prior elections (newly eligible).
+    """
+    if not birth_year:
+        return True  # Unknown age - assume they were eligible
+    
+    # Get earliest prior election
+    earliest = conn.execute("""
+        SELECT MIN(election_date)
+        FROM voter_elections
+        WHERE election_date < ?
+          AND party_voted != '' AND party_voted IS NOT NULL
+    """, [election_date]).fetchone()[0]
+    
+    if not earliest:
+        return False  # No prior elections exist
+    
+    earliest_year = int(earliest.split('-')[0])
+    age_at_earliest = earliest_year - birth_year
+    
+    return age_at_earliest >= 18
 
 
 def get_election_stats(county: str, election_date: str, party: str = None,
@@ -1109,24 +1158,56 @@ def get_election_stats(county: str, election_date: str, party: str = None,
             elif fr['cur_party'] == 'Republican':
                 flipped_to_rep += fr['cnt']
 
-        # New voters: use temp table join + NOT EXISTS
-        new_row = conn.execute("""
-            SELECT COUNT(*) as new_count
-            FROM _stats_vuids t
-            WHERE NOT EXISTS (
-                SELECT 1 FROM voter_elections ve_old
-                WHERE ve_old.vuid = t.vuid
-                  AND ve_old.election_date < ?
-                  AND ve_old.party_voted != '' AND ve_old.party_voted IS NOT NULL
-            )
-        """, [election_date]).fetchone()
-        new_voters = new_row['new_count']
+        # New voters: use conservative two-rule approach
+        # Rule 1: Voters who were under 18 for all prior elections (newly eligible)
+        # Rule 2: County has 3+ prior elections AND voter has no prior history
+        
+        has_sufficient_history = _county_has_sufficient_history(conn, county, election_date)
+        
+        if has_sufficient_history:
+            # County has 3+ prior elections - count all voters with no prior history
+            new_row = conn.execute("""
+                SELECT COUNT(*) as new_count
+                FROM _stats_vuids t
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM voter_elections ve_old
+                    WHERE ve_old.vuid = t.vuid
+                      AND ve_old.election_date < ?
+                      AND ve_old.party_voted != '' AND ve_old.party_voted IS NOT NULL
+                )
+            """, [election_date]).fetchone()
+            new_voters = new_row['new_count']
+        else:
+            # County has <3 prior elections - only count newly eligible voters (Rule 1)
+            # Get earliest prior election to check eligibility
+            earliest = conn.execute("""
+                SELECT MIN(election_date) FROM voter_elections
+                WHERE election_date < ?
+                  AND party_voted != '' AND party_voted IS NOT NULL
+            """, [election_date]).fetchone()[0]
+            
+            if earliest:
+                earliest_year = int(earliest.split('-')[0])
+                # Count voters who were under 18 at earliest election and have no prior history
+                new_row = conn.execute("""
+                    SELECT COUNT(*) as new_count
+                    FROM _stats_vuids t
+                    JOIN voters v ON t.vuid = v.vuid
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM voter_elections ve_old
+                        WHERE ve_old.vuid = t.vuid
+                          AND ve_old.election_date < ?
+                          AND ve_old.party_voted != '' AND ve_old.party_voted IS NOT NULL
+                    )
+                    AND v.birth_year IS NOT NULL
+                    AND (? - v.birth_year) < 18
+                """, [election_date, earliest_year]).fetchone()
+                new_voters = new_row['new_count']
+            else:
+                # No prior elections at all
+                new_voters = 0
 
         conn.execute("DROP TABLE IF EXISTS _stats_vuids")
-
-        # Only count new voters if this county has prior election data
-        if not _county_has_prior_data(conn, county, election_date):
-            new_voters = 0
 
         return {
             'total': total,

@@ -598,7 +598,7 @@ function determineMarkerColor(voterData) {
         if (voterData && voterData.voted_in_current_election === false) {
             return 'gray';
         }
-        return 'green'; // Unknown affiliation
+        return 'unknown'; // Unknown affiliation
     }
 
     // Registered but not voted — always gray regardless of party
@@ -628,15 +628,20 @@ function determineMarkerColor(voterData) {
 
     const currentParty = voterData.party_affiliation_current.toLowerCase();
     
+    // Check for "Unknown" party explicitly (election day voters with undetermined party)
+    if (currentParty === 'unknown' || currentParty === '') {
+        return 'unknown';
+    }
+    
     // New voters filter: only show new voters
     if (newVotersFilter) {
         if (!voterData.is_new_voter) {
             return null; // Skip non-new voters when filter is active
         }
-        // New voters keep their party color (red/blue) — star shape handled in rendering
+        // New voters keep their party color (red/blue/unknown) — star shape handled in rendering
         if (currentParty.includes('republican') || currentParty.includes('rep')) return 'red';
         if (currentParty.includes('democrat') || currentParty.includes('dem')) return 'blue';
-        return 'green';
+        return 'unknown';
     }
     
     // Check for party flip if flipped voters filter is active
@@ -1113,12 +1118,13 @@ function getMarkerFillColor(colorCode) {
         'blue': '#1E90FF',     // Democratic
         'purple': '#6A1B9A',   // Flipped: Republican → Democratic
         'maroon': '#8B0000',   // Flipped: Democratic → Republican (deep red)
-        'green': '#32CD32',    // Unknown/Other
+        'green': '#32CD32',    // Other parties (Libertarian, Green, etc.)
+        'unknown': '#808080',  // Unknown party (election day voters with undetermined party)
         'gold': '#DAA520',     // New voter (gold star layer)
-        'gray': '#A0A0A0',    // Registered but not voted
+        'gray': '#A0A0A0',     // Registered but not voted
     };
 
-    return colors[colorCode] || colors['green'];
+    return colors[colorCode] || colors['unknown'];
 }
 
 /**
