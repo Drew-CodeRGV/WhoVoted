@@ -11,7 +11,7 @@ class QueryAssistant:
     """Convert natural language questions to SQL queries using local LLM."""
     
     def __init__(self):
-        self.model = "llama3.2:3b-instruct"
+        self.model = "llama3.2:latest"
         self.schema = self._load_schema()
         self._check_ollama()
     
