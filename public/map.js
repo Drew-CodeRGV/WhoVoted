@@ -226,10 +226,18 @@ function centerMapOnUserLocation() {
                             );
                             
                             if (countyOption) {
-                                console.log('Switching to county:', county);
-                                datasetSelector.countySelect.value = county;
-                                // Trigger the change event to load data, but skip zoom (we already zoomed to user location)
-                                datasetSelector.onCountyChange(true); // skipZoom = true
+                                // Check if we're already viewing this county
+                                const currentCounty = datasetSelector.countySelect.value;
+                                
+                                if (currentCounty === county) {
+                                    console.log('Already viewing', county, '- staying at user location');
+                                    // Don't change county, just stay zoomed at user location
+                                } else {
+                                    console.log('Switching to county:', county);
+                                    datasetSelector.countySelect.value = county;
+                                    // Trigger the change event to load data, but skip zoom (we already zoomed to user location)
+                                    datasetSelector.onCountyChange(true); // skipZoom = true
+                                }
                             } else {
                                 console.log('County not found in dropdown:', county);
                             }
