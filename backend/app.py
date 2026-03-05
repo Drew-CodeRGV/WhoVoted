@@ -787,17 +787,24 @@ def api_voters_at_location():
         lat, lng (required)
         election_date (required)
         voting_method (optional)
+        county (optional) - comma-separated list of counties to filter by
     """
     try:
         lat = request.args.get('lat', type=float)
         lng = request.args.get('lng', type=float)
         election_date = request.args.get('election_date')
         voting_method = request.args.get('voting_method')
+        county_param = request.args.get('county')
         
         if lat is None or lng is None or not election_date:
             return jsonify({'error': 'lat, lng, and election_date are required'}), 400
         
-        voters = db.get_voters_at_location(lat, lng, election_date, voting_method)
+        # Parse counties if provided
+        counties = None
+        if county_param:
+            counties = [c.strip() for c in county_param.split(',') if c.strip()]
+        
+        voters = db.get_voters_at_location(lat, lng, election_date, voting_method, counties)
         return jsonify({'voters': voters, 'count': len(voters)})
     except Exception as e:
         logger.error(f"Failed to get voters at location: {e}")

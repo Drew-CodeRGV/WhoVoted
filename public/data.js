@@ -1381,6 +1381,13 @@ async function _lazyLoadPopup(marker, lat, lng) {
             });
             if (ds.votingMethod) params.set('voting_method', ds.votingMethod);
             
+            // Add county filter if we're viewing a specific county
+            if (window.selectedCountyFilter && window.selectedCountyFilter !== 'all') {
+                params.set('county', window.selectedCountyFilter);
+            } else if (ds.selectedCounties && ds.selectedCounties.length > 0) {
+                params.set('county', ds.selectedCounties.join(','));
+            }
+            
             const resp = await fetch(`/api/voters/at?${params}`);
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const data = await resp.json();

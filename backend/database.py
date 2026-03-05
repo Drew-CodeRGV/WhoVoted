@@ -1346,17 +1346,32 @@ def get_voters_for_election(county: str, election_date: str, party: str = None,
         return results
 
 
-def get_voters_at_location(lat: float, lng: float, election_date: str, voting_method: str = None) -> list:
+def get_voters_at_location(lat: float, lng: float, election_date: str, voting_method: str = None, counties: list = None) -> list:
     """Look up voter(s) at a specific location for a given election.
     
     Strategy: use lat/lng to find one voter, grab their address, then look up
     ALL voters at that address. This handles the case where household members
     get geocoded to slightly different coordinates.
+    
+    Args:
+        lat: Latitude
+        lng: Longitude
+        election_date: Election date (YYYY-MM-DD)
+        voting_method: Optional voting method filter (early-voting, election-day, mail-in)
+        counties: Optional list of counties to filter by
     """
     with get_db() as conn:
         tolerance = 0.0001  # ~11 meters
         vm_clause = " AND ve.voting_method = ?" if voting_method else ""
         vm_params = [voting_method] if voting_method else []
+        
+        # County filter clause
+        county_clause = ""
+        county_params = []
+        if counties:
+            placeholders = ','.join('?' * len(counties))
+            county_clause = f" AND v.county IN ({placeholders})"
+            county_params = counties
 
         # Step 1: Find the address of a voter near these coordinates
         addr_row = conn.execute(f"""
@@ -1368,8 +1383,9 @@ def get_voters_at_location(lat: float, lng: float, election_date: str, voting_me
               AND ve.party_voted != '' AND ve.party_voted IS NOT NULL
               AND v.address IS NOT NULL AND v.address != ''
               {vm_clause}
+              {county_clause}
             LIMIT 1
-        """, [lat - tolerance, lat + tolerance, lng - tolerance, lng + tolerance, election_date] + vm_params).fetchone()
+        """, [lat - tolerance, lat + tolerance, lng - tolerance, lng + tolerance, election_date] + vm_params + county_params).fetchone()
 
         if not addr_row or not addr_row['address']:
             return []
@@ -1391,7 +1407,8 @@ def get_voters_at_location(lat: float, lng: float, election_date: str, voting_me
               AND ve.election_date = ?
               AND ve.party_voted != '' AND ve.party_voted IS NOT NULL
               {vm_clause}
-        """, [base_addr + '%', election_date] + vm_params).fetchall()
+              {county_clause}
+        """, [base_addr + '%', election_date] + vm_params + county_params).fetchall()
 
         if not rows:
             return []
