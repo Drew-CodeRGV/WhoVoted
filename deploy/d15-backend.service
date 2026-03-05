@@ -1,0 +1,14 @@
+[Unit]
+Description=District 15 Election Night Dashboard Backend
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/opt/whovoted/backend
+Environment="PATH=/opt/whovoted/venv/bin:/usr/bin:/usr/local/bin"
+ExecStart=/opt/whovoted/venv/bin/python3 /opt/whovoted/backend/d15_app.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

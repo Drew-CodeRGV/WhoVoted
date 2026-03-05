@@ -932,15 +932,217 @@ def search_voters():
 def election_insights():
     """Return computed election insights/stats for the newspaper overlay.
     
+    Query params:
+        voting_method (optional): 'early-voting', 'election-day', or 'combined' (default)
+    
     Serves pre-computed data from cache file (updated after each scrape).
     Falls back to live computation if cache doesn't exist.
     """
     try:
+        voting_method = request.args.get('voting_method', 'combined').strip()
+        
         # Check for pre-computed cache file first (instant response)
         cache_file = Path('/opt/whovoted/public/cache/gazette_insights.json')
         if cache_file.exists():
             with open(cache_file, 'r') as f:
-                return jsonify(json.load(f))
+                data = json.load(f)
+            
+            # If combined or no filter, return full cache
+            if voting_method == 'combined':
+                return jsonify(data)
+            
+            # Filter data by voting_method
+            conn = db.get_connection()
+            
+            # Build WHERE clause for voting_method filter
+            method_filter = ""
+            if voting_method == 'early-voting':
+                method_filter = "AND ve.voting_method IN ('early-voting', 'mail-in')"
+            elif voting_method == 'election-day':
+                method_filter = "AND ve.voting_method = 'election-day'"
+            
+            # Overall turnout for filtered method
+            overall = conn.execute(f"""
+                SELECT 
+                    COUNT(DISTINCT ve.vuid) as total,
+                    SUM(CASE WHEN ve.party_voted = 'Democratic' THEN 1 ELSE 0 END) as dem,
+                    SUM(CASE WHEN ve.party_voted = 'Republican' THEN 1 ELSE 0 END) as rep,
+                    SUM(CASE WHEN ve.voting_method = 'early-voting' THEN 1 ELSE 0 END) as early_voting,
+                    SUM(CASE WHEN ve.voting_method = 'mail-in' THEN 1 ELSE 0 END) as mail_in,
+                    SUM(CASE WHEN ve.voting_method = 'election-day' THEN 1 ELSE 0 END) as election_day
+                FROM voter_elections ve
+                WHERE ve.election_date = '2026-03-03'
+                  AND ve.party_voted IN ('Democratic', 'Republican')
+                  {method_filter}
+            """).fetchone()
+            
+            # Gender breakdown
+            gender = conn.execute(f"""
+                SELECT 
+                    SUM(CASE WHEN v.sex = 'F' THEN 1 ELSE 0 END) as female,
+                    SUM(CASE WHEN v.sex = 'M' THEN 1 ELSE 0 END) as male,
+                    SUM(CASE WHEN ve.party_voted = 'Democratic' AND v.sex = 'F' THEN 1 ELSE 0 END) as dem_female,
+                    SUM(CASE WHEN ve.party_voted = 'Democratic' AND v.sex = 'M' THEN 1 ELSE 0 END) as dem_male,
+                    SUM(CASE WHEN ve.party_voted = 'Republican' AND v.sex = 'F' THEN 1 ELSE 0 END) as rep_female,
+                    SUM(CASE WHEN ve.party_voted = 'Republican' AND v.sex = 'M' THEN 1 ELSE 0 END) as rep_male
+                FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                WHERE ve.election_date = '2026-03-03'
+                  AND ve.party_voted IN ('Democratic', 'Republican')
+                  {method_filter}
+            """).fetchone()
+            
+            # Age groups
+            age_groups = {}
+            age_rows = conn.execute(f"""
+                SELECT
+                    CASE
+                        WHEN v.birth_year BETWEEN 2002 AND 2008 THEN '18-24'
+                        WHEN v.birth_year BETWEEN 1992 AND 2001 THEN '25-34'
+                        WHEN v.birth_year BETWEEN 1982 AND 1991 THEN '35-44'
+                        WHEN v.birth_year BETWEEN 1972 AND 1981 THEN '45-54'
+                        WHEN v.birth_year BETWEEN 1962 AND 1971 THEN '55-64'
+                        WHEN v.birth_year BETWEEN 1952 AND 1961 THEN '65-74'
+                        WHEN v.birth_year > 0 AND v.birth_year < 1952 THEN '75+'
+                        ELSE 'Unknown'
+                    END as age_group,
+                    ve.party_voted,
+                    COUNT(*) as cnt
+                FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                WHERE ve.election_date = '2026-03-03'
+                  AND ve.party_voted IN ('Democratic', 'Republican')
+                  {method_filter}
+                GROUP BY age_group, ve.party_voted
+            """).fetchall()
+            
+            for row in age_rows:
+                ag = row['age_group']
+                if ag not in age_groups:
+                    age_groups[ag] = {'total': 0, 'dem': 0, 'rep': 0}
+                age_groups[ag]['total'] += row['cnt']
+                if row['party_voted'] == 'Democratic':
+                    age_groups[ag]['dem'] += row['cnt']
+                else:
+                    age_groups[ag]['rep'] += row['cnt']
+            
+            # Top counties
+            top_counties = conn.execute(f"""
+                SELECT 
+                    v.county,
+                    COUNT(DISTINCT ve.vuid) as total,
+                    SUM(CASE WHEN ve.party_voted = 'Democratic' THEN 1 ELSE 0 END) as dem,
+                    SUM(CASE WHEN ve.party_voted = 'Republican' THEN 1 ELSE 0 END) as rep
+                FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                WHERE ve.election_date = '2026-03-03'
+                  AND ve.party_voted IN ('Democratic', 'Republican')
+                  AND v.county IS NOT NULL
+                  AND v.county != ''
+                  {method_filter}
+                GROUP BY v.county
+                ORDER BY total DESC
+                LIMIT 10
+            """).fetchall()
+            
+            # Bottom counties
+            bottom_counties = conn.execute(f"""
+                SELECT 
+                    v.county,
+                    COUNT(DISTINCT ve.vuid) as total,
+                    SUM(CASE WHEN ve.party_voted = 'Democratic' THEN 1 ELSE 0 END) as dem,
+                    SUM(CASE WHEN ve.party_voted = 'Republican' THEN 1 ELSE 0 END) as rep
+                FROM voter_elections ve
+                JOIN voters v ON ve.vuid = v.vuid
+                WHERE ve.election_date = '2026-03-03'
+                  AND ve.party_voted IN ('Democratic', 'Republican')
+                  AND v.county IS NOT NULL
+                  AND v.county != ''
+                  {method_filter}
+                GROUP BY v.county
+                ORDER BY total ASC
+                LIMIT 10
+            """).fetchall()
+            
+            # Party switchers (use full data, not filtered by method)
+            flips = conn.execute("""
+                SELECT 
+                    ve_cur.party_voted as to_party,
+                    ve_prev.party_voted as from_party,
+                    COUNT(*) as cnt
+                FROM voter_elections ve_cur
+                JOIN voter_elections ve_prev ON ve_cur.vuid = ve_prev.vuid
+                WHERE ve_cur.election_date = '2026-03-03'
+                  AND ve_prev.election_date = (
+                      SELECT MAX(ve2.election_date) 
+                      FROM voter_elections ve2
+                      WHERE ve2.vuid = ve_cur.vuid 
+                        AND ve2.election_date < '2026-03-03'
+                        AND ve2.party_voted IN ('Democratic', 'Republican')
+                  )
+                  AND ve_cur.party_voted != ve_prev.party_voted
+                  AND ve_cur.party_voted IN ('Democratic', 'Republican')
+                  AND ve_prev.party_voted IN ('Democratic', 'Republican')
+                GROUP BY ve_cur.party_voted, ve_prev.party_voted
+            """).fetchall()
+            
+            r2d = sum(r['cnt'] for r in flips if r['from_party'] == 'Republican' and r['to_party'] == 'Democratic')
+            d2r = sum(r['cnt'] for r in flips if r['from_party'] == 'Democratic' and r['to_party'] == 'Republican')
+            
+            # Build filtered response
+            filtered_data = {
+                'generated_at': datetime.now().isoformat(),
+                'election_date': '2026-03-03',
+                'voting_method': voting_method,
+                
+                # Overall stats
+                'total': overall['total'],
+                'dem': overall['dem'],
+                'rep': overall['rep'],
+                'dem_share': round(overall['dem'] / overall['total'] * 100, 1) if overall['total'] > 0 else 0,
+                'early_voting': overall['early_voting'],
+                'mail_in': overall['mail_in'],
+                'election_day': overall['election_day'],
+                
+                # Gender
+                'female': gender['female'],
+                'male': gender['male'],
+                'dem_female': gender['dem_female'],
+                'dem_male': gender['dem_male'],
+                'rep_female': gender['rep_female'],
+                'rep_male': gender['rep_male'],
+                
+                # Age groups
+                'age_groups': age_groups,
+                
+                # Party switchers
+                'r2d': r2d,
+                'd2r': d2r,
+                
+                # Top/bottom counties
+                'top_counties': [
+                    {
+                        'county': r['county'],
+                        'total': r['total'],
+                        'dem': r['dem'],
+                        'rep': r['rep'],
+                        'dem_pct': round(r['dem'] / r['total'] * 100, 1) if r['total'] > 0 else 0
+                    }
+                    for r in top_counties
+                ],
+                'bottom_counties': [
+                    {
+                        'county': r['county'],
+                        'total': r['total'],
+                        'dem': r['dem'],
+                        'rep': r['rep'],
+                        'dem_pct': round(r['dem'] / r['total'] * 100, 1) if r['total'] > 0 else 0
+                    }
+                    for r in bottom_counties
+                ]
+            }
+            
+            return jsonify(filtered_data)
         
         # Fallback: compute live (slow)
         logger.warning("Gazette cache miss - computing live (slow)")
@@ -1518,12 +1720,15 @@ def _point_in_feature(lng, lat, geometry):
     return False
 
 
-def _lookup_vuids_by_polygon(conn, geometry, election_date, district_id=None):
+def _lookup_vuids_by_polygon(conn, geometry, election_date, district_id=None, use_old_map=False):
     """Find all VUIDs for voters whose geocoded location falls inside a polygon.
     
     OPTIMIZED: Uses precinct-based district columns for instant lookups when available.
     Falls back to bounding-box + point-in-polygon for unmapped voters.
     Works across ALL counties — not limited to the currently loaded map data.
+    
+    Args:
+        use_old_map: If True, uses old_congressional_district column for redistricting comparisons
     """
     vuids = []
     
@@ -1532,7 +1737,8 @@ def _lookup_vuids_by_polygon(conn, geometry, election_date, district_id=None):
         # Determine which district column to use based on district_id format
         district_col = None
         if district_id.startswith('TX-') and len(district_id) <= 5:
-            district_col = 'congressional_district'
+            # Use old district column if comparing old map
+            district_col = 'old_congressional_district' if use_old_map else 'congressional_district'
         elif district_id.startswith('HD-'):
             district_col = 'state_house_district'
         elif district_id.startswith('CC-'):
@@ -1646,10 +1852,11 @@ def district_stats():
             vuids = data.get('vuids', [])
             coords = data.get('coords', [])
             polygon = data.get('polygon')
+            use_old_map = data.get('use_old_map', False)  # Flag for redistricting comparison
             election_date = data.get('election_date', request.args.get('election_date', '2026-03-03'))
 
             if not vuids and polygon:
-                vuids = _lookup_vuids_by_polygon(conn, polygon, election_date, district_id=district_id)
+                vuids = _lookup_vuids_by_polygon(conn, polygon, election_date, district_id=district_id, use_old_map=use_old_map)
             elif not vuids and coords:
                 vuids = _lookup_vuids_by_coords(conn, coords, election_date)
         else:
@@ -1713,7 +1920,7 @@ def district_stats():
         r2d = sum(r['cnt'] for r in flip_rows if r['from_p'] == 'Republican' and r['to_p'] == 'Democratic')
         d2r = sum(r['cnt'] for r in flip_rows if r['from_p'] == 'Democratic' and r['to_p'] == 'Republican')
 
-        # New voters — single query
+        # New voters — use the is_new_voter flag (already calculated with proper logic)
         new_row = conn.execute("""
             SELECT
                 COUNT(*) as new_total,
@@ -1722,15 +1929,13 @@ def district_stats():
             FROM voter_elections ve
             INNER JOIN _ds_vuids t ON ve.vuid = t.vuid
             WHERE ve.election_date = ?
-              AND NOT EXISTS (SELECT 1 FROM voter_elections ve2
-                  WHERE ve2.vuid = ve.vuid AND ve2.election_date < ?
-                    AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL)
-        """, [election_date, election_date]).fetchone()
+              AND ve.is_new_voter = 1
+        """, [election_date]).fetchone()
         new_total = new_row['new_total'] or 0
         new_dem = new_row['new_dem'] or 0
         new_rep = new_row['new_rep'] or 0
 
-        # New voter age/gender breakdown — single query
+        # New voter age/gender breakdown — use is_new_voter flag
         new_age_gender = {}
         nag_rows = conn.execute("""
             SELECT
@@ -1749,11 +1954,9 @@ def district_stats():
             JOIN voters v ON ve.vuid = v.vuid
             INNER JOIN _ds_vuids t ON ve.vuid = t.vuid
             WHERE ve.election_date = ?
-              AND NOT EXISTS (SELECT 1 FROM voter_elections ve2
-                  WHERE ve2.vuid = ve.vuid AND ve2.election_date < ?
-                    AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL)
+              AND ve.is_new_voter = 1
             GROUP BY age_group, v.sex
-        """, [election_date, election_date]).fetchall()
+        """, [election_date]).fetchall()
         for row in nag_rows:
             ag, sex, cnt = row['age_group'], row['sex'] or 'U', row['cnt']
             if ag not in new_age_gender:
@@ -4068,6 +4271,259 @@ def evr_scraper_reset():
     return jsonify({'success': True, 'message': 'Scraper state reset. Next run will re-download all dates.'})
 
 
+# ============================================================================
+# OLLAMA MANAGEMENT API
+# ============================================================================
+
+@app.route('/api/admin/ollama/status')
+@require_auth
+def ollama_status():
+    """Get Ollama service status and installed models."""
+    try:
+        import subprocess
+        import ollama
+        
+        # Check if Ollama is installed
+        try:
+            version_result = subprocess.run(['ollama', '--version'], capture_output=True, text=True, timeout=5)
+            ollama_installed = version_result.returncode == 0
+            ollama_version = version_result.stdout.strip() if ollama_installed else None
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            ollama_installed = False
+            ollama_version = None
+        
+        if not ollama_installed:
+            return jsonify({
+                'ollama_installed': False,
+                'api_available': False,
+                'models_count': 0,
+                'models': []
+            })
+        
+        # Check if API is available
+        try:
+            models_data = ollama.list()
+            api_available = True
+            models = models_data.get('models', [])
+            models_count = len(models)
+        except Exception as e:
+            logger.warning(f"Ollama API not available: {e}")
+            api_available = False
+            models = []
+            models_count = 0
+        
+        return jsonify({
+            'ollama_installed': True,
+            'ollama_version': ollama_version,
+            'api_available': api_available,
+            'models_count': models_count,
+            'models': models
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to get Ollama status: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/ollama/check-updates')
+@require_auth
+def ollama_check_updates():
+    """Check if Ollama updates are available."""
+    try:
+        import subprocess
+        
+        # Get current version
+        version_result = subprocess.run(['ollama', '--version'], capture_output=True, text=True, timeout=5)
+        current_version = version_result.stdout.strip() if version_result.returncode == 0 else 'Unknown'
+        
+        # Check for updates (this is a placeholder - actual implementation would check GitHub releases)
+        # For now, we'll just return the current version
+        return jsonify({
+            'update_available': False,
+            'current_version': current_version,
+            'latest_version': current_version
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to check Ollama updates: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/ollama/update', methods=['POST'])
+@require_auth
+@require_superadmin
+def ollama_update():
+    """Update Ollama to the latest version."""
+    try:
+        import subprocess
+        
+        # Run Ollama update
+        result = subprocess.run(
+            ['curl', '-fsSL', 'https://ollama.com/install.sh', '|', 'sh'],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            shell=True
+        )
+        
+        if result.returncode == 0:
+            # Restart Ollama service
+            subprocess.run(['systemctl', 'restart', 'ollama'], timeout=10)
+            
+            return jsonify({
+                'success': True,
+                'output': result.stdout
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.stderr
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Failed to update Ollama: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/ollama/install', methods=['POST'])
+@require_auth
+@require_superadmin
+def ollama_install():
+    """Install Ollama on the server."""
+    try:
+        import subprocess
+        
+        # Run Ollama installation script
+        result = subprocess.run(
+            ['curl', '-fsSL', 'https://ollama.com/install.sh', '|', 'sh'],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            shell=True
+        )
+        
+        if result.returncode == 0:
+            return jsonify({
+                'success': True,
+                'output': result.stdout
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.stderr
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Failed to install Ollama: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/ollama/pull-model', methods=['POST'])
+@require_auth
+def ollama_pull_model():
+    """Pull a new model from Ollama registry."""
+    try:
+        import ollama
+        
+        data = request.get_json()
+        model_name = data.get('model')
+        
+        if not model_name:
+            return jsonify({'error': 'Model name required'}), 400
+        
+        # Pull the model
+        ollama.pull(model_name)
+        
+        return jsonify({
+            'success': True,
+            'model': model_name
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to pull model: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/ollama/delete-model', methods=['POST'])
+@require_auth
+@require_superadmin
+def ollama_delete_model():
+    """Delete an installed model."""
+    try:
+        import ollama
+        
+        data = request.get_json()
+        model_name = data.get('model')
+        
+        if not model_name:
+            return jsonify({'error': 'Model name required'}), 400
+        
+        # Delete the model
+        ollama.delete(model_name)
+        
+        return jsonify({
+            'success': True,
+            'model': model_name
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to delete model: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/ollama/test-model', methods=['POST'])
+@require_auth
+def ollama_test_model():
+    """Test a model with a sample query."""
+    try:
+        import ollama
+        import time
+        
+        data = request.get_json()
+        model_name = data.get('model')
+        
+        if not model_name:
+            return jsonify({'error': 'Model name required'}), 400
+        
+        # Test the model with a simple query
+        start_time = time.time()
+        response = ollama.generate(
+            model=model_name,
+            prompt='Convert to SQL: Show all voters in TX-15',
+            options={'num_predict': 100}
+        )
+        response_time = int((time.time() - start_time) * 1000)
+        
+        return jsonify({
+            'success': True,
+            'model': model_name,
+            'response_time': response_time,
+            'sample_output': response['response'][:200]
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to test model: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/ollama/stats')
+@require_auth
+def ollama_stats():
+    """Get Ollama usage statistics."""
+    try:
+        # This is a placeholder - actual implementation would track queries in database
+        return jsonify({
+            'total_queries': 0,
+            'avg_response_time': 'N/A',
+            'success_rate': 'N/A',
+            'memory_usage': 'N/A'
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to get Ollama stats: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 # Cleanup old uploads on startup
 cleanup_old_uploads()
 
@@ -4264,6 +4720,136 @@ if __name__ == '__main__':
     logger.info("Starting WhoVoted backend server...")
     app.run(host='0.0.0.0', port=5000, debug=True)
 
+
+
+# ============================================================================
+# LLM-POWERED QUERY ASSISTANT
+# ============================================================================
+
+# Initialize query assistant (lazy load to avoid startup errors if Ollama not installed)
+_query_assistant = None
+
+def get_query_assistant():
+    """Get or create query assistant instance."""
+    global _query_assistant
+    if _query_assistant is None:
+        try:
+            from llm_query import QueryAssistant
+            _query_assistant = QueryAssistant()
+            logger.info("LLM Query Assistant initialized")
+        except Exception as e:
+            logger.warning(f"LLM Query Assistant not available: {e}")
+            _query_assistant = False  # Mark as unavailable
+    return _query_assistant if _query_assistant is not False else None
+
+
+@app.route('/api/llm/query', methods=['POST'])
+@require_auth  # Only authenticated users can use LLM queries
+def llm_query():
+    """Natural language query interface powered by local LLM.
+    
+    Request body:
+        {
+            "question": "Show me voters in TX-15 who attended 3+ events",
+            "context": {"district": "TX-15", "county": "Hidalgo"}  # optional
+        }
+    
+    Response:
+        {
+            "success": true,
+            "question": "...",
+            "sql": "SELECT ...",
+            "results": [{...}, ...],
+            "count": 47,
+            "columns": ["vuid", "name", ...],
+            "explanation": "Found 47 voters...",
+            "suggestions": ["What about...", ...]
+        }
+    """
+    try:
+        query_assistant = get_query_assistant()
+        if not query_assistant:
+            return jsonify({
+                'error': 'LLM service not available. Install Ollama and run: ollama pull llama3.2:3b-instruct',
+                'success': False
+            }), 503
+        
+        data = request.get_json()
+        question = data.get('question', '').strip()
+        context = data.get('context', {})
+        
+        if not question:
+            return jsonify({'error': 'Question is required'}), 400
+        
+        if len(question) > 500:
+            return jsonify({'error': 'Question too long (max 500 characters)'}), 400
+        
+        # Convert question to SQL
+        sql_result = query_assistant.question_to_sql(question, context)
+        
+        if 'error' in sql_result:
+            return jsonify({
+                'success': False,
+                'error': sql_result['error'],
+                'question': question
+            }), 400
+        
+        # Execute query
+        exec_result = query_assistant.execute_and_format(sql_result['sql'])
+        
+        if not exec_result['success']:
+            return jsonify({
+                'success': False,
+                'error': exec_result['error'],
+                'sql': sql_result['sql'],
+                'question': question
+            }), 400
+        
+        # Generate explanation and suggestions
+        explanation = query_assistant.explain_results(question, sql_result['sql'], exec_result)
+        suggestions = query_assistant.suggest_followups(question, exec_result)
+        
+        return jsonify({
+            'success': True,
+            'question': question,
+            'sql': sql_result['sql'],
+            'results': exec_result['rows'],
+            'count': exec_result['count'],
+            'columns': exec_result['columns'],
+            'explanation': explanation,
+            'suggestions': suggestions,
+            'model': sql_result.get('model', 'unknown')
+        })
+        
+    except Exception as e:
+        logger.error(f"LLM query endpoint failed: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/llm/status')
+def llm_status():
+    """Check if LLM service is available."""
+    try:
+        import ollama
+        models = ollama.list()
+        available_models = [m['name'] for m in models.get('models', [])]
+        
+        return jsonify({
+            'available': True,
+            'models': available_models,
+            'recommended': 'llama3.2:3b-instruct'
+        })
+    except ImportError:
+        return jsonify({
+            'available': False,
+            'error': 'Ollama package not installed',
+            'install_command': 'pip install ollama'
+        })
+    except Exception as e:
+        return jsonify({
+            'available': False,
+            'error': str(e)
+        })
 
 
 # ============================================================================

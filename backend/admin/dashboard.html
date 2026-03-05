@@ -260,6 +260,7 @@
         <button class="tab-btn active" data-tab="data">📁 Data Upload</button>
         <button class="tab-btn" data-tab="state">🏛️ State Voter Data</button>
         <button class="tab-btn" data-tab="evr">🤖 EVR Scraper</button>
+        <button class="tab-btn" data-tab="ollama">🧠 AI Assistant</button>
         <button class="tab-btn" data-tab="history">📊 Upload History</button>
         <button class="tab-btn" data-tab="registry">📋 Voter Registry</button>
         <button class="tab-btn" data-tab="users">👥 Users</button>
@@ -514,6 +515,66 @@
             <div class="card">
                 <h2>📋 Recent Log</h2>
                 <pre id="evr-log" style="font-family:monospace;font-size:11px;background:#1a1a2e;color:#e0e0e0;padding:16px;border-radius:8px;max-height:400px;overflow-y:auto;white-space:pre-wrap;">Loading...</pre>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- TAB: AI ASSISTANT (OLLAMA)                                     -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div id="tab-ollama" class="tab-page">
+            <div class="card" style="border-left:4px solid #667eea;">
+                <h2>🧠 AI Assistant Management</h2>
+                <p style="color:#666;font-size:13px;margin-bottom:20px;">
+                    Manage the local LLM (Llama 3.2) that powers AI-powered search. Check for updates, manage models, and monitor performance.
+                </p>
+
+                <!-- Status Section -->
+                <div style="background:#f8f9ff;border:1px solid #e8eaff;border-radius:8px;padding:20px;margin-bottom:20px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+                        <div style="font-weight:600;font-size:16px;color:#333;">Service Status</div>
+                        <button class="btn-primary" style="padding:8px 16px;font-size:13px;" onclick="refreshOllamaStatus()">
+                            🔄 Refresh
+                        </button>
+                    </div>
+                    <div id="ollama-status-content" style="font-size:14px;">
+                        <div style="text-align:center;padding:20px;color:#888;">Loading...</div>
+                    </div>
+                </div>
+
+                <!-- Update Section -->
+                <div style="background:#fff5f8;border:1px solid #ffe8ef;border-radius:8px;padding:20px;margin-bottom:20px;">
+                    <div style="font-weight:600;font-size:16px;color:#333;margin-bottom:12px;">📦 Updates</div>
+                    <div id="ollama-update-content">
+                        <div style="text-align:center;padding:20px;color:#888;">Checking for updates...</div>
+                    </div>
+                </div>
+
+                <!-- Models Section -->
+                <div style="background:#f0faf8;border:1px solid #d0f0e8;border-radius:8px;padding:20px;margin-bottom:20px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+                        <div style="font-weight:600;font-size:16px;color:#333;">🤖 Installed Models</div>
+                        <button class="btn-secondary" style="padding:8px 16px;font-size:13px;" onclick="showPullModelDialog()">
+                            ➕ Pull New Model
+                        </button>
+                    </div>
+                    <div id="ollama-models-content">
+                        <div style="text-align:center;padding:20px;color:#888;">Loading models...</div>
+                    </div>
+                </div>
+
+                <!-- Performance Stats -->
+                <div style="background:#fff8f0;border:1px solid:#ffe8d0;border-radius:8px;padding:20px;">
+                    <div style="font-weight:600;font-size:16px;color:#333;margin-bottom:12px;">📊 Performance Stats</div>
+                    <div id="ollama-stats-content">
+                        <div style="text-align:center;padding:20px;color:#888;">Loading stats...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Log -->
+            <div class="card">
+                <h2>📋 Action Log</h2>
+                <pre id="ollama-log" style="font-family:monospace;font-size:11px;background:#1a1a2e;color:#e0e0e0;padding:16px;border-radius:8px;max-height:400px;overflow-y:auto;white-space:pre-wrap;">No actions yet.</pre>
             </div>
         </div>
 

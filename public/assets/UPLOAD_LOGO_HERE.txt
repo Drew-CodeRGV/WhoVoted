@@ -1,0 +1,5 @@
+Please upload the Bobby Pulido campaign logo as:
+bobby-pulido-logo.png
+
+The logo should be in PNG format with a transparent background.
+Recommended size: 280px wide (height will auto-scale)

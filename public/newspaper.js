@@ -4,10 +4,10 @@
     const btn = document.getElementById('newspaperBtn');
     if (!btn) return;
 
-    btn.addEventListener('click', openNewspaper);
+    btn.addEventListener('click', () => openNewspaper('combined'));
     window.refreshGazette = openNewspaper;
 
-    async function openNewspaper() {
+    async function openNewspaper(votingMethod = 'combined') {
         const overlay = document.getElementById('newspaperOverlay');
         const body = document.getElementById('newspaperBody');
         if (!overlay) return;
@@ -21,15 +21,23 @@
         body.innerHTML = '<p class="gazette-loading">Loading data&hellip;</p>';
 
         try {
-            const resp = await fetch('/api/election-insights');
+            const resp = await fetch(`/api/election-insights?voting_method=${votingMethod}`);
             if (!resp.ok) throw new Error('API error');
             const d = await resp.json();
-            body.innerHTML = buildGazette(d);
+            body.innerHTML = buildGazette(d, votingMethod);
 
             // Wire up collapsible sections
             body.querySelectorAll('.gz-section-title').forEach(title => {
                 title.addEventListener('click', () => {
                     title.closest('.gz-section').classList.toggle('collapsed');
+                });
+            });
+
+            // Wire up voting method toggle
+            body.querySelectorAll('.gz-method-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const method = btn.dataset.method;
+                    openNewspaper(method);
                 });
             });
 
@@ -46,7 +54,7 @@
     function f(v) { return Number(v || 0).toLocaleString(); }
     function pct(a, b) { return b ? Math.round(a / b * 100) : 0; }
 
-    function buildGazette(d) {
+    function buildGazette(d, votingMethod = 'combined') {
         const demPct = d.dem_share;
         const repPct = (100 - demPct).toFixed(1);
         const netFlip = d.r2d - d.d2r;
@@ -55,8 +63,23 @@
         const fPct = pct(d.female, d.female + d.male);
         const evPct = pct(d.early_voting, d.total);
         const mailPct = pct(d.mail_in, d.total);
+        const edPct = pct(d.election_day, d.total);
 
         let html = '';
+
+        // ── Voting Method Toggle ──
+        html += `
+<div class="gz-method-toggle">
+    <button class="gz-method-btn ${votingMethod === 'combined' ? 'active' : ''}" data-method="combined">
+        Combined
+    </button>
+    <button class="gz-method-btn ${votingMethod === 'early-voting' ? 'active' : ''}" data-method="early-voting">
+        Early Vote
+    </button>
+    <button class="gz-method-btn ${votingMethod === 'election-day' ? 'active' : ''}" data-method="election-day">
+        Election Day
+    </button>
+</div>`;
 
         // ── Top KPIs (always visible, not collapsible) ──
         html += `
@@ -73,10 +96,15 @@
         <div class="gz-kpi-value">${repPct}%</div>
         <div class="gz-kpi-label">Republican</div>
     </div>
+    ${votingMethod === 'combined' ? `
     <div class="gz-kpi neutral">
         <div class="gz-kpi-value">${f(d.early_voting)}</div>
-        <div class="gz-kpi-label">Early Voting (${evPct}%)</div>
+        <div class="gz-kpi-label">Early (${evPct}%)</div>
     </div>
+    <div class="gz-kpi neutral">
+        <div class="gz-kpi-value">${f(d.election_day)}</div>
+        <div class="gz-kpi-label">Election Day (${edPct}%)</div>
+    </div>` : ''}
 </div>`;
 
         // ── Party Breakdown ──
@@ -92,7 +120,7 @@
             <div class="gz-bar-dem" style="width:${demPct}%"></div>
             <div class="gz-bar-rep" style="width:${repPct}%"></div>
         </div>
-        <p class="gz-text">Democrats lead <span class="gz-dem gz-big">${ratio}</span>-to-1 across Texas. Early voting: ${f(d.early_voting)} (${evPct}%) · Mail-in: ${f(d.mail_in)} (${mailPct}%)</p>
+        <p class="gz-text">Democrats lead <span class="gz-dem gz-big">${ratio}</span>-to-1 across Texas.${votingMethod === 'combined' ? ` Early: ${f(d.early_voting)} (${evPct}%) · Election Day: ${f(d.election_day)} (${edPct}%)` : votingMethod === 'early-voting' ? ` Mail-in: ${f(d.mail_in)} (${mailPct}%)` : ''}</p>
     </div>
 </div>`;
 

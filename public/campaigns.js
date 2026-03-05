@@ -222,16 +222,17 @@
                     f => f.properties.district_id === props.district_id
                 );
                 if (oldFeature) {
-                    // Also use polygon-based backend query for old map
+                    // Query using old_congressional_district column (fast!)
                     try {
                         const oldResp = await fetch('/api/district-stats', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 district_id: props.district_id,
-                                district_name: oldFeature.properties.district_name,
+                                district_name: oldFeature.properties.district_name + ' (Old Map)',
                                 election_date: '2026-03-03',
-                                polygon: oldFeature.geometry
+                                polygon: oldFeature.geometry,
+                                use_old_map: true  // Use old_congressional_district column
                             })
                         });
                         if (oldResp.ok) {

@@ -9,11 +9,11 @@ geoIconBtn.title = 'Find my location';
 geoIconBtn.innerHTML = '<i class="fas fa-crosshairs"></i>';
 document.body.appendChild(geoIconBtn);
 
-// Search icon button — shown for full-access users via auth.js
+// AI Search icon button — shown for full-access users via auth.js
 const searchIconBtn = document.createElement('button');
 searchIconBtn.className = 'search-icon-btn';
-searchIconBtn.title = 'Search Voters';
-searchIconBtn.innerHTML = '<i class="fas fa-search"></i>';
+searchIconBtn.title = 'AI-Powered Search';
+searchIconBtn.innerHTML = '<i class="fas fa-brain"></i>'; // AI brain icon
 searchIconBtn.style.display = 'none';
 document.body.appendChild(searchIconBtn);
 
@@ -30,13 +30,35 @@ function openSearchModal() {
         <div class="vs-modal">
             <button class="vs-close">&times;</button>
             <div class="vs-header">
-                <div class="vs-header-icon"><i class="fas fa-search"></i></div>
-                <h2>Voter Search</h2>
-                <p>Search by name, VUID, address, birth year, precinct&hellip;</p>
+                <div class="vs-header-icon"><i class="fas fa-brain"></i></div>
+                <h2>AI-Powered Search</h2>
+                <p>Search by name/address or ask questions in natural language</p>
             </div>
             <div class="vs-search-bar">
-                <input id="vsInput" type="text" placeholder="Type to search..." autofocus>
-                <button id="vsBtn">Search</button>
+                <input id="vsInput" type="text" placeholder="Search voters or ask a question..." autofocus>
+                <button id="vsBtn"><i class="fas fa-brain"></i></button>
+            </div>
+            <div class="vs-examples">
+                <span class="vs-example-label">Examples:</span>
+                <button class="vs-example-btn" onclick="fillExample('Show me voters in TX-15 who voted in 2024 but not 2026')">New voters in TX-15</button>
+                <button class="vs-example-btn" onclick="fillExample('Find voters who switched from Republican to Democratic')">Party switchers</button>
+                <button class="vs-example-btn" onclick="fillExample('John Smith')">Name search</button>
+            </div>
+            <div id="vsAiResponse" class="vs-ai-response" style="display:none;">
+                <div class="vs-ai-header">
+                    <i class="fas fa-sparkles"></i>
+                    <span>AI Response</span>
+                </div>
+                <div id="vsAiContent" class="vs-ai-content"></div>
+                <div id="vsAiSql" class="vs-ai-sql" style="display:none;">
+                    <div class="vs-ai-sql-header" onclick="toggleSql()">
+                        <i class="fas fa-code"></i>
+                        <span>View SQL Query</span>
+                        <i class="fas fa-chevron-down vs-sql-toggle"></i>
+                    </div>
+                    <pre id="vsAiSqlCode" class="vs-ai-sql-code"></pre>
+                </div>
+                <div id="vsAiSuggestions" class="vs-ai-suggestions"></div>
             </div>
             <div id="vsStatus" class="vs-status"></div>
             <div id="vsResults" class="vs-results"></div>
@@ -54,20 +76,35 @@ function openSearchModal() {
         clearTimeout(searchTimeout);
         const q = input.value.trim();
         if (q.length < 2) { clearResults(); return; }
-        searchTimeout = setTimeout(() => runSearch(q), 400);
+        // Don't auto-search on typing - wait for user to click or press enter
     });
     btn.addEventListener('click', () => {
         const q = input.value.trim();
-        if (q.length >= 2) runSearch(q);
+        if (q.length >= 2) runHybridSearch(q);
     });
     input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             const q = input.value.trim();
-            if (q.length >= 2) runSearch(q);
+            if (q.length >= 2) runHybridSearch(q);
         }
     });
 
     setTimeout(() => input.focus(), 50);
+}
+
+function fillExample(text) {
+    const input = document.getElementById('vsInput');
+    if (input) {
+        input.value = text;
+        input.focus();
+    }
+}
+
+function toggleSql() {
+    const sqlSection = document.getElementById('vsAiSql');
+    if (sqlSection) {
+        sqlSection.classList.toggle('expanded');
+    }
 }
 
 function closeSearchModal() {
@@ -78,12 +115,217 @@ function closeSearchModal() {
 function clearResults() {
     const s = document.getElementById('vsStatus');
     const r = document.getElementById('vsResults');
+    const ai = document.getElementById('vsAiResponse');
     if (s) s.textContent = '';
     if (r) r.innerHTML = '';
+    if (ai) ai.style.display = 'none';
 }
 
-// ── Search API call ──
-async function runSearch(query) {
+// ── Hybrid Search: Detect if query is a question or traditional search ──
+async function runHybridSearch(query) {
+    const status = document.getElementById('vsStatus');
+    const results = document.getElementById('vsResults');
+    const aiResponse = document.getElementById('vsAiResponse');
+    
+    if (!status || !results || !aiResponse) return;
+
+    // Clear previous results
+    status.textContent = '';
+    results.innerHTML = '';
+    aiResponse.style.display = 'none';
+
+    // Detect if this is a natural language question or traditional search
+    const isQuestion = detectQuestion(query);
+
+    if (isQuestion) {
+        // Use AI-powered query
+        await runAiSearch(query);
+    } else {
+        // Use traditional name/address search
+        await runTraditionalSearch(query);
+    }
+}
+
+// Detect if query is a question (vs name/address search)
+function detectQuestion(query) {
+    const q = query.toLowerCase();
+    
+    // Question words
+    const questionWords = ['how many', 'show me', 'find', 'what', 'who', 'where', 'when', 'which', 'list', 'count', 'get'];
+    if (questionWords.some(word => q.startsWith(word))) return true;
+    
+    // Contains SQL-like keywords
+    const sqlKeywords = ['voted', 'voters', 'party', 'district', 'precinct', 'age', 'year', 'election', 'switched', 'new voter'];
+    const hasMultipleKeywords = sqlKeywords.filter(kw => q.includes(kw)).length >= 2;
+    if (hasMultipleKeywords) return true;
+    
+    // Contains comparison operators
+    if (q.includes(' in ') || q.includes(' but not ') || q.includes(' and ') || q.includes(' or ')) {
+        return true;
+    }
+    
+    // Default to traditional search for simple queries (names, addresses)
+    return false;
+}
+
+// ── AI-Powered Search ──
+async function runAiSearch(question) {
+    const status = document.getElementById('vsStatus');
+    const aiResponse = document.getElementById('vsAiResponse');
+    const aiContent = document.getElementById('vsAiContent');
+    const aiSql = document.getElementById('vsAiSql');
+    const aiSqlCode = document.getElementById('vsAiSqlCode');
+    const aiSuggestions = document.getElementById('vsAiSuggestions');
+    const results = document.getElementById('vsResults');
+
+    status.textContent = 'AI is thinking...';
+    aiResponse.style.display = 'none';
+
+    try {
+        const resp = await fetch('/api/llm/query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ 
+                question,
+                context: getSearchContext()
+            })
+        });
+
+        if (resp.status === 401) {
+            status.textContent = 'Sign in to use AI search.';
+            return;
+        }
+
+        if (resp.status === 503) {
+            status.textContent = 'AI service not available. Using traditional search...';
+            setTimeout(() => runTraditionalSearch(question), 1000);
+            return;
+        }
+
+        if (!resp.ok) {
+            const error = await resp.json();
+            status.textContent = 'AI search failed: ' + (error.error || 'Unknown error');
+            return;
+        }
+
+        const data = await resp.json();
+
+        if (!data.success) {
+            status.textContent = 'AI search failed: ' + (data.error || 'Unknown error');
+            return;
+        }
+
+        // Show AI response section
+        aiResponse.style.display = 'block';
+        status.textContent = '';
+
+        // Show explanation
+        aiContent.innerHTML = '<p>' + (data.explanation || 'Query executed successfully.') + '</p>';
+
+        // Show SQL query (collapsible)
+        if (data.sql) {
+            aiSql.style.display = 'block';
+            aiSqlCode.textContent = data.sql;
+        }
+
+        // Show suggestions
+        if (data.suggestions && data.suggestions.length > 0) {
+            let suggestionsHtml = '<div class="vs-ai-suggestions-label">💡 You might also ask:</div>';
+            data.suggestions.forEach(suggestion => {
+                suggestionsHtml += '<button class="vs-ai-suggestion-btn" onclick="fillExample(\'' + 
+                    suggestion.replace(/'/g, "\\'") + '\')">' + suggestion + '</button>';
+            });
+            aiSuggestions.innerHTML = suggestionsHtml;
+        } else {
+            aiSuggestions.innerHTML = '';
+        }
+
+        // Show results as table or cards
+        if (data.results && data.results.length > 0) {
+            status.textContent = data.count + ' result' + (data.count === 1 ? '' : 's');
+            
+            // Check if results look like voter records (have vuid, name fields)
+            const hasVoterFields = data.results[0].vuid || data.results[0].firstname || data.results[0].name;
+            
+            if (hasVoterFields) {
+                // Render as voter cards
+                renderAiVoterResults(data.results, results);
+            } else {
+                // Render as data table
+                renderAiTableResults(data.results, data.columns, results);
+            }
+        } else {
+            status.textContent = 'No results found.';
+        }
+
+    } catch (err) {
+        console.error('AI search error:', err);
+        status.textContent = 'AI search error. Try traditional search.';
+    }
+}
+
+function getSearchContext() {
+    const context = {};
+    if (window.activeDistrict) {
+        context.district = window.activeDistrict.properties.district_id;
+    }
+    if (window.currentCounty) {
+        context.county = window.currentCounty;
+    }
+    return context;
+}
+
+function renderAiVoterResults(voters, container) {
+    // Convert AI results to voter card format
+    voters.forEach(v => {
+        const card = document.createElement('div');
+        card.className = 'vs-card';
+
+        const name = v.name || [v.firstname, v.middlename, v.lastname, v.suffix].filter(Boolean).join(' ');
+        const gender = v.sex === 'F' ? 'Female' : v.sex === 'M' ? 'Male' : v.sex || '';
+        const addr = v.full_address || [v.address, v.city, v.zip].filter(Boolean).join(', ');
+        const hasCoords = v.lat && v.lng;
+
+        card.innerHTML = buildVoterRow(name, v, gender, addr, hasCoords, true);
+        container.appendChild(card);
+    });
+}
+
+function renderAiTableResults(rows, columns, container) {
+    const table = document.createElement('table');
+    table.className = 'vs-ai-table';
+    
+    // Header
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    columns.forEach(col => {
+        const th = document.createElement('th');
+        th.textContent = col;
+        headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+    
+    // Body
+    const tbody = document.createElement('tbody');
+    rows.forEach(row => {
+        const tr = document.createElement('tr');
+        columns.forEach(col => {
+            const td = document.createElement('td');
+            const val = row[col];
+            td.textContent = val !== null && val !== undefined ? val : '';
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    
+    container.appendChild(table);
+}
+
+// ── Traditional Name/Address Search ──
+async function runTraditionalSearch(query) {
     const status = document.getElementById('vsStatus');
     const results = document.getElementById('vsResults');
     if (!status || !results) return;

@@ -20,8 +20,8 @@
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0a0e27;
-            color: #fff;
+            background: #f8f9fa;
+            color: #1a202c;
             overflow: hidden;
         }
         
@@ -40,27 +40,36 @@
             right: 0;
             width: 400px;
             height: 100vh;
-            background: linear-gradient(180deg, #1a1f3a 0%, #0f1229 100%);
-            border-left: 2px solid #2a3f5f;
+            background: #ffffff;
+            border-left: 2px solid #e2e8f0;
             overflow-y: auto;
             z-index: 1000;
+            box-shadow: -4px 0 12px rgba(0, 0, 0, 0.1);
         }
         
         .header {
             padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-bottom: 3px solid #4a5568;
+            background: #ffffff;
+            border-bottom: 3px solid #e2e8f0;
+            text-align: center;
+        }
+        
+        .header .logo {
+            max-width: 280px;
+            height: auto;
+            margin-bottom: 15px;
         }
         
         .header h1 {
             font-size: 24px;
             font-weight: 700;
             margin-bottom: 5px;
+            color: #1a202c;
         }
         
         .header .subtitle {
             font-size: 14px;
-            opacity: 0.9;
+            color: #718096;
         }
         
         .stats-grid {
@@ -71,51 +80,56 @@
         }
         
         .stat-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
             border-radius: 8px;
             padding: 15px;
             transition: all 0.3s;
         }
         
         .stat-card:hover {
-            background: rgba(255, 255, 255, 0.08);
+            background: #edf2f7;
             transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         
         .stat-card.winning {
             border-color: #48bb78;
-            box-shadow: 0 0 20px rgba(72, 187, 120, 0.3);
+            background: #f0fff4;
+            box-shadow: 0 0 20px rgba(72, 187, 120, 0.2);
         }
         
         .stat-card.losing {
-            border-color: #f56565;
-            box-shadow: 0 0 20px rgba(245, 101, 101, 0.3);
+            border-color: #fc8181;
+            background: #fff5f5;
+            box-shadow: 0 0 20px rgba(252, 129, 129, 0.2);
         }
         
         .stat-label {
             font-size: 12px;
             text-transform: uppercase;
             letter-spacing: 1px;
-            opacity: 0.7;
+            color: #718096;
             margin-bottom: 8px;
+            font-weight: 600;
         }
         
         .stat-value {
             font-size: 32px;
             font-weight: 700;
             line-height: 1;
+            color: #1a202c;
         }
         
         .stat-change {
             font-size: 14px;
             margin-top: 5px;
-            opacity: 0.8;
+            color: #4a5568;
         }
         
         .section {
             padding: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-top: 1px solid #e2e8f0;
         }
         
         .section-title {
@@ -125,20 +139,23 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            color: #2d3748;
         }
         
         .county-item, .precinct-item {
-            background: rgba(255, 255, 255, 0.03);
+            background: #f7fafc;
             border-radius: 6px;
             padding: 12px;
             margin-bottom: 10px;
             border-left: 4px solid transparent;
             transition: all 0.2s;
+            border: 1px solid #e2e8f0;
         }
         
         .county-item:hover, .precinct-item:hover {
-            background: rgba(255, 255, 255, 0.06);
+            background: #edf2f7;
             cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
         
         .county-item.dem, .precinct-item.dem {
@@ -146,7 +163,7 @@
         }
         
         .county-item.rep, .precinct-item.rep {
-            border-left-color: #ef4444;
+            border-left-color: #f97316;
         }
         
         .item-header {
@@ -159,18 +176,21 @@
         .item-name {
             font-weight: 600;
             font-size: 14px;
+            color: #2d3748;
         }
         
         .item-margin {
             font-size: 12px;
             padding: 2px 8px;
             border-radius: 4px;
-            background: rgba(255, 255, 255, 0.1);
+            background: #e2e8f0;
+            color: #2d3748;
+            font-weight: 600;
         }
         
         .vote-bar {
             height: 6px;
-            background: rgba(255, 255, 255, 0.1);
+            background: #e2e8f0;
             border-radius: 3px;
             overflow: hidden;
             margin-bottom: 5px;
@@ -183,23 +203,23 @@
         }
         
         .vote-bar-fill.rep {
-            background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+            background: linear-gradient(90deg, #f97316 0%, #ea580c 100%);
         }
         
         .vote-counts {
             display: flex;
             justify-content: space-between;
             font-size: 12px;
-            opacity: 0.8;
+            color: #4a5568;
         }
         
         .refresh-btn {
             position: absolute;
             top: 20px;
             left: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            color: #0a0e27;
-            border: none;
+            background: #ffffff;
+            color: #2d3748;
+            border: 2px solid #e2e8f0;
             padding: 12px 20px;
             border-radius: 8px;
             font-weight: 600;
@@ -209,12 +229,14 @@
             gap: 8px;
             z-index: 1001;
             transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
         
         .refresh-btn:hover {
-            background: #fff;
+            background: #f7fafc;
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            border-color: #cbd5e0;
         }
         
         .refresh-btn.loading {
@@ -235,8 +257,264 @@
             text-align: center;
             padding: 10px;
             font-size: 12px;
-            opacity: 0.6;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: #718096;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .viz-toggle {
+            position: absolute;
+            top: 80px;
+            left: 20px;
+            background: #ffffff;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px;
+            z-index: 1001;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .viz-toggle-btn {
+            background: #f7fafc;
+            color: #2d3748;
+            border: 2px solid #e2e8f0;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 0 2px;
+        }
+        
+        .viz-toggle-btn:hover {
+            background: #edf2f7;
+            border-color: #cbd5e0;
+        }
+        
+        .viz-toggle-btn.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+        
+        .powered-by {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1002;
+            text-align: center;
+            opacity: 0.9;
+            transition: opacity 0.3s;
+        }
+        
+        .powered-by:hover {
+            opacity: 1;
+        }
+        
+        .powered-by-text {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #718096;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .powered-by-logo {
+            display: block;
+            width: 120px;
+            height: auto;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+        }
+        
+        .upload-btn {
+            position: fixed;
+            bottom: 20px;
+            left: 160px;
+            z-index: 1002;
+            width: 50px;
+            height: 50px;
+            background: #667eea;
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .upload-btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+        }
+        
+        .upload-btn:active {
+            transform: translateY(0);
+        }
+        
+        .upload-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .upload-modal.active {
+            display: flex;
+        }
+        
+        .upload-modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        .upload-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .upload-modal-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1a202c;
+        }
+        
+        .upload-modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #718096;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        .upload-modal-close:hover {
+            background: #f7fafc;
+            color: #1a202c;
+        }
+        
+        .upload-section {
+            margin-bottom: 20px;
+        }
+        
+        .upload-section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #4a5568;
+            margin-bottom: 10px;
+        }
+        
+        .url-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        
+        .url-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .upload-divider {
+            text-align: center;
+            margin: 20px 0;
+            color: #a0aec0;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .drop-zone {
+            border: 3px dashed #cbd5e0;
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f7fafc;
+        }
+        
+        .drop-zone:hover {
+            border-color: #667eea;
+            background: #edf2f7;
+        }
+        
+        .drop-zone.drag-over {
+            border-color: #667eea;
+            background: #e6f2ff;
+        }
+        
+        .drop-zone-icon {
+            font-size: 48px;
+            color: #a0aec0;
+            margin-bottom: 10px;
+        }
+        
+        .drop-zone-text {
+            font-size: 16px;
+            color: #4a5568;
+            margin-bottom: 5px;
+        }
+        
+        .drop-zone-subtext {
+            font-size: 12px;
+            color: #a0aec0;
+        }
+        
+        .upload-status {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .upload-status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        
+        .upload-status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+        
+        .upload-status.processing {
+            background: #e7f3ff;
+            color: #004085;
+            border: 1px solid #b8daff;
+            display: block;
         }
     </style>
 </head>
@@ -248,20 +526,29 @@
         Refresh Data
     </button>
     
+    <div class="viz-toggle">
+        <button class="viz-toggle-btn active" id="solidBtn" data-mode="solid">
+            <i class="fas fa-map"></i> Solid
+        </button>
+        <button class="viz-toggle-btn" id="heatmapBtn" data-mode="heatmap">
+            <i class="fas fa-fire"></i> Heatmap
+        </button>
+    </div>
+    
     <div class="sidebar">
         <div class="header">
-            <h1>District 15</h1>
+            <img src="/assets/bobby-pulido-logo.png" alt="Bobby Pulido for Congress" class="logo">
             <div class="subtitle">Election Night Dashboard</div>
         </div>
         
         <div class="stats-grid">
             <div class="stat-card" id="demCard">
-                <div class="stat-label">Democratic</div>
+                <div class="stat-label">Bobby Pulido</div>
                 <div class="stat-value" id="demVotes">0</div>
                 <div class="stat-change" id="demPct">0%</div>
             </div>
             <div class="stat-card" id="repCard">
-                <div class="stat-label">Republican</div>
+                <div class="stat-label">Ada Cuellar</div>
                 <div class="stat-value" id="repVotes">0</div>
                 <div class="stat-change" id="repPct">0%</div>
             </div>
@@ -288,10 +575,56 @@
         </div>
     </div>
     
+    <a href="https://politiquera.com" target="_blank" class="powered-by">
+        <div class="powered-by-text">Powered By</div>
+        <img src="/assets/politiquera.png" alt="Politiquera" class="powered-by-logo">
+    </a>
+    
+    <button class="upload-btn" id="uploadBtn" title="Upload Results">
+        <i class="fas fa-upload"></i>
+    </button>
+    
+    <!-- Upload Modal -->
+    <div class="upload-modal" id="uploadModal">
+        <div class="upload-modal-content">
+            <div class="upload-modal-header">
+                <div class="upload-modal-title">Upload Results</div>
+                <button class="upload-modal-close" id="closeModal">&times;</button>
+            </div>
+            
+            <div class="upload-section">
+                <div class="upload-section-title">Paste URL</div>
+                <input type="text" class="url-input" id="urlInput" placeholder="https://example.com/results.xlsx">
+            </div>
+            
+            <div class="upload-divider">OR</div>
+            
+            <div class="upload-section">
+                <div class="upload-section-title">Upload File</div>
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <div class="drop-zone-text">Drag & drop file here</div>
+                    <div class="drop-zone-subtext">or click to browse</div>
+                </div>
+                <input type="file" id="fileInput" accept=".xlsx,.xls,.zip" style="display: none;">
+            </div>
+            
+            <div class="upload-status" id="uploadStatus"></div>
+        </div>
+    </div>
+    
     <!-- Leaflet JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     
+    <!-- XLSX Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- JSZip Library for ZIP extraction -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
     <!-- Dashboard JS -->
-    <script src="dashboard.js"></script>
+    <script src="dashboard.js?v=20260303k"></script>
 </body>
 </html>

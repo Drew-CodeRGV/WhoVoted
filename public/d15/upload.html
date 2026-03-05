@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Upload D15 Results</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -109,8 +110,8 @@
     <div class="upload-form">
         <form id="uploadForm">
             <div class="form-group">
-                <label for="file">Select CSV File:</label>
-                <input type="file" id="file" name="file" accept=".csv" required>
+                <label for="file">Select Excel File (XLSX):</label>
+                <input type="file" id="file" name="file" accept=".xlsx,.xls" required>
             </div>
             
             <button type="submit" id="submitBtn">Upload Results</button>
@@ -120,22 +121,45 @@
     </div>
     
     <div class="format-info">
-        <h3>CSV Format</h3>
-        <p>Your CSV file should have the following columns:</p>
+        <h3>Excel Format</h3>
+        <p>Upload the official election results XLSX file. The system will:</p>
         <ul>
-            <li><code>county</code> - County name (e.g., "Hidalgo")</li>
-            <li><code>precinct</code> - Precinct number (e.g., "101")</li>
-            <li><code>dem_votes</code> - Democratic votes count</li>
-            <li><code>rep_votes</code> - Republican votes count</li>
+            <li>Read <strong>Tab 3</strong> (Sheet 3) automatically</li>
+            <li>Extract precinct numbers from <strong>Column A</strong></li>
+            <li>Read <strong>Bobby Pulido</strong> votes from <strong>Column F</strong> (Total Vote)</li>
+            <li>Read <strong>Ada Cuellar</strong> votes from <strong>Column J</strong> (Total Vote)</li>
+            <li>Start reading from <strong>Row 4</strong> onwards</li>
         </ul>
-        <p><strong>Example:</strong></p>
-        <pre>county,precinct,dem_votes,rep_votes
-Hidalgo,101,450,320
-Hidalgo,102,380,290
-Cameron,201,520,410</pre>
+        <p><strong>Note:</strong> The file must match the official Texas election results format with candidate names in row 2.</p>
     </div>
     
     <script>
+        // Precinct to county mapping for District 15
+        // This maps precinct numbers to their counties
+        const PRECINCT_COUNTY_MAP = {
+            // Hidalgo County precincts in D15
+            '001': 'Hidalgo', '002': 'Hidalgo', '003': 'Hidalgo', '004': 'Hidalgo',
+            '005': 'Hidalgo', '006': 'Hidalgo', '008': 'Hidalgo', '012': 'Hidalgo',
+            '013': 'Hidalgo', '014': 'Hidalgo', '015': 'Hidalgo', '016': 'Hidalgo',
+            '017': 'Hidalgo', '018': 'Hidalgo', '019': 'Hidalgo', '020': 'Hidalgo',
+            '021': 'Hidalgo', '022': 'Hidalgo', '023': 'Hidalgo', '024': 'Hidalgo',
+            '025': 'Hidalgo', '030': 'Hidalgo', '031': 'Hidalgo', '032': 'Hidalgo',
+            '033': 'Hidalgo', '029': 'Hidalgo', '040': 'Hidalgo', '041': 'Hidalgo',
+            '042': 'Hidalgo', '043': 'Hidalgo', '044': 'Hidalgo',
+            // Cameron County precincts in D15
+            '101': 'Cameron', '102': 'Cameron', '103': 'Cameron', '104': 'Cameron',
+            '105': 'Cameron', '106': 'Cameron', '107': 'Cameron', '108': 'Cameron',
+            '109': 'Cameron', '110': 'Cameron', '111': 'Cameron', '112': 'Cameron',
+            '113': 'Cameron', '114': 'Cameron', '115': 'Cameron', '116': 'Cameron',
+            '117': 'Cameron', '118': 'Cameron', '119': 'Cameron', '120': 'Cameron',
+            // Willacy County precincts in D15
+            '301': 'Willacy', '302': 'Willacy', '303': 'Willacy', '304': 'Willacy',
+            '305': 'Willacy', '306': 'Willacy', '307': 'Willacy', '308': 'Willacy',
+            // Brooks County precincts in D15
+            '401': 'Brooks', '402': 'Brooks', '403': 'Brooks', '404': 'Brooks',
+            // Add more as needed
+        };
+        
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -148,29 +172,83 @@ Cameron,201,520,410</pre>
                 return;
             }
             
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
-            
             submitBtn.disabled = true;
-            submitBtn.textContent = 'Uploading...';
+            submitBtn.textContent = 'Processing...';
             message.style.display = 'none';
             
             try {
+                // Read Excel file
+                const file = fileInput.files[0];
+                const data = await file.arrayBuffer();
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                // Get tab 3 (index 2)
+                if (workbook.SheetNames.length < 3) {
+                    throw new Error('Excel file must have at least 3 tabs');
+                }
+                
+                const sheetName = workbook.SheetNames[2]; // Tab 3
+                const worksheet = workbook.Sheets[sheetName];
+                
+                // Parse the data
+                const results = [];
+                let rowNum = 4; // Start from row 4 (index 3 in 0-based)
+                
+                while (true) {
+                    const precinctCell = worksheet[`A${rowNum}`];
+                    if (!precinctCell || !precinctCell.v) break; // Stop when no more precincts
+                    
+                    const precinct = String(precinctCell.v).padStart(3, '0');
+                    
+                    // Bobby Pulido Total Vote (Column F)
+                    const bobbyCell = worksheet[`F${rowNum}`];
+                    const bobbyVotes = bobbyCell ? parseInt(bobbyCell.v) || 0 : 0;
+                    
+                    // Ada Cuellar Total Vote (Column J)
+                    const adaCell = worksheet[`J${rowNum}`];
+                    const adaVotes = adaCell ? parseInt(adaCell.v) || 0 : 0;
+                    
+                    // Determine county from precinct mapping
+                    const county = PRECINCT_COUNTY_MAP[precinct] || 'Unknown';
+                    
+                    results.push({
+                        precinct: precinct,
+                        county: county,
+                        bobby_votes: bobbyVotes,
+                        ada_votes: adaVotes
+                    });
+                    
+                    rowNum++;
+                }
+                
+                if (results.length === 0) {
+                    throw new Error('No data found in tab 3 starting from row 4');
+                }
+                
+                console.log(`Parsed ${results.length} precincts from Excel`);
+                
+                // Send to server
+                submitBtn.textContent = 'Uploading...';
+                
                 const response = await fetch('/api/d15/upload', {
                     method: 'POST',
-                    body: formData
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ results: results })
                 });
                 
-                const data = await response.json();
+                const responseData = await response.json();
                 
                 if (response.ok) {
-                    showMessage(`Success! Uploaded ${data.count} results.`, 'success');
+                    showMessage(`Success! Uploaded ${responseData.count} precinct results.`, 'success');
                     fileInput.value = '';
                 } else {
-                    showMessage(`Error: ${data.error}`, 'error');
+                    showMessage(`Error: ${responseData.error}`, 'error');
                 }
             } catch (error) {
                 showMessage(`Error: ${error.message}`, 'error');
+                console.error('Upload error:', error);
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Upload Results';

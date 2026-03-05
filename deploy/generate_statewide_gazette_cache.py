@@ -23,7 +23,8 @@ overall = conn.execute("""
         SUM(CASE WHEN ve.party_voted = 'Democratic' THEN 1 ELSE 0 END) as dem,
         SUM(CASE WHEN ve.party_voted = 'Republican' THEN 1 ELSE 0 END) as rep,
         SUM(CASE WHEN ve.voting_method = 'early-voting' THEN 1 ELSE 0 END) as early_voting,
-        SUM(CASE WHEN ve.voting_method = 'mail-in' THEN 1 ELSE 0 END) as mail_in
+        SUM(CASE WHEN ve.voting_method = 'mail-in' THEN 1 ELSE 0 END) as mail_in,
+        SUM(CASE WHEN ve.voting_method = 'election-day' THEN 1 ELSE 0 END) as election_day
     FROM voter_elections ve
     WHERE ve.election_date = '2026-03-03'
       AND ve.party_voted IN ('Democratic', 'Republican')
@@ -150,6 +151,7 @@ cache = {
     'dem_share': round(overall['dem'] / overall['total'] * 100, 1) if overall['total'] > 0 else 0,
     'early_voting': overall['early_voting'],
     'mail_in': overall['mail_in'],
+    'election_day': overall['election_day'],
     
     # Gender
     'female': gender['female'],

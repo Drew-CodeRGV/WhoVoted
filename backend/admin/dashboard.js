@@ -403,3 +403,344 @@ window.addEventListener('load', async () => {
         console.error('Initial status check error:', error);
     }
 });
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OLLAMA MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function refreshOllamaStatus() {
+    const statusContent = document.getElementById('ollama-status-content');
+    const updateContent = document.getElementById('ollama-update-content');
+    const modelsContent = document.getElementById('ollama-models-content');
+    const statsContent = document.getElementById('ollama-stats-content');
+    
+    statusContent.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">Loading...</div>';
+    
+    try {
+        // Get Ollama status
+        const statusResp = await fetch('/api/admin/ollama/status', {
+            credentials: 'include'
+        });
+        const statusData = await statusResp.json();
+        
+        // Display status
+        if (statusData.ollama_installed) {
+            const statusHtml = `
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
+                    <div>
+                        <div style="font-size:12px;color:#888;margin-bottom:4px;">Ollama Service</div>
+                        <div style="font-size:18px;font-weight:600;color:#11998e;">✓ Running</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:#888;margin-bottom:4px;">Version</div>
+                        <div style="font-size:18px;font-weight:600;">${statusData.ollama_version || 'Unknown'}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:#888;margin-bottom:4px;">API Status</div>
+                        <div style="font-size:18px;font-weight:600;color:${statusData.api_available ? '#11998e' : '#f5576c'};">
+                            ${statusData.api_available ? '✓ Available' : '✗ Unavailable'}
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:#888;margin-bottom:4px;">Models Installed</div>
+                        <div style="font-size:18px;font-weight:600;">${statusData.models_count || 0}</div>
+                    </div>
+                </div>
+            `;
+            statusContent.innerHTML = statusHtml;
+            
+            // Check for updates
+            checkOllamaUpdates(updateContent, statusData.ollama_version);
+            
+            // Load models
+            loadOllamaModels(modelsContent, statusData.models);
+            
+            // Load stats
+            loadOllamaStats(statsContent);
+        } else {
+            statusContent.innerHTML = `
+                <div style="text-align:center;padding:20px;">
+                    <div style="font-size:48px;margin-bottom:12px;">⚠️</div>
+                    <div style="font-size:16px;font-weight:600;color:#f5576c;margin-bottom:8px;">Ollama Not Installed</div>
+                    <div style="font-size:13px;color:#666;margin-bottom:16px;">
+                        The AI assistant requires Ollama to be installed on the server.
+                    </div>
+                    <button class="btn-primary" onclick="installOllama()">
+                        📦 Install Ollama
+                    </button>
+                </div>
+            `;
+            updateContent.innerHTML = '';
+            modelsContent.innerHTML = '';
+            statsContent.innerHTML = '';
+        }
+    } catch (err) {
+        console.error('Failed to load Ollama status:', err);
+        statusContent.innerHTML = `
+            <div style="text-align:center;padding:20px;color:#f5576c;">
+                Failed to load status: ${err.message}
+            </div>
+        `;
+    }
+}
+
+async function checkOllamaUpdates(container, currentVersion) {
+    try {
+        const resp = await fetch('/api/admin/ollama/check-updates', {
+            credentials: 'include'
+        });
+        const data = await resp.json();
+        
+        if (data.update_available) {
+            container.innerHTML = `
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <div>
+                        <div style="font-size:14px;font-weight:600;color:#f5576c;margin-bottom:4px;">
+                            🎉 Update Available!
+                        </div>
+                        <div style="font-size:13px;color:#666;">
+                            Current: ${currentVersion || 'Unknown'} → Latest: ${data.latest_version}
+                        </div>
+                    </div>
+                    <button class="btn-primary" style="background:#f5576c;" onclick="updateOllama()">
+                        ⬆️ Update Now
+                    </button>
+                </div>
+            `;
+        } else {
+            container.innerHTML = `
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="font-size:32px;">✓</div>
+                    <div>
+                        <div style="font-size:14px;font-weight:600;color:#11998e;">Up to Date</div>
+                        <div style="font-size:13px;color:#666;">Version ${currentVersion || 'Unknown'}</div>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (err) {
+        container.innerHTML = `<div style="color:#888;font-size:13px;">Unable to check for updates</div>`;
+    }
+}
+
+function loadOllamaModels(container, models) {
+    if (!models || models.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center;padding:20px;color:#888;">
+                No models installed. Pull a model to get started.
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div style="display:flex;flex-direction:column;gap:12px;">';
+    models.forEach(model => {
+        const sizeMB = (model.size / (1024 * 1024)).toFixed(0);
+        const sizeGB = (model.size / (1024 * 1024 * 1024)).toFixed(2);
+        const sizeDisplay = model.size > 1024 * 1024 * 1024 ? `${sizeGB} GB` : `${sizeMB} MB`;
+        
+        const isRecommended = model.name.includes('llama3.2:3b-instruct');
+        
+        html += `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:#fff;border:1px solid #e0e0e0;border-radius:6px;">
+                <div style="flex:1;">
+                    <div style="font-weight:600;font-size:14px;margin-bottom:4px;">
+                        ${model.name}
+                        ${isRecommended ? '<span class="badge badge-success" style="margin-left:8px;">Recommended</span>' : ''}
+                    </div>
+                    <div style="font-size:12px;color:#888;">
+                        Size: ${sizeDisplay} • Modified: ${new Date(model.modified_at).toLocaleDateString()}
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn-sm btn-preview" onclick="testModel('${model.name}')">
+                        🧪 Test
+                    </button>
+                    <button class="btn-sm btn-delete" onclick="deleteModel('${model.name}')">
+                        🗑️ Delete
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    
+    container.innerHTML = html;
+}
+
+async function loadOllamaStats(container) {
+    try {
+        const resp = await fetch('/api/admin/ollama/stats', {
+            credentials: 'include'
+        });
+        const data = await resp.json();
+        
+        const html = `
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;">
+                <div>
+                    <div style="font-size:12px;color:#888;margin-bottom:4px;">Total Queries</div>
+                    <div style="font-size:20px;font-weight:600;">${data.total_queries || 0}</div>
+                </div>
+                <div>
+                    <div style="font-size:12px;color:#888;margin-bottom:4px;">Avg Response Time</div>
+                    <div style="font-size:20px;font-weight:600;">${data.avg_response_time || 'N/A'}</div>
+                </div>
+                <div>
+                    <div style="font-size:12px;color:#888;margin-bottom:4px;">Success Rate</div>
+                    <div style="font-size:20px;font-weight:600;">${data.success_rate || 'N/A'}</div>
+                </div>
+                <div>
+                    <div style="font-size:12px;color:#888;margin-bottom:4px;">Memory Usage</div>
+                    <div style="font-size:20px;font-weight:600;">${data.memory_usage || 'N/A'}</div>
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+    } catch (err) {
+        container.innerHTML = `<div style="color:#888;font-size:13px;">Stats not available</div>`;
+    }
+}
+
+async function installOllama() {
+    if (!confirm('This will install Ollama on the server. Continue?')) return;
+    
+    appendOllamaLog('Starting Ollama installation...');
+    
+    try {
+        const resp = await fetch('/api/admin/ollama/install', {
+            method: 'POST',
+            credentials: 'include'
+        });
+        const data = await resp.json();
+        
+        if (data.success) {
+            appendOllamaLog('✓ Ollama installed successfully');
+            setTimeout(refreshOllamaStatus, 2000);
+        } else {
+            appendOllamaLog('✗ Installation failed: ' + data.error);
+        }
+    } catch (err) {
+        appendOllamaLog('✗ Installation error: ' + err.message);
+    }
+}
+
+async function updateOllama() {
+    if (!confirm('This will update Ollama to the latest version. The service will be restarted. Continue?')) return;
+    
+    appendOllamaLog('Starting Ollama update...');
+    
+    try {
+        const resp = await fetch('/api/admin/ollama/update', {
+            method: 'POST',
+            credentials: 'include'
+        });
+        const data = await resp.json();
+        
+        if (data.success) {
+            appendOllamaLog('✓ Ollama updated successfully');
+            appendOllamaLog(data.output);
+            setTimeout(refreshOllamaStatus, 2000);
+        } else {
+            appendOllamaLog('✗ Update failed: ' + data.error);
+        }
+    } catch (err) {
+        appendOllamaLog('✗ Update error: ' + err.message);
+    }
+}
+
+function showPullModelDialog() {
+    const modelName = prompt('Enter model name to pull (e.g., llama3.2:3b-instruct, llama3.2:1b):');
+    if (!modelName) return;
+    
+    pullModel(modelName);
+}
+
+async function pullModel(modelName) {
+    appendOllamaLog(`Pulling model: ${modelName}...`);
+    
+    try {
+        const resp = await fetch('/api/admin/ollama/pull-model', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ model: modelName })
+        });
+        const data = await resp.json();
+        
+        if (data.success) {
+            appendOllamaLog(`✓ Model ${modelName} pulled successfully`);
+            setTimeout(refreshOllamaStatus, 2000);
+        } else {
+            appendOllamaLog(`✗ Failed to pull model: ${data.error}`);
+        }
+    } catch (err) {
+        appendOllamaLog(`✗ Pull error: ${err.message}`);
+    }
+}
+
+async function deleteModel(modelName) {
+    if (!confirm(`Delete model ${modelName}? This cannot be undone.`)) return;
+    
+    appendOllamaLog(`Deleting model: ${modelName}...`);
+    
+    try {
+        const resp = await fetch('/api/admin/ollama/delete-model', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ model: modelName })
+        });
+        const data = await resp.json();
+        
+        if (data.success) {
+            appendOllamaLog(`✓ Model ${modelName} deleted`);
+            setTimeout(refreshOllamaStatus, 1000);
+        } else {
+            appendOllamaLog(`✗ Failed to delete model: ${data.error}`);
+        }
+    } catch (err) {
+        appendOllamaLog(`✗ Delete error: ${err.message}`);
+    }
+}
+
+async function testModel(modelName) {
+    appendOllamaLog(`Testing model: ${modelName}...`);
+    
+    try {
+        const resp = await fetch('/api/admin/ollama/test-model', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ model: modelName })
+        });
+        const data = await resp.json();
+        
+        if (data.success) {
+            appendOllamaLog(`✓ Model test successful`);
+            appendOllamaLog(`Response time: ${data.response_time}ms`);
+            appendOllamaLog(`Sample output: ${data.sample_output}`);
+        } else {
+            appendOllamaLog(`✗ Model test failed: ${data.error}`);
+        }
+    } catch (err) {
+        appendOllamaLog(`✗ Test error: ${err.message}`);
+    }
+}
+
+function appendOllamaLog(message) {
+    const log = document.getElementById('ollama-log');
+    const timestamp = new Date().toLocaleTimeString();
+    log.textContent += `[${timestamp}] ${message}\n`;
+    log.scrollTop = log.scrollHeight;
+}
+
+// Initialize Ollama tab when it's opened
+document.addEventListener('DOMContentLoaded', () => {
+    const ollamaTab = document.querySelector('[data-tab="ollama"]');
+    if (ollamaTab) {
+        ollamaTab.addEventListener('click', () => {
+            setTimeout(refreshOllamaStatus, 100);
+        });
+    }
+});

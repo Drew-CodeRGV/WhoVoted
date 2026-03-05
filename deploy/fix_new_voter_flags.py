@@ -3,7 +3,10 @@
 Recalculate is_new_voter flags using the new conservative logic.
 
 Rule 1: Voter was under 18 for all prior elections (newly eligible)
-Rule 2: County has 3+ prior elections AND voter has no prior history
+Rule 2: County has 3+ prior elections AND voter has no prior history AND we have their birth year
+
+CRITICAL: If we don't have birth year data, we CANNOT mark as new voter.
+This prevents false positives from statewide EVR data that lacks birth years.
 
 Better safe than sorry - if we don't have sufficient data, don't mark as new.
 """
@@ -63,10 +66,12 @@ def fix_new_voter_flags():
                 print(f"  Prior elections: {prior_count}")
                 
                 if prior_count >= 3:
-                    print(f"  ✓ Sufficient history - applying Rule 2 (all with no prior history)")
+                    print(f"  ✓ Sufficient history - applying Rule 2 (no prior history + known age)")
                     
                     # Rule 2: County has 3+ prior elections
-                    # Mark as new if voter has no prior history
+                    # Mark as new ONLY if:
+                    # - Voter has no prior history AND
+                    # - We have their birth year (can verify they were eligible)
                     updated = conn.execute("""
                         UPDATE voter_elections
                         SET is_new_voter = CASE
@@ -76,7 +81,13 @@ def fix_new_voter_flags():
                                   AND ve2.election_date < ?
                                   AND ve2.party_voted != '' AND ve2.party_voted IS NOT NULL
                             ) THEN 0
-                            ELSE 1
+                            WHEN vuid IN (
+                                SELECT v.vuid FROM voters v
+                                WHERE v.county = ?
+                                  AND v.birth_year IS NOT NULL
+                                  AND v.birth_year > 0
+                            ) THEN 1
+                            ELSE 0
                         END
                         WHERE election_date = ?
                           AND vuid IN (
@@ -84,7 +95,7 @@ def fix_new_voter_flags():
                             JOIN voters v ON ve.vuid = v.vuid
                             WHERE v.county = ? AND ve.election_date = ?
                           )
-                    """, [election_date, election_date, county, election_date]).rowcount
+                    """, [election_date, county, election_date, county, election_date]).rowcount
                     
                 else:
                     print(f"  ⚠ Limited history - applying Rule 1 only (newly eligible voters)")
