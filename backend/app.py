@@ -4766,7 +4766,9 @@ def llm_query():
         }
     """
     try:
+        logger.info("LLM query endpoint called")
         query_assistant = get_query_assistant()
+        logger.info(f"Query assistant: {query_assistant}")
         if not query_assistant:
             return jsonify({
                 'error': 'LLM service not available. Install Ollama and run: ollama pull llama3.2:3b-instruct',
