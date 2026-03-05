@@ -16,12 +16,12 @@ echo "╚═══════════════════════�
 echo ""
 
 # Check we're on the server
-if [ ! -d "/var/www/politiquera" ]; then
+if [ ! -d "/opt/whovoted" ]; then
     echo "✗ Error: This script must be run on the production server"
     exit 1
 fi
 
-cd /var/www/politiquera
+cd /opt/whovoted
 
 # ============================================================================
 # STEP 1: Pull Latest Code
