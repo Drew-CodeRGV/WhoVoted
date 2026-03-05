@@ -263,14 +263,18 @@ class DatasetSelectorV2 {
             this.methodSelect.disabled = false;
             this.methodSelect.style.opacity = '1';
             
-            this.loadCurrentDataset();
+            // Use skipZoom flag if it was set
+            const skipZoom = this._skipZoom || false;
+            this._skipZoom = false; // Reset flag
+            
+            this.loadCurrentDataset(skipZoom);
         }
     }
     
     /**
      * Load the currently selected dataset
      */
-    loadCurrentDataset() {
+    loadCurrentDataset(skipZoom = false) {
         const datasets = this.getCountyDatasets();
         const dataset = datasets.find(ds => 
             ds.year === this.currentYear && 
@@ -312,8 +316,8 @@ class DatasetSelectorV2 {
             // Update method breakdown display
             this.updateMethodBreakdown(dataset);
             
-            // Zoom to the selected county if not "all"
-            if (this.currentCounty !== 'all' && typeof zoomToCounty === 'function') {
+            // Zoom to the selected county if not "all" and skipZoom is false
+            if (!skipZoom && this.currentCounty !== 'all' && typeof zoomToCounty === 'function') {
                 zoomToCounty(this.currentCounty);
             }
             
@@ -368,7 +372,7 @@ class DatasetSelectorV2 {
     /**
      * Handle county change
      */
-    onCountyChange() {
+    onCountyChange(skipZoom = false) {
         this.currentCounty = this.countySelect.value;
         console.log('DatasetSelectorV2: County changed to', this.currentCounty);
         
@@ -382,6 +386,9 @@ class DatasetSelectorV2 {
         }
         
         console.log('DatasetSelectorV2: Set selectedCountyFilter to', window.selectedCountyFilter);
+        
+        // Store skipZoom flag for use in loadCurrentDataset
+        this._skipZoom = skipZoom;
         
         this.populateYearDropdown();
     }

@@ -228,8 +228,8 @@ function centerMapOnUserLocation() {
                             if (countyOption) {
                                 console.log('Switching to county:', county);
                                 datasetSelector.countySelect.value = county;
-                                // Trigger the change event to load data
-                                datasetSelector.onCountyChange();
+                                // Trigger the change event to load data, but skip zoom (we already zoomed to user location)
+                                datasetSelector.onCountyChange(true); // skipZoom = true
                             } else {
                                 console.log('County not found in dropdown:', county);
                             }
