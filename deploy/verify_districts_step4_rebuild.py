@@ -52,12 +52,13 @@ def find_district(lat, lng, districts):
 
 def main():
     print("=" * 80)
-    print("REBUILD ALL DISTRICT ASSIGNMENTS")
+    print("REBUILD CONGRESSIONAL & STATE HOUSE DISTRICT ASSIGNMENTS")
     print("=" * 80)
     
     # Confirm before proceeding
-    print("\n⚠️  WARNING: This will UPDATE all district assignments in the database")
+    print("\n⚠️  WARNING: This will UPDATE Congressional and State House district assignments")
     print("   This operation will modify the 'voters' table")
+    print("\n✓ Commissioner districts will NOT be touched (preserving existing D15 work)")
     print("\nDo you want to proceed? (yes/no): ", end='')
     
     response = input().strip().lower()
@@ -96,13 +97,14 @@ def main():
     
     conn.execute(f'''
         CREATE TABLE {backup_table} AS
-        SELECT vuid, congressional_district, state_house_district, commissioner_district
+        SELECT vuid, congressional_district, state_house_district
         FROM voters
     ''')
     conn.commit()
     
     backup_count = conn.execute(f'SELECT COUNT(*) as count FROM {backup_table}').fetchone()['count']
     print(f"✓ Backed up {backup_count:,} voter district assignments to {backup_table}")
+    print(f"✓ Commissioner districts NOT included in backup (will not be modified)")
     
     print("\n" + "=" * 80)
     print("3. REGENERATE CONGRESSIONAL DISTRICTS")
