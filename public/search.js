@@ -9,14 +9,14 @@ geoIconBtn.title = 'Find my location';
 geoIconBtn.innerHTML = '<i class="fas fa-crosshairs"></i>';
 document.body.appendChild(geoIconBtn);
 
-// AI Search icon button — DISABLED (Ollama requires more resources)
-// const searchIconBtn = document.createElement('button');
-// searchIconBtn.className = 'search-icon-btn';
-// searchIconBtn.title = 'AI-Powered Search';
-// searchIconBtn.innerHTML = '<i class="fas fa-brain"></i>'; // AI brain icon
-// searchIconBtn.style.display = 'none';
-// document.body.appendChild(searchIconBtn);
-// searchIconBtn.addEventListener('click', openSearchModal);
+// Basic Search icon button with magnifying glass
+const searchIconBtn = document.createElement('button');
+searchIconBtn.className = 'search-icon-btn';
+searchIconBtn.title = 'Search Voters';
+searchIconBtn.innerHTML = '<i class="fas fa-search"></i>'; // Magnifying glass icon
+searchIconBtn.style.display = 'none'; // Will be shown by auth.js for authenticated users
+document.body.appendChild(searchIconBtn);
+searchIconBtn.addEventListener('click', openSearchModal);
 
 // ── Modal helpers ──
 function openSearchModal() {
@@ -29,19 +29,18 @@ function openSearchModal() {
         <div class="vs-modal">
             <button class="vs-close">&times;</button>
             <div class="vs-header">
-                <div class="vs-header-icon"><i class="fas fa-brain"></i></div>
-                <h2>AI-Powered Search</h2>
-                <p>Search by name/address or ask questions in natural language</p>
+                <div class="vs-header-icon"><i class="fas fa-search"></i></div>
+                <h2>Voter Search</h2>
+                <p>Search by name or address</p>
             </div>
             <div class="vs-search-bar">
-                <input id="vsInput" type="text" placeholder="Search voters or ask a question..." autofocus>
-                <button id="vsBtn"><i class="fas fa-brain"></i></button>
+                <input id="vsInput" type="text" placeholder="Search by name or address..." autofocus>
+                <button id="vsBtn"><i class="fas fa-search"></i></button>
             </div>
             <div class="vs-examples">
                 <span class="vs-example-label">Examples:</span>
-                <button class="vs-example-btn" onclick="fillExample('Show me voters in TX-15 who voted in 2024 but not 2026')">New voters in TX-15</button>
-                <button class="vs-example-btn" onclick="fillExample('Find voters who switched from Republican to Democratic')">Party switchers</button>
                 <button class="vs-example-btn" onclick="fillExample('John Smith')">Name search</button>
+                <button class="vs-example-btn" onclick="fillExample('123 Main St')">Address search</button>
             </div>
             <div id="vsAiResponse" class="vs-ai-response" style="display:none;">
                 <div class="vs-ai-header">
