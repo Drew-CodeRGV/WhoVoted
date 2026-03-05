@@ -4778,6 +4778,7 @@ def llm_query():
         data = request.get_json()
         question = data.get('question', '').strip()
         context = data.get('context', {})
+        logger.info(f"Question: {question}, Context: {context}")
         
         if not question:
             return jsonify({'error': 'Question is required'}), 400
@@ -4786,7 +4787,9 @@ def llm_query():
             return jsonify({'error': 'Question too long (max 500 characters)'}), 400
         
         # Convert question to SQL
+        logger.info("Converting question to SQL...")
         sql_result = query_assistant.question_to_sql(question, context)
+        logger.info(f"SQL result: {sql_result}")
         
         if 'error' in sql_result:
             return jsonify({
@@ -4796,7 +4799,9 @@ def llm_query():
             }), 400
         
         # Execute query
+        logger.info("Executing SQL query...")
         exec_result = query_assistant.execute_and_format(sql_result['sql'])
+        logger.info(f"Execution result success: {exec_result['success']}, count: {exec_result.get('count', 0)}")
         
         if not exec_result['success']:
             return jsonify({
