@@ -193,7 +193,15 @@ async function runAiSearch(question) {
         });
 
         if (resp.status === 401) {
-            status.textContent = 'Sign in to use AI search.';
+            status.textContent = '🔒 Please sign in to use AI search.';
+            aiResponse.style.display = 'block';
+            aiContent.innerHTML = '<p style="text-align:center;padding:20px;">AI-powered search requires authentication. Please sign in with Google to use this feature.</p>';
+            return;
+        }
+
+        if (resp.status === 400) {
+            const error = await resp.json();
+            status.textContent = 'Error: ' + (error.error || 'Bad request');
             return;
         }
 
