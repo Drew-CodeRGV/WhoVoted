@@ -32,7 +32,8 @@ class QueryAssistant:
         return """
 Database Schema for Texas Voter Data:
 
-Table: voters
+Table: voters (voter demographics and registration info)
+Columns:
 - vuid (TEXT, PRIMARY KEY): Unique voter ID
 - firstname, lastname, middlename, suffix (TEXT): Name components
 - birth_year (INTEGER): Year of birth
@@ -50,25 +51,28 @@ Table: voters
 - current_party (TEXT): Most recent primary voted in
 - registration_date (TEXT): Date registered to vote
 
-Table: voter_elections
+Table: voter_elections (voting history - one row per election per voter)
+Columns:
 - vuid (TEXT): Links to voters.vuid
 - election_date (TEXT): Date of election (YYYY-MM-DD)
-- election_year (TEXT): Year (e.g., '2026')
+- election_year (TEXT): Year (e.g., '2026', '2024')
 - election_type (TEXT): 'primary', 'general', 'runoff'
 - voting_method (TEXT): 'early-voting', 'election-day', 'mail-in'
 - party_voted (TEXT): 'Democratic', 'Republican', or other
 - is_new_voter (INTEGER): 1 if first-time voter, 0 otherwise
 - created_at (TEXT): When record was created
 
-Common Queries:
-- Find voters by district: WHERE congressional_district = 'TX-15'
-- Find new voters: WHERE is_new_voter = 1
-- Find party switchers: JOIN voter_elections twice on same vuid with different party_voted
-- Count by age group: Use CASE WHEN birth_year BETWEEN ... for age ranges
-- Turnout analysis: COUNT voters who voted in specific election_date
+IMPORTANT: election_date, election_year, party_voted, and is_new_voter are ONLY in voter_elections table, NOT in voters table!
+
+Common Query Patterns:
+- Find voters by district: SELECT * FROM voters WHERE congressional_district = 'TX-15'
+- Find voters who voted in specific election: SELECT v.* FROM voters v JOIN voter_elections ve ON v.vuid = ve.vuid WHERE ve.election_year = '2026'
+- Find party switchers: Use two JOINs to voter_elections with different party_voted values
+- Find voters who voted in X but not Y: Use EXISTS and NOT EXISTS subqueries
+- Count by age group: Use CASE WHEN with birth_year ranges
 
 Important Notes:
-- Always use JOINs when querying across tables
+- Always JOIN voters and voter_elections on vuid
 - Use DISTINCT when counting unique voters
 - Party names are 'Democratic' and 'Republican' (capitalized)
 - Dates are in 'YYYY-MM-DD' format
@@ -108,13 +112,27 @@ Important Notes:
 
 User Question: {question}
 
-Generate a valid SQLite query that answers the question. Follow these rules:
+CRITICAL RULES - READ CAREFULLY:
 1. Return ONLY the SQL query, no explanation or markdown
-2. Use proper JOINs when querying multiple tables
-3. Always use DISTINCT when counting unique voters
-4. Add LIMIT 100 unless the question asks for counts/aggregates
-5. Use meaningful column aliases
-6. For age groups, use CASE WHEN with birth_year ranges
+2. NEVER select columns from the wrong table:
+   - voters table has: vuid, firstname, lastname, middlename, suffix, birth_year, sex, address, city, zip, county, lat, lng, geocoded, precinct, congressional_district, old_congressional_district, state_house_district, commissioner_district, registered_party, current_party, registration_date
+   - voter_elections table has: vuid, election_date, election_year, election_type, voting_method, party_voted, is_new_voter, created_at
+3. When selecting columns, use the correct table alias (v for voters, ve for voter_elections)
+4. Always use proper JOINs when querying multiple tables
+5. Use DISTINCT when counting unique voters
+6. Add LIMIT 100 unless the question asks for counts/aggregates
+7. For age groups, use CASE WHEN with birth_year ranges
+8. To find voters who voted in one election but not another, use EXISTS/NOT EXISTS subqueries
+
+EXAMPLE: "Show voters who voted in 2024 but not 2026"
+SELECT DISTINCT v.vuid, v.firstname, v.lastname
+FROM voters v
+WHERE EXISTS (
+    SELECT 1 FROM voter_elections ve WHERE ve.vuid = v.vuid AND ve.election_year = '2024'
+)
+AND NOT EXISTS (
+    SELECT 1 FROM voter_elections ve WHERE ve.vuid = v.vuid AND ve.election_year = '2026'
+);
 
 SQL Query:"""
 
