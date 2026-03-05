@@ -1054,6 +1054,24 @@ def _county_has_sufficient_history(conn, county: str, election_date: str) -> boo
           AND ve.party_voted != '' AND ve.party_voted IS NOT NULL
     """, (county, election_date)).fetchone()[0]
     return count >= 3
+def _county_has_prior_data(conn, county: str, election_date: str) -> bool:
+    """Check if a county has any prior election data.
+
+    Used to determine if we can detect new voters for this county.
+    Returns True if county has at least one prior election.
+    """
+    count = conn.execute("""
+        SELECT COUNT(DISTINCT ve.election_date)
+        FROM voter_elections ve
+        JOIN voters v ON ve.vuid = v.vuid
+        WHERE v.county = ?
+          AND ve.election_date < ?
+          AND ve.party_voted != '' AND ve.party_voted IS NOT NULL
+    """, (county, election_date)).fetchone()[0]
+    return count > 0
+
+
+
 
 
 def _was_eligible_in_prior_elections(conn, vuid: str, birth_year: int, election_date: str) -> bool:
