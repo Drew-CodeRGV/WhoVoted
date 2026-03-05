@@ -278,6 +278,13 @@ class DatasetSelectorV2 {
         );
         
         if (dataset && this.onDatasetChange) {
+            console.log('DatasetSelectorV2: Found dataset:', {
+                originalCounty: dataset.county,
+                originalCounties: dataset.counties,
+                currentCounty: this.currentCounty,
+                selectedCountyFilter: window.selectedCountyFilter
+            });
+            
             // Create a modified dataset with only the selected county
             const modifiedDataset = {
                 ...dataset,
@@ -294,11 +301,12 @@ class DatasetSelectorV2 {
             };
             
             console.log('DatasetSelectorV2: Loading dataset:', {
-                county: this.currentCounty,
+                county: modifiedDataset.county,
                 year: this.currentYear,
                 method: this.currentMethod,
                 voters: dataset.totalVoters,
-                selectedCounties: modifiedDataset.selectedCounties
+                selectedCounties: modifiedDataset.selectedCounties,
+                selectedCountyFilter: window.selectedCountyFilter
             });
             
             // Update method breakdown display
@@ -310,6 +318,13 @@ class DatasetSelectorV2 {
             }
             
             this.onDatasetChange(modifiedDataset);
+        } else {
+            console.error('DatasetSelectorV2: No dataset found for', {
+                county: this.currentCounty,
+                year: this.currentYear,
+                method: this.currentMethod,
+                availableDatasets: datasets.length
+            });
         }
     }
     
@@ -359,11 +374,14 @@ class DatasetSelectorV2 {
         
         // CRITICAL: Update global county filter variable FIRST
         // This is used by loadDataset() and _fetchAndDisplayStats()
-        if (typeof window.selectedCountyFilter !== 'undefined') {
-            window.selectedCountyFilter = this.currentCounty;
-        } else {
-            window.selectedCountyFilter = this.currentCounty;
+        window.selectedCountyFilter = this.currentCounty;
+        
+        // Also update the global variable in data.js scope
+        if (typeof selectedCountyFilter !== 'undefined') {
+            selectedCountyFilter = this.currentCounty;
         }
+        
+        console.log('DatasetSelectorV2: Set selectedCountyFilter to', window.selectedCountyFilter);
         
         this.populateYearDropdown();
     }
