@@ -1381,12 +1381,8 @@ async function _lazyLoadPopup(marker, lat, lng) {
             });
             if (ds.votingMethod) params.set('voting_method', ds.votingMethod);
             
-            // Add county filter if we're viewing a specific county
-            if (window.selectedCountyFilter && window.selectedCountyFilter !== 'all') {
-                params.set('county', window.selectedCountyFilter);
-            } else if (ds.selectedCounties && ds.selectedCounties.length > 0) {
-                params.set('county', ds.selectedCounties.join(','));
-            }
+            // Note: Not filtering by county for popups - let the backend find voters at this location
+            // regardless of county boundaries (handles edge cases near county lines)
             
             const resp = await fetch(`/api/voters/at?${params}`);
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
