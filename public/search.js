@@ -150,6 +150,15 @@ async function runHybridSearch(query) {
 function detectQuestion(query) {
     const q = query.toLowerCase();
     
+    // Check if query needs geolocation
+    const needsLocation = ['near me', 'my neighbors', 'my neighborhood', 'around me', 'close to me', 'nearby'].some(phrase => q.includes(phrase));
+    if (needsLocation) {
+        // Trigger geolocation if not already done
+        if (!window.userLocation) {
+            requestUserLocation();
+        }
+    }
+    
     // Question words
     const questionWords = ['how many', 'show me', 'find', 'what', 'who', 'where', 'when', 'which', 'list', 'count', 'get'];
     if (questionWords.some(word => q.startsWith(word))) return true;
@@ -168,6 +177,24 @@ function detectQuestion(query) {
     return false;
 }
 
+// Request user's location
+function requestUserLocation() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                window.userLocation = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+                console.log('User location obtained:', window.userLocation);
+            },
+            (error) => {
+                console.warn('Geolocation error:', error.message);
+            }
+        );
+    }
+}
+
 // ── AI-Powered Search ──
 async function runAiSearch(question) {
     const status = document.getElementById('vsStatus');
@@ -180,6 +207,9 @@ async function runAiSearch(question) {
 
     status.textContent = 'AI is thinking...';
     aiResponse.style.display = 'none';
+
+    console.log('AI search query:', question);
+    console.log('AI search context:', getSearchContext());
 
     try {
         const resp = await fetch('/api/llm/query', {
@@ -201,7 +231,10 @@ async function runAiSearch(question) {
 
         if (resp.status === 400) {
             const error = await resp.json();
+            console.error('AI search 400 error:', error);
             status.textContent = 'Error: ' + (error.error || 'Bad request');
+            aiResponse.style.display = 'block';
+            aiContent.innerHTML = '<p style="color:#c33;">Error: ' + (error.error || 'Bad request') + '</p>';
             return;
         }
 
