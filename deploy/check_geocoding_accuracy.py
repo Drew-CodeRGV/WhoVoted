@@ -41,15 +41,15 @@ def main():
     
     print(f"\nVUID: {voter['vuid']}")
     print(f"Name: {voter['firstname']} {voter['lastname']}")
-    print(f"Address: {voter.get('address', 'N/A')}")
-    print(f"City: {voter.get('city', 'N/A')}, ZIP: {voter.get('zip', 'N/A')}")
-    print(f"County: {voter.get('county', 'N/A')}")
-    print(f"Coordinates: {voter.get('lat', 'N/A')}, {voter.get('lng', 'N/A')}")
-    print(f"Geocoded: {voter.get('geocoded', 0)}")
+    print(f"Address: {voter['address'] if voter['address'] else 'N/A'}")
+    print(f"City: {voter['city'] if voter['city'] else 'N/A'}, ZIP: {voter['zip'] if voter['zip'] else 'N/A'}")
+    print(f"County: {voter['county'] if voter['county'] else 'N/A'}")
+    print(f"Coordinates: {voter['lat'] if voter['lat'] else 'N/A'}, {voter['lng'] if voter['lng'] else 'N/A'}")
+    print(f"Geocoded: {voter['geocoded']}")
     
     # Check if coordinates look reasonable for Hidalgo County
-    lat = voter.get('lat')
-    lng = voter.get('lng')
+    lat = voter['lat']
+    lng = voter['lng']
     
     if lat and lng:
         # Hidalgo County rough bounds: 26.0-26.8 N, -98.5 to -97.2 W
