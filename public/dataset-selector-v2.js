@@ -136,6 +136,7 @@ class DatasetSelectorV2 {
     
     /**
      * Get datasets filtered by current county
+     * Only includes datasets where the county has meaningful data (>50 voters)
      */
     getCountyDatasets() {
         if (!this.currentCounty || this.currentCounty === 'all') {
@@ -144,7 +145,21 @@ class DatasetSelectorV2 {
         
         return this.allDatasets.filter(ds => {
             const counties = ds.counties || [ds.county];
-            return counties.includes(this.currentCounty);
+            
+            // Check if this county is in the dataset
+            if (!counties.includes(this.currentCounty)) {
+                return false;
+            }
+            
+            // If there's a countyBreakdown, check if this county has meaningful data
+            if (ds.countyBreakdown && ds.countyBreakdown[this.currentCounty]) {
+                const countyData = ds.countyBreakdown[this.currentCounty];
+                // Only include if county has >50 voters (filters out statewide datasets with just a few voters)
+                return countyData.totalVoters > 50;
+            }
+            
+            // If no breakdown, include it (single-county dataset)
+            return true;
         });
     }
     
