@@ -387,7 +387,10 @@ async function preloadViewportVoterDetails() {
             ne_lat: bounds.getNorthEast().lat,
             ne_lng: bounds.getNorthEast().lng,
         });
-        if (currentDataset.votingMethod) params.set('voting_method', currentDataset.votingMethod);
+        // Only pass voting_method if it's not 'combined' (combined is a frontend-only concept)
+        if (currentDataset.votingMethod && currentDataset.votingMethod !== 'combined') {
+            params.set('voting_method', currentDataset.votingMethod);
+        }
         
         console.log('Preloading voter details for viewport...');
         const resp = await fetch(`/api/voters?${params}`);
@@ -1379,7 +1382,10 @@ async function _lazyLoadPopup(marker, lat, lng) {
                 lng: lng.toFixed(6),
                 election_date: ds.electionDate,
             });
-            if (ds.votingMethod) params.set('voting_method', ds.votingMethod);
+            // Only pass voting_method if it's not 'combined' (combined is a frontend-only concept)
+            if (ds.votingMethod && ds.votingMethod !== 'combined') {
+                params.set('voting_method', ds.votingMethod);
+            }
             
             // Note: Not filtering by county for popups - let the backend find voters at this location
             // regardless of county boundaries (handles edge cases near county lines)
