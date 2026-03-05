@@ -434,13 +434,13 @@ async function initializeDatasetControls() {
         // Get the DatasetManager instance
         const datasetManager = getDatasetManager();
         
-        // Create DatasetSelector instance with onDatasetChange callback
-        datasetSelector = new DatasetSelector(map, async (dataset, datasetIndex) => {
+        // Create DatasetSelectorV2 instance with onDatasetChange callback
+        datasetSelector = new DatasetSelectorV2(map, async (dataset) => {
             console.log('Dataset changed:', dataset);
             
             // Update DatasetManager state
             datasetManager.setCurrentDataset(dataset);
-            datasetManager.setSelectedDatasetIndex(datasetIndex);
+            // Note: datasetIndex is no longer used with the new selector
             datasetManager.saveState();
             
             // Show loading indicator
@@ -483,7 +483,8 @@ async function initializeDatasetControls() {
         await datasetSelector.initialize(selectedCountyFilter);
         
         // Build county dropdown and filtered dataset list
-        if (typeof buildCountyPillTabs === 'function') buildCountyPillTabs();
+        // NOTE: Commented out - DatasetSelectorV2 now handles county dropdown
+        // if (typeof buildCountyPillTabs === 'function') buildCountyPillTabs();
         if (typeof repopulateFilteredDatasetDropdown === 'function') repopulateFilteredDatasetDropdown();
         
         // Zoom to the detected county
@@ -2104,10 +2105,10 @@ function setInlinePartyFilterVisibility(show) {
  * Called when datasets are loaded or selection changes
  */
 function syncInlineDatasetSelector() {
-    // Rebuild the county pills and filtered dropdown from current availableDatasets
-    if (typeof buildCountyPillTabs === 'function') {
-        buildCountyPillTabs();
-    }
+    // NOTE: Commented out - DatasetSelectorV2 now handles county dropdown
+    // if (typeof buildCountyPillTabs === 'function') {
+    //     buildCountyPillTabs();
+    // }
     if (typeof repopulateFilteredDatasetDropdown === 'function') {
         repopulateFilteredDatasetDropdown();
     }

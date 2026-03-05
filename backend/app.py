@@ -328,7 +328,14 @@ def voter_history(vuid):
 
 @app.route('/api/elections')
 def api_elections():
-    """List available elections from the DB. Replaces metadata file scanning."""
+    """List available elections from the DB. Replaces metadata file scanning.
+    
+    Returns BOTH combined and individual datasets:
+    - Combined datasets (early + election day together) appear FIRST as "Complete Election"
+    - Individual datasets (early-voting only, election-day only) appear after for drill-down
+    
+    This gives users the full picture by default while preserving granular access.
+    """
     try:
         county = request.args.get('county')  # Optional — omit to get all counties
         cache_key = f"elections:{county or 'all'}"
@@ -337,12 +344,12 @@ def api_elections():
             return jsonify(cached)
         datasets = db.get_election_datasets(county if county else None)
         
-        # Group by election_date + voting_method to merge DEM/REP and counties
-        grouped = {}
+        # Step 1: Group by (election_date, voting_method) for individual datasets
+        individual_grouped = {}
         for ds in datasets:
             key = (ds['election_date'], ds['voting_method'])
-            if key not in grouped:
-                grouped[key] = {
+            if key not in individual_grouped:
+                individual_grouped[key] = {
                     'counties': [],
                     'electionDate': ds['election_date'],
                     'electionYear': ds['election_year'],
@@ -354,7 +361,7 @@ def api_elections():
                     'lastUpdated': ds['last_updated'] or '',
                     'countyBreakdown': {},
                 }
-            g = grouped[key]
+            g = individual_grouped[key]
             county_name = ds['county'] or 'Unknown'
             if county_name not in g['counties']:
                 g['counties'].append(county_name)
@@ -364,7 +371,6 @@ def api_elections():
             g['geocodedCount'] += ds['geocoded_count']
             if ds['last_updated'] and ds['last_updated'] > g['lastUpdated']:
                 g['lastUpdated'] = ds['last_updated']
-            # Per-county breakdown
             if county_name not in g['countyBreakdown']:
                 g['countyBreakdown'][county_name] = {'totalVoters': 0, 'geocodedCount': 0, 'parties': []}
             cb = g['countyBreakdown'][county_name]
@@ -373,13 +379,73 @@ def api_elections():
             if ds['party_voted'] and ds['party_voted'] not in cb['parties']:
                 cb['parties'].append(ds['party_voted'])
         
-        # Backwards compat: set 'county' to first county (or comma-joined) for old code
-        for g in grouped.values():
-            g['county'] = g['counties'][0] if len(g['counties']) == 1 else ','.join(sorted(g['counties']))
+        # Step 2: Create combined datasets by grouping by election_date only
+        combined_grouped = {}
+        for ds in datasets:
+            key = ds['election_date']
+            if key not in combined_grouped:
+                combined_grouped[key] = {
+                    'counties': [],
+                    'electionDate': ds['election_date'],
+                    'electionYear': ds['election_year'],
+                    'electionType': ds['election_type'],
+                    'votingMethod': 'combined',
+                    'votingMethods': [],
+                    'parties': [],
+                    'totalVoters': 0,
+                    'geocodedCount': 0,
+                    'lastUpdated': ds['last_updated'] or '',
+                    'countyBreakdown': {},
+                    'methodBreakdown': {},
+                }
+            g = combined_grouped[key]
+            
+            if ds['voting_method'] and ds['voting_method'] not in g['votingMethods']:
+                g['votingMethods'].append(ds['voting_method'])
+            
+            method = ds['voting_method'] or 'unknown'
+            if method not in g['methodBreakdown']:
+                g['methodBreakdown'][method] = {'totalVoters': 0, 'geocodedCount': 0}
+            g['methodBreakdown'][method]['totalVoters'] += ds['total_voters']
+            g['methodBreakdown'][method]['geocodedCount'] += ds['geocoded_count']
+            
+            county_name = ds['county'] or 'Unknown'
+            if county_name not in g['counties']:
+                g['counties'].append(county_name)
+            if ds['party_voted'] and ds['party_voted'] not in g['parties']:
+                g['parties'].append(ds['party_voted'])
+            g['totalVoters'] += ds['total_voters']
+            g['geocodedCount'] += ds['geocoded_count']
+            if ds['last_updated'] and ds['last_updated'] > g['lastUpdated']:
+                g['lastUpdated'] = ds['last_updated']
+            if county_name not in g['countyBreakdown']:
+                g['countyBreakdown'][county_name] = {'totalVoters': 0, 'geocodedCount': 0, 'parties': []}
+            cb = g['countyBreakdown'][county_name]
+            cb['totalVoters'] += ds['total_voters']
+            cb['geocodedCount'] += ds['geocoded_count']
+            if ds['party_voted'] and ds['party_voted'] not in cb['parties']:
+                cb['parties'].append(ds['party_voted'])
         
-        # Sort: most recent date first, then early-voting before mail-in before election-day
-        method_order = {'early-voting': 0, 'mail-in': 1, 'election-day': 2}
-        result = sorted(grouped.values(), key=lambda x: (-int(x['electionDate'].replace('-', '')), method_order.get(x['votingMethod'], 9)))
+        # Step 3: Merge results - combined datasets FIRST, then individual datasets
+        # Only include combined datasets if they have multiple voting methods
+        result = []
+        
+        # Add combined datasets (only if they combine multiple methods)
+        for election_date, combined in combined_grouped.items():
+            if len(combined['votingMethods']) > 1:
+                # This election has multiple voting methods - include the combined view
+                combined['county'] = combined['counties'][0] if len(combined['counties']) == 1 else ','.join(sorted(combined['counties']))
+                result.append(combined)
+        
+        # Add individual datasets
+        for individual in individual_grouped.values():
+            individual['county'] = individual['counties'][0] if len(individual['counties']) == 1 else ','.join(sorted(individual['counties']))
+            result.append(individual)
+        
+        # Sort: most recent date first, then combined before individual, then early-voting before election-day
+        method_order = {'combined': -1, 'early-voting': 0, 'mail-in': 1, 'election-day': 2}
+        result.sort(key=lambda x: (-int(x['electionDate'].replace('-', '')), method_order.get(x['votingMethod'], 9)))
+        
         response_data = {'success': True, 'elections': result}
         cache_set(cache_key, response_data)
         return jsonify(response_data)
@@ -390,7 +456,10 @@ def api_elections():
 
 @app.route('/api/election-stats')
 def api_election_stats():
-    """Get aggregate stats for an election from the DB."""
+    """Get aggregate stats for an election from the DB.
+    
+    Supports voting_method='combined' to get stats for all voting methods.
+    """
     try:
         county_param = request.args.get('county', 'Hidalgo')
         counties = [c.strip() for c in county_param.split(',') if c.strip()]
@@ -401,6 +470,10 @@ def api_election_stats():
         if not election_date:
             return jsonify({'error': 'election_date is required'}), 400
         
+        # Handle 'combined' voting method - fetch all methods
+        if voting_method == 'combined':
+            voting_method = None  # None means fetch all voting methods
+        
         # Check for pre-built static cache file (fastest path)
         if len(counties) == 1 and not party:
             method_str = voting_method or 'all'
@@ -410,7 +483,7 @@ def api_election_stats():
                 with open(cache_file, 'r') as f:
                     return jsonify(json.loads(f.read()))
         
-        cache_key = f"stats:{county_param}:{election_date}:{party}:{voting_method}"
+        cache_key = f"stats:{county_param}:{election_date}:{party}:{voting_method or 'all'}"
         cached = cache_get(cache_key)
         if cached is not None:
             return jsonify(cached)
@@ -549,6 +622,8 @@ def api_voters_heatmap():
     Returns a compact array: [[lng, lat, party_code, flags, sex, birth_year], ...]
     party_code: 1=DEM, 2=REP, 0=other
     flags bitmask: bit0=flipped, bit1=new_voter
+    
+    Supports voting_method='combined' to fetch all voting methods for an election.
     """
     try:
         county_param = request.args.get('county', 'Hidalgo')
@@ -558,6 +633,10 @@ def api_voters_heatmap():
 
         if not election_date:
             return jsonify({'error': 'election_date is required'}), 400
+
+        # Handle 'combined' voting method - fetch all methods
+        if voting_method == 'combined':
+            voting_method = None  # None means fetch all voting methods
 
         # Check for pre-built static cache file (fastest path)
         if len(counties) == 1:
@@ -571,7 +650,7 @@ def api_voters_heatmap():
                 response.headers['Cache-Control'] = 'public, max-age=300'
                 return response
 
-        cache_key = f"heatmap:{county_param}:{election_date}:{voting_method}"
+        cache_key = f"heatmap:{county_param}:{election_date}:{voting_method or 'all'}"
         cached = cache_get(cache_key)
         if cached is not None:
             response = app.response_class(response=cached, status=200, mimetype='application/json')
@@ -2411,6 +2490,8 @@ def analyze_url():
         cd = head_resp.headers.get('Content-Disposition', '')
         if 'filename=' in cd:
             filename = cd.split('filename=')[-1].strip('"\'')
+            # Decode URL-encoded filename from Content-Disposition
+            filename = unquote(filename)
         if not filename:
             path = urlparse(url).path
             filename = unquote(path.split('/')[-1]) if path else ''
@@ -2431,10 +2512,12 @@ def analyze_url():
             elif 'pdf' in content_type:
                 filename = (filename or 'download') + '.pdf'
         
-        # Parse metadata from filename + URL
+        # Parse metadata from filename + URL (use decoded filename)
         fn_lower = filename.lower()
         url_lower = url.lower()
         combined = fn_lower + ' ' + url_lower
+        
+        logger.info(f"FILENAME DECODE: Original filename='{filename[:100]}', fn_lower='{fn_lower[:100]}'")
         
         # Guess county from URL/filename
         county = ''
@@ -2455,7 +2538,7 @@ def analyze_url():
             voting_method = 'mail-in'
         elif any(x in combined for x in ['early vot', 'early_vot', 'earlyvot', ' ev ', '_ev_', '-ev-', 'ev roster', 'ev_roster']):
             voting_method = 'early-voting'
-        elif any(x in combined for x in ['election day', 'election_day', 'electionday', ' ed ', '_ed_', '-ed-', 'eday']):
+        elif any(x in combined for x in ['election day', 'election_day', 'electionday', ' ed ', '_ed_', '-ed-', 'eday', 'ed roster', 'ed_roster']) or combined.startswith('ed ') or combined.startswith('ed%20'):
             voting_method = 'election-day'
         
         # Guess election type and party
@@ -2475,21 +2558,26 @@ def analyze_url():
             party_hint = 'democratic'
             if election_type == 'primary':
                 election_type = 'primary-democratic'
-        elif any(x in combined for x in [' rep ', '_rep_', '-rep-', 'rep roster', 'rep_roster', 'republican']):
+        elif any(x in combined for x in [' rep ', '_rep_', '-rep-', 'rep roster', 'rep_roster', 'republican']) or fn_lower.startswith('ed rep ') or fn_lower.startswith('ev rep '):
             party_hint = 'republican'
             if election_type == 'primary':
                 election_type = 'primary-republican'
         
-        # Guess year
+        # Guess year - prioritize filename over URL
         import re
         year = ''
-        year_match = re.search(r'20[12]\d', filename)
+        # First try to find year in the decoded filename (in combined string)
+        logger.info(f"YEAR DETECTION: fn_lower='{fn_lower[:100]}'")
+        year_match = re.search(r'20[12]\d', fn_lower)
         if year_match:
             year = year_match.group()
+            logger.info(f"YEAR DETECTION: Found year in fn_lower: {year}")
         else:
-            year_match = re.search(r'20[12]\d', url)
+            # Fall back to URL if not found in filename
+            year_match = re.search(r'20[12]\d', url_lower)
             if year_match:
                 year = year_match.group()
+                logger.info(f"YEAR DETECTION: Found year in url_lower: {year}")
         
         # Guess election date from filename patterns
         election_date = ''
@@ -2530,6 +2618,13 @@ def analyze_url():
             }
             if year in known_dates and ('primary' in (election_type or '') or not election_type):
                 election_date = known_dates[year]
+        
+        # Infer election type from date if we have a party but no election type
+        if election_date and party_hint and not election_type:
+            # Texas primary dates (early March)
+            primary_dates = ['2016-03-01', '2018-03-06', '2020-03-03', '2022-03-01', '2024-03-05', '2026-03-03']
+            if election_date in primary_dates:
+                election_type = f'primary-{party_hint}'
         
         # Extract file timestamp from filename suffix pattern: _YYYYMMDDHHmmss (before extension)
         # e.g. "EV DEM Roster March 3, 2026 (Cumulative)_20260227070116.xlsx"

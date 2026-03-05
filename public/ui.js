@@ -339,15 +339,25 @@ class DatasetSelector {
                 electionType: election.electionType,
                 electionDate: election.electionDate,
                 votingMethod: election.votingMethod,
+                votingMethods: election.votingMethods || [],
                 parties: election.parties || [],
                 totalAddresses: election.totalVoters,
                 rawVoterCount: election.totalVoters,
                 geocodedCount: election.geocodedCount,
                 lastUpdated: election.lastUpdated,
                 countyBreakdown: election.countyBreakdown || {},
+                methodBreakdown: election.methodBreakdown || {},
                 selectedCounties: (election.counties || [election.county]).slice(),
                 dbDriven: true,
             }));
+            
+            // Debug: log first 3 datasets
+            console.log('Transformed datasets (first 3):', this.datasets.slice(0, 3).map(d => ({
+                votingMethod: d.votingMethod,
+                totalAddresses: d.totalAddresses,
+                year: d.year,
+                electionDate: d.electionDate
+            })));
             
             // Also update the global availableDatasets so election years panel works
             if (typeof availableDatasets !== 'undefined') {
@@ -367,6 +377,7 @@ class DatasetSelector {
     
     /**
      * Populate dropdown with dataset options (DB-driven, multi-county aware)
+     * Groups datasets by year with visual separators
      * @param {Array} datasets - Array of dataset objects from /api/elections
      */
     populateDropdown(datasets) {
@@ -387,13 +398,66 @@ class DatasetSelector {
             return;
         }
         
+        // Group datasets by year for visual separation
+        let lastYear = null;
+        
         // DB-driven datasets are already deduplicated by the API
         datasets.forEach((dataset, index) => {
+            // Add year separator if year changes
+            if (dataset.year && dataset.year !== lastYear) {
+                if (lastYear !== null) {
+                    // Add a disabled separator option between years
+                    const separator = document.createElement('option');
+                    separator.disabled = true;
+                    separator.textContent = '─────────────────────────────';
+                    this.selectElement.appendChild(separator);
+                }
+                lastYear = dataset.year;
+            }
+            
             const option = document.createElement('option');
             option.value = index;
             
             // Format label with multi-county support
-            const votingMethodLabel = dataset.votingMethod === 'election-day' ? 'Election Day' : 'Early Voting';
+            // Handle combined datasets (early + election day)
+            let votingMethodLabel;
+            
+            // Debug logging
+            if (index === 0) {
+                console.log('First dataset:', {
+                    votingMethod: dataset.votingMethod,
+                    votingMethods: dataset.votingMethods,
+                    totalAddresses: dataset.totalAddresses,
+                    methodBreakdown: dataset.methodBreakdown
+                });
+            }
+            
+            if (dataset.votingMethod === 'combined') {
+                // Show which methods are included
+                const methods = dataset.votingMethods || [];
+                console.log(`Dataset ${index}: votingMethod=combined, methods=`, methods);
+                if (methods.includes('early-voting') && methods.includes('election-day')) {
+                    votingMethodLabel = 'Complete Election'; // Both early and election day
+                    console.log(`  -> Setting label to "Complete Election"`);
+                } else if (methods.includes('early-voting') && methods.includes('mail-in')) {
+                    votingMethodLabel = 'Complete Election'; // Early + mail-in
+                    console.log(`  -> Setting label to "Complete Election" (early+mail)`);
+                } else if (methods.includes('early-voting')) {
+                    votingMethodLabel = 'Early Voting';
+                    console.log(`  -> Setting label to "Early Voting"`);
+                } else if (methods.includes('election-day')) {
+                    votingMethodLabel = 'Election Day';
+                    console.log(`  -> Setting label to "Election Day"`);
+                } else {
+                    votingMethodLabel = 'All Voting';
+                    console.log(`  -> Setting label to "All Voting"`);
+                }
+            } else {
+                votingMethodLabel = dataset.votingMethod === 'election-day' ? 'Election Day' : 
+                                   dataset.votingMethod === 'mail-in' ? 'Mail-In' : 'Early Voting';
+                console.log(`Dataset ${index}: votingMethod=${dataset.votingMethod}, label=${votingMethodLabel}`);
+            }
+            
             const electionTypeLabel = dataset.electionType ? dataset.electionType.charAt(0).toUpperCase() + dataset.electionType.slice(1) : '';
             const parties = dataset.parties || [];
             const partyLabel = parties.length === 1 ? ` (${parties[0].charAt(0).toUpperCase() + parties[0].slice(1)})` : '';
@@ -402,7 +466,7 @@ class DatasetSelector {
             const counties = dataset.counties || [dataset.county || 'Unknown'];
             const countyLabel = counties.length <= 2 ? counties.join(', ') : `${counties.length} Counties`;
             
-            option.textContent = `${countyLabel} ${dataset.year || ''} ${electionTypeLabel}${partyLabel} - ${votingMethodLabel} (${(dataset.totalAddresses || 0).toLocaleString()} voters)`;
+            option.textContent = `${countyLabel} ${dataset.year || ''} ${electionTypeLabel}${partyLabel} — ${votingMethodLabel} (${(dataset.totalAddresses || 0).toLocaleString()})`;
             
             // Add metadata as data attributes for easy access
             option.dataset.county = counties.join(',');
@@ -566,25 +630,109 @@ class DatasetSelector {
         const yearElement = document.getElementById('dataset-year');
         const typeElement = document.getElementById('dataset-type');
         
-        if (countyElement) {
-            // Use the active county filter if set, not the dataset's full county list
-            if (typeof selectedCountyFilter !== 'undefined' && selectedCountyFilter !== 'all') {
-                countyElement.textContent = selectedCountyFilter;
+        // Also update inline versions in Data Options panel
+        const countyInline = document.getElementById('dataset-county-inline');
+        const yearInline = document.getElementById('dataset-year-inline');
+        const typeInline = document.getElementById('dataset-type-inline');
+        
+        // Determine county text
+        let countyText;
+        if (typeof selectedCountyFilter !== 'undefined' && selectedCountyFilter !== 'all') {
+            countyText = selectedCountyFilter;
+        } else {
+            const counties = dataset.counties || [dataset.county || 'Unknown'];
+            countyText = counties.length <= 2 ? counties.join(', ') : `${counties.length} Counties`;
+        }
+        
+        if (countyElement) countyElement.textContent = countyText;
+        if (countyInline) countyInline.textContent = countyText;
+        
+        // Year
+        const yearText = dataset.year || '';
+        if (yearElement) yearElement.textContent = yearText;
+        if (yearInline) yearInline.textContent = yearText;
+        
+        // Election type and voting method
+        const electionTypeLabel = dataset.electionType ? 
+            dataset.electionType.charAt(0).toUpperCase() + dataset.electionType.slice(1) : '';
+        
+        // Handle combined datasets
+        let votingMethodLabel;
+        if (dataset.votingMethod === 'combined') {
+            const methods = dataset.votingMethods || [];
+            if (methods.includes('early-voting') && methods.includes('election-day')) {
+                votingMethodLabel = 'Complete Election';
+            } else if (methods.includes('early-voting') && methods.includes('mail-in')) {
+                votingMethodLabel = 'Complete Election';
+            } else if (methods.includes('early-voting')) {
+                votingMethodLabel = 'Early Voting';
+            } else if (methods.includes('election-day')) {
+                votingMethodLabel = 'Election Day';
             } else {
-                const counties = dataset.counties || [dataset.county || 'Unknown'];
-                countyElement.textContent = counties.length <= 2 ? counties.join(', ') : `${counties.length} Counties`;
+                votingMethodLabel = 'All Voting';
             }
+        } else {
+            votingMethodLabel = dataset.votingMethod === 'election-day' ? 'Election Day' : 
+                               dataset.votingMethod === 'mail-in' ? 'Mail-In' : 'Early Voting';
         }
         
-        if (yearElement) {
-            yearElement.textContent = dataset.year || '';
-        }
+        const typeText = `${electionTypeLabel} - ${votingMethodLabel}`;
+        if (typeElement) typeElement.textContent = typeText;
+        if (typeInline) typeInline.textContent = typeText;
         
-        if (typeElement) {
-            const electionTypeLabel = dataset.electionType ? 
-                dataset.electionType.charAt(0).toUpperCase() + dataset.electionType.slice(1) : '';
-            const votingMethodLabel = dataset.votingMethod === 'election-day' ? 'Election Day' : 'Early Voting';
-            typeElement.textContent = `${electionTypeLabel} - ${votingMethodLabel}`;
+        // Add method breakdown for combined datasets
+        this.updateMethodBreakdown(dataset);
+    }
+    
+    /**
+     * Update or create method breakdown display for combined datasets
+     * Shows breakdown like "Early: 61,527 | Mail-In: 1,341 | Election Day: 23,029"
+     * @param {Object} dataset - Dataset object with methodBreakdown
+     */
+    updateMethodBreakdown(dataset) {
+        // Find or create breakdown element in the inline info area
+        let breakdownElement = document.getElementById('dataset-method-breakdown');
+        
+        if (dataset.votingMethod === 'combined' && dataset.methodBreakdown) {
+            // Create element if it doesn't exist
+            if (!breakdownElement) {
+                breakdownElement = document.createElement('div');
+                breakdownElement.id = 'dataset-method-breakdown';
+                breakdownElement.style.cssText = 'display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; font-size: 11px; padding-top: 8px; border-top: 1px solid #e0e0e0;';
+                
+                const infoInline = document.querySelector('.dataset-info-inline');
+                if (infoInline && infoInline.parentNode) {
+                    infoInline.parentNode.insertBefore(breakdownElement, infoInline.nextSibling);
+                }
+            }
+            
+            // Build breakdown text
+            const breakdown = dataset.methodBreakdown;
+            const parts = [];
+            
+            if (breakdown['early-voting']) {
+                parts.push(`Early: ${breakdown['early-voting'].totalVoters.toLocaleString()}`);
+            }
+            if (breakdown['mail-in']) {
+                parts.push(`Mail-In: ${breakdown['mail-in'].totalVoters.toLocaleString()}`);
+            }
+            if (breakdown['election-day']) {
+                parts.push(`Election Day: ${breakdown['election-day'].totalVoters.toLocaleString()}`);
+            }
+            
+            if (parts.length > 0) {
+                breakdownElement.innerHTML = parts.map(part => 
+                    `<span style="padding: 3px 6px; background: #e8f4f8; border-radius: 4px; color: #0066cc; font-weight: 500;">${part}</span>`
+                ).join('');
+                breakdownElement.style.display = 'flex';
+            } else {
+                breakdownElement.style.display = 'none';
+            }
+        } else {
+            // Hide breakdown for non-combined datasets
+            if (breakdownElement) {
+                breakdownElement.style.display = 'none';
+            }
         }
     }
     
@@ -633,14 +781,14 @@ class DatasetSelector {
             return;
         }
         
-        // Load datasets from API
+        // Load datasets from API (all counties)
         const datasets = await this.loadDatasets();
         
         if (datasets.length > 0) {
             // If a county filter is provided, find the best default dataset for that county
             // instead of blindly restoring a saved selection that may be for a different county
             if (countyFilter && countyFilter !== 'all') {
-                // Find datasets that include this county, pick the most recent early-voting one
+                // Find datasets that include this county, pick the most recent combined one
                 const countyDatasets = [];
                 datasets.forEach((ds, idx) => {
                     const counties = ds.counties || [ds.county || ''];
@@ -650,11 +798,12 @@ class DatasetSelector {
                 });
                 
                 if (countyDatasets.length > 0) {
-                    // Prefer early-voting over mail-in/election-day (already sorted by API)
+                    // Prefer combined datasets first (most recent), then early-voting
+                    const combinedDataset = countyDatasets.find(d => d.ds.votingMethod === 'combined');
                     const evDataset = countyDatasets.find(d => d.ds.votingMethod === 'early-voting');
-                    const best = evDataset || countyDatasets[0];
+                    const best = combinedDataset || evDataset || countyDatasets[0];
                     
-                    console.log(`DatasetSelector: Using county-filtered default (${countyFilter}), index ${best.idx}`);
+                    console.log(`DatasetSelector: Using county-filtered default (${countyFilter}), index ${best.idx}, method: ${best.ds.votingMethod}`);
                     this.populateDropdown(datasets);
                     this.selectElement.value = best.idx;
                     this.handleSelection(best.idx);
@@ -665,9 +814,18 @@ class DatasetSelector {
                     this.restoreSavedSelection();
                 }
             } else {
-                // No county filter — original behavior
+                // No county filter — prefer combined dataset (most recent) as default
                 this.populateDropdown(datasets);
-                this.restoreSavedSelection();
+                
+                // Find the first combined dataset (already sorted by date, most recent first)
+                const combinedIdx = datasets.findIndex(ds => ds.votingMethod === 'combined');
+                if (combinedIdx >= 0) {
+                    console.log(`DatasetSelector: Defaulting to combined dataset at index ${combinedIdx}`);
+                    this.selectElement.value = combinedIdx;
+                    this.handleSelection(combinedIdx);
+                } else {
+                    this.restoreSavedSelection();
+                }
             }
         }
     }

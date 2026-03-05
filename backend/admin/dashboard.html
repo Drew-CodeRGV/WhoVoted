@@ -906,6 +906,18 @@ async function analyzeUrl() {
             credentials: 'include'
         });
         const data = await resp.json();
+        console.log('=== ANALYZE URL RESPONSE ===');
+        console.log('Full response:', data);
+        console.log('Filename (from backend):', data.filename);
+        console.log('Filename decoded:', decodeURIComponent(data.filename || ''));
+        console.log('Guessed data:', data.guessed);
+        console.log('Year:', data.guessed?.year);
+        console.log('Voting method:', data.guessed?.voting_method);
+        console.log('Election date:', data.guessed?.election_date);
+        console.log('Election type:', data.guessed?.election_type);
+        console.log('Party hint:', data.guessed?.party_hint);
+        console.log('===========================');
+        
         if (!resp.ok || !data.success) {
             showError(data.error || 'Failed to analyze URL');
             status.style.display = 'none';

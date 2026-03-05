@@ -330,15 +330,25 @@
                         <option value="all">All Counties</option>
                     </select>
                 </div>
-                <label for="dataset-selector-inline" style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px; margin-top: 12px;">Election:</label>
-                <select id="dataset-selector-inline" class="dataset-select" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px; background: white; cursor: pointer;">
-                    <option value="">Loading datasets...</option>
+                
+                <label for="year-selector" style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px; margin-top: 12px;">Year:</label>
+                <select id="year-selector" class="dataset-select" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px; background: white; cursor: pointer;">
+                    <option value="">Loading...</option>
                 </select>
-                <div class="dataset-info-inline" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; font-size: 11px;">
-                    <span id="dataset-county-inline" style="padding: 3px 6px; background: #f0f0f0; border-radius: 4px; color: #666; font-weight: 500;"></span>
-                    <span id="dataset-year-inline" style="padding: 3px 6px; background: #f0f0f0; border-radius: 4px; color: #666; font-weight: 500;"></span>
-                    <span id="dataset-type-inline" style="padding: 3px 6px; background: #f0f0f0; border-radius: 4px; color: #666; font-weight: 500;"></span>
-                </div>
+                
+                <label for="voting-method-selector" style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px; margin-top: 12px;">Voting Method:</label>
+                <select id="voting-method-selector" class="dataset-select" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px; background: white; cursor: pointer;">
+                    <option value="">Loading...</option>
+                </select>
+                
+                <!-- County Report Button -->
+                <button id="countyReportBtn" class="county-report-btn" style="width: 100%; margin-top: 12px; padding: 10px; background: #5865F2; color: white; border: none; border-radius: 5px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                    <i class="fas fa-file-alt"></i>
+                    County Report
+                </button>
+                
+                <!-- Method Breakdown (for combined datasets) -->
+                <div id="dataset-method-breakdown" style="display: none;"></div>
             </div>
 
             <!-- Party Filter -->
@@ -548,7 +558,8 @@
     <script src="map.js?v=20260302"></script>
     <script src="search.js?v=20260302"></script>
     <script src="data.js?v=20260302"></script>
-    <script src="ui.js?v=20260302"></script>
+    <script src="dataset-selector-v2.js?v=20260305"></script>
+    <script src="ui.js?v=202603051658"></script>
     <script src="newspaper.js?v=20260302"></script>
     <script src="county-report.js?v=20260304"></script>
     <script src="campaigns.js?v=20260302"></script>

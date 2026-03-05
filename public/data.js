@@ -1129,7 +1129,19 @@ function updateDatasetStatsBox() {
         }
         if (ds.year) parts.push(ds.year);
         if (ds.electionType) parts.push(ds.electionType.charAt(0).toUpperCase() + ds.electionType.slice(1));
-        title = parts.join(' · ');
+        
+        // Add "Combined" or voting method label
+        if (ds.votingMethod === 'combined') {
+            parts.push('(Complete Election)');
+        } else if (ds.votingMethod === 'early-voting') {
+            parts.push('(Early Voting)');
+        } else if (ds.votingMethod === 'election-day') {
+            parts.push('(Election Day)');
+        } else if (ds.votingMethod === 'mail-in') {
+            parts.push('(Mail-In)');
+        }
+        
+        title = parts.join(' ');
     }
     
     // Use DB stats if available, otherwise count from features
