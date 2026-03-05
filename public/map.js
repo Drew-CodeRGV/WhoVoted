@@ -181,7 +181,7 @@ function centerMapOnUserLocation() {
         geolocationButton.classList.add('loading');
         geolocationButton.disabled = true;
 
-        navigator.geolocation.getCurrentPosition(function(position) {
+        navigator.geolocation.getCurrentPosition(async function(position) {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
             map.setView([lat, lng], 16);
@@ -197,8 +197,48 @@ function centerMapOnUserLocation() {
 
             userLocationMarker.bindPopup("You are here").openPopup();
 
-            // Reverse geocode to get address
-            reverseGeocode(lat, lng);
+            // Reverse geocode to get address and county
+            try {
+                const params = new URLSearchParams({ lat, lon: lng, format: 'json' });
+                const response = await fetch(config.NOMINATIM_ENDPOINT + '/reverse?' + params, {
+                    headers: { 'User-Agent': config.USER_AGENT }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Update search input with address
+                    if (data.display_name) {
+                        const inp = document.getElementById('vsInput');
+                        if (inp) inp.value = data.display_name;
+                    }
+                    
+                    // Extract county and update dropdown
+                    if (data.address && data.address.county) {
+                        let county = data.address.county.replace(/\s+County$/i, '').trim();
+                        console.log('Detected county from geolocation:', county);
+                        
+                        // Update the county dropdown if DatasetSelectorV2 exists
+                        if (datasetSelector && datasetSelector.countySelect) {
+                            // Check if this county exists in the dropdown
+                            const countyOption = Array.from(datasetSelector.countySelect.options).find(
+                                opt => opt.value === county
+                            );
+                            
+                            if (countyOption) {
+                                console.log('Switching to county:', county);
+                                datasetSelector.countySelect.value = county;
+                                // Trigger the change event to load data
+                                datasetSelector.onCountyChange();
+                            } else {
+                                console.log('County not found in dropdown:', county);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Reverse geocoding error:', error);
+            }
 
             geolocationButton.classList.remove('loading');
             geolocationButton.disabled = false;
