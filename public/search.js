@@ -9,15 +9,14 @@ geoIconBtn.title = 'Find my location';
 geoIconBtn.innerHTML = '<i class="fas fa-crosshairs"></i>';
 document.body.appendChild(geoIconBtn);
 
-// AI Search icon button — shown for full-access users via auth.js
-const searchIconBtn = document.createElement('button');
-searchIconBtn.className = 'search-icon-btn';
-searchIconBtn.title = 'AI-Powered Search';
-searchIconBtn.innerHTML = '<i class="fas fa-brain"></i>'; // AI brain icon
-searchIconBtn.style.display = 'none';
-document.body.appendChild(searchIconBtn);
-
-searchIconBtn.addEventListener('click', openSearchModal);
+// AI Search icon button — DISABLED (Ollama requires more resources)
+// const searchIconBtn = document.createElement('button');
+// searchIconBtn.className = 'search-icon-btn';
+// searchIconBtn.title = 'AI-Powered Search';
+// searchIconBtn.innerHTML = '<i class="fas fa-brain"></i>'; // AI brain icon
+// searchIconBtn.style.display = 'none';
+// document.body.appendChild(searchIconBtn);
+// searchIconBtn.addEventListener('click', openSearchModal);
 
 // ── Modal helpers ──
 function openSearchModal() {
