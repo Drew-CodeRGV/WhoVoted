@@ -167,12 +167,27 @@ class DatasetSelectorV2 {
      * Populate year dropdown based on current county
      */
     populateYearDropdown() {
+        // Disable year and method dropdowns while loading
+        this.yearSelect.disabled = true;
+        this.methodSelect.disabled = true;
+        this.yearSelect.style.opacity = '0.5';
+        this.methodSelect.style.opacity = '0.5';
+        
         const datasets = this.getCountyDatasets();
         
         // Extract unique years, sorted descending
         const years = [...new Set(datasets.map(ds => ds.year))].sort((a, b) => b.localeCompare(a));
         
         this.yearSelect.innerHTML = '';
+        
+        if (years.length === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No data available';
+            this.yearSelect.appendChild(option);
+            return;
+        }
+        
         years.forEach(year => {
             const option = document.createElement('option');
             option.value = year;
@@ -184,6 +199,11 @@ class DatasetSelectorV2 {
         if (years.length > 0) {
             this.currentYear = years[0];
             this.yearSelect.value = this.currentYear;
+            
+            // Re-enable year dropdown
+            this.yearSelect.disabled = false;
+            this.yearSelect.style.opacity = '1';
+            
             this.populateMethodDropdown();
         }
     }
@@ -192,9 +212,21 @@ class DatasetSelectorV2 {
      * Populate voting method dropdown based on current county + year
      */
     populateMethodDropdown() {
+        // Keep method dropdown disabled while loading
+        this.methodSelect.disabled = true;
+        this.methodSelect.style.opacity = '0.5';
+        
         const datasets = this.getCountyDatasets().filter(ds => ds.year === this.currentYear);
         
         this.methodSelect.innerHTML = '';
+        
+        if (datasets.length === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No data available';
+            this.methodSelect.appendChild(option);
+            return;
+        }
         
         // Check if combined dataset exists
         const hasCombined = datasets.some(ds => ds.votingMethod === 'combined');
@@ -226,6 +258,11 @@ class DatasetSelectorV2 {
         this.currentMethod = hasCombined ? 'combined' : (this.methodSelect.options[0]?.value || null);
         if (this.currentMethod) {
             this.methodSelect.value = this.currentMethod;
+            
+            // Re-enable method dropdown
+            this.methodSelect.disabled = false;
+            this.methodSelect.style.opacity = '1';
+            
             this.loadCurrentDataset();
         }
     }
@@ -251,7 +288,9 @@ class DatasetSelectorV2 {
                 // Update county field to reflect the selected county
                 county: this.currentCounty === 'all' 
                     ? dataset.county 
-                    : this.currentCounty
+                    : this.currentCounty,
+                // Add a flag to indicate this is a single-county view
+                _singleCountyView: this.currentCounty !== 'all'
             };
             
             console.log('DatasetSelectorV2: Loading dataset:', {
