@@ -226,17 +226,36 @@ class DatasetSelectorV2 {
         );
         
         if (dataset && this.onDatasetChange) {
+            // Create a modified dataset with only the selected county
+            const modifiedDataset = {
+                ...dataset,
+                // Override selectedCounties to only include the current county
+                selectedCounties: this.currentCounty === 'all' 
+                    ? (dataset.counties || [dataset.county])
+                    : [this.currentCounty],
+                // Update county field to reflect the selected county
+                county: this.currentCounty === 'all' 
+                    ? dataset.county 
+                    : this.currentCounty
+            };
+            
             console.log('DatasetSelectorV2: Loading dataset:', {
                 county: this.currentCounty,
                 year: this.currentYear,
                 method: this.currentMethod,
-                voters: dataset.totalVoters
+                voters: dataset.totalVoters,
+                selectedCounties: modifiedDataset.selectedCounties
             });
             
             // Update method breakdown display
             this.updateMethodBreakdown(dataset);
             
-            this.onDatasetChange(dataset);
+            // Zoom to the selected county if not "all"
+            if (this.currentCounty !== 'all' && typeof zoomToCounty === 'function') {
+                zoomToCounty(this.currentCounty);
+            }
+            
+            this.onDatasetChange(modifiedDataset);
         }
     }
     
@@ -283,6 +302,15 @@ class DatasetSelectorV2 {
     onCountyChange() {
         this.currentCounty = this.countySelect.value;
         console.log('DatasetSelectorV2: County changed to', this.currentCounty);
+        
+        // CRITICAL: Update global county filter variable FIRST
+        // This is used by loadDataset() and _fetchAndDisplayStats()
+        if (typeof window.selectedCountyFilter !== 'undefined') {
+            window.selectedCountyFilter = this.currentCounty;
+        } else {
+            window.selectedCountyFilter = this.currentCounty;
+        }
+        
         this.populateYearDropdown();
     }
     
