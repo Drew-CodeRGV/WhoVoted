@@ -19,20 +19,18 @@ def main():
     
     # Search by VUID first
     voter = conn.execute('''
-        SELECT v.*, es.lat, es.lng, es.address as geocoded_address
-        FROM voters v
-        LEFT JOIN election_summary es ON v.vuid = es.vuid
-        WHERE v.vuid = ?
+        SELECT *
+        FROM voters
+        WHERE vuid = ?
         LIMIT 1
     ''', (search,)).fetchone()
     
     # If not found, search by name
     if not voter:
         voter = conn.execute('''
-            SELECT v.*, es.lat, es.lng, es.address as geocoded_address
-            FROM voters v
-            LEFT JOIN election_summary es ON v.vuid = es.vuid
-            WHERE v.firstname || ' ' || v.lastname LIKE ?
+            SELECT *
+            FROM voters
+            WHERE firstname || ' ' || lastname LIKE ?
             LIMIT 1
         ''', (f'%{search}%',)).fetchone()
     
@@ -43,9 +41,11 @@ def main():
     
     print(f"\nVUID: {voter['vuid']}")
     print(f"Name: {voter['firstname']} {voter['lastname']}")
-    print(f"Address (voter record): {voter.get('address', 'N/A')}")
-    print(f"Address (geocoded): {voter.get('geocoded_address', 'N/A')}")
+    print(f"Address: {voter.get('address', 'N/A')}")
+    print(f"City: {voter.get('city', 'N/A')}, ZIP: {voter.get('zip', 'N/A')}")
+    print(f"County: {voter.get('county', 'N/A')}")
     print(f"Coordinates: {voter.get('lat', 'N/A')}, {voter.get('lng', 'N/A')}")
+    print(f"Geocoded: {voter.get('geocoded', 0)}")
     
     # Check if coordinates look reasonable for Hidalgo County
     lat = voter.get('lat')
@@ -60,17 +60,17 @@ def main():
             print(f"  Expected: 26.0-26.8 N, -98.5 to -97.2 W")
             print(f"  Got: {lat} N, {lng} W")
     
-    # Check geocoding quality if available
-    quality = conn.execute('''
-        SELECT geocode_quality, geocode_source
-        FROM election_summary
-        WHERE vuid = ?
-        LIMIT 1
-    ''', (voter['vuid'],)).fetchone()
+    # Check if voter has voted in 2026
+    voted_2026 = conn.execute('''
+        SELECT voting_method, party_voted
+        FROM voter_elections
+        WHERE vuid = ? AND election_date = '2026-03-03'
+    ''', (voter['vuid'],)).fetchall()
     
-    if quality:
-        print(f"\nGeocoding Quality: {quality.get('geocode_quality', 'N/A')}")
-        print(f"Geocoding Source: {quality.get('geocode_source', 'N/A')}")
+    if voted_2026:
+        print(f"\n2026 Voting Record:")
+        for v in voted_2026:
+            print(f"  - {v['voting_method']}: {v['party_voted']}")
     
     conn.close()
 
