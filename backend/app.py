@@ -1547,7 +1547,6 @@ def county_report():
                 new_voters = 0
                 new_dem = 0
                 new_rep = 0
-            """, params_base + [min_birth_year_18, max_birth_year_18]).fetchone()[0]
         
         # Party switchers (flips)
         flip_rows = conn.execute(f"""
