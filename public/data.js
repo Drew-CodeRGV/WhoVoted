@@ -2378,8 +2378,21 @@ async function fetchVoterHistory(vuid) {
             el.dataset.loaded = 'true';
             return;
         }
-        // Show last 4 elections max (most recent first for readability)
-        const recent = history.slice(-4);
+        // Deduplicate by election year - keep the most recent voting method for each year
+        const byYear = {};
+        history.forEach(h => {
+            const year = h.year || '?';
+            // If we already have this year, keep the one with the later voting method
+            // (election-day comes after early-voting chronologically)
+            if (!byYear[year] || !h.isEarlyVoting) {
+                byYear[year] = h;
+            }
+        });
+        
+        // Get last 4 unique years
+        const uniqueHistory = Object.values(byYear);
+        const recent = uniqueHistory.slice(-4);
+        
         let html = '<div style="margin-top:2px;font-size:10px;color:#888;font-weight:600;">Voting History</div>';
         html += '<table style="border-collapse:collapse;margin-top:2px;font-size:10px;width:100%;table-layout:fixed;"><tr>';
         recent.forEach(h => {
