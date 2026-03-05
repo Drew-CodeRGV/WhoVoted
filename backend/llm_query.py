@@ -2,10 +2,56 @@
 import logging
 import json
 import re
+import threading
 from typing import Dict, List, Optional
 import database as db
 
 logger = logging.getLogger(__name__)
+
+class TimeoutError(Exception):
+    """Raised when an operation times out"""
+    pass
+
+def run_with_timeout(func, args=(), kwargs=None, timeout=30):
+    """Run a function with a timeout using threading.
+    
+    Args:
+        func: Function to run
+        args: Positional arguments
+        kwargs: Keyword arguments
+        timeout: Timeout in seconds
+    
+    Returns:
+        Function result
+    
+    Raises:
+        TimeoutError: If function doesn't complete within timeout
+    """
+    if kwargs is None:
+        kwargs = {}
+    
+    result = [None]
+    exception = [None]
+    
+    def target():
+        try:
+            result[0] = func(*args, **kwargs)
+        except Exception as e:
+            exception[0] = e
+    
+    thread = threading.Thread(target=target)
+    thread.daemon = True
+    thread.start()
+    thread.join(timeout)
+    
+    if thread.is_alive():
+        # Thread is still running - timeout occurred
+        raise TimeoutError(f"Operation timed out after {timeout} seconds")
+    
+    if exception[0]:
+        raise exception[0]
+    
+    return result[0]
 
 class QueryAssistant:
     """Convert natural language questions to SQL queries using local LLM."""
@@ -137,15 +183,23 @@ AND NOT EXISTS (
 SQL Query:"""
 
         try:
-            response = ollama.generate(
-                model=self.model,
-                prompt=prompt,
-                options={
-                    'temperature': 0.1,  # Low temperature for consistent SQL
-                    'top_p': 0.9,
-                    'num_predict': 500,  # Max tokens for SQL query
-                }
-            )
+            import ollama
+            
+            # Wrap ollama.generate in timeout
+            def call_ollama():
+                return ollama.generate(
+                    model=self.model,
+                    prompt=prompt,
+                    options={
+                        'temperature': 0.1,  # Low temperature for consistent SQL
+                        'top_p': 0.9,
+                        'num_predict': 500,  # Max tokens for SQL query
+                    }
+                )
+            
+            logger.info("Calling Ollama with 30s timeout...")
+            response = run_with_timeout(call_ollama, timeout=30)
+            logger.info("Ollama call completed")
             
             sql = response['response'].strip()
             
@@ -172,6 +226,13 @@ SQL Query:"""
                 'success': True
             }
             
+        except TimeoutError as e:
+            logger.error(f"LLM query generation timed out: {e}")
+            return {
+                'error': 'Query generation timed out. Ollama may be overloaded or not responding.',
+                'sql': None,
+                'question': question
+            }
         except Exception as e:
             logger.error(f"LLM query generation failed: {e}")
             return {
@@ -271,14 +332,23 @@ Provide a brief, clear explanation of what the data shows. Be specific about num
 
 Explanation:"""
             
-            response = ollama.generate(
-                model=self.model,
-                prompt=prompt,
-                options={'temperature': 0.3, 'num_predict': 150}
-            )
+            # Wrap in timeout
+            def call_ollama():
+                return ollama.generate(
+                    model=self.model,
+                    prompt=prompt,
+                    options={'temperature': 0.3, 'num_predict': 150}
+                )
             
+            response = run_with_timeout(call_ollama, timeout=15)
             return response['response'].strip()
             
+        except TimeoutError as e:
+            logger.warning(f"Explanation generation timed out: {e}")
+            if is_aggregate:
+                return f"Found {count} result(s) from your aggregate query."
+            else:
+                return f"Found {count} voter(s) matching your criteria."
         except Exception as e:
             logger.error(f"Explanation generation failed: {e}")
             if is_aggregate:
@@ -309,17 +379,24 @@ Results: {result['count']} rows
 
 Suggest 3 specific follow-up questions (one per line, no numbering):"""
             
-            response = ollama.generate(
-                model=self.model,
-                prompt=prompt,
-                options={'temperature': 0.5, 'num_predict': 200}
-            )
+            # Wrap in timeout
+            def call_ollama():
+                return ollama.generate(
+                    model=self.model,
+                    prompt=prompt,
+                    options={'temperature': 0.5, 'num_predict': 200}
+                )
+            
+            response = run_with_timeout(call_ollama, timeout=15)
             
             suggestions = [s.strip() for s in response['response'].strip().split('\n') if s.strip()]
             # Remove numbering if present
             suggestions = [re.sub(r'^\d+[\.\)]\s*', '', s) for s in suggestions]
             return suggestions[:3]
             
+        except TimeoutError as e:
+            logger.warning(f"Follow-up generation timed out: {e}")
+            return []
         except Exception as e:
             logger.error(f"Follow-up generation failed: {e}")
             return []
