@@ -20,10 +20,10 @@
                 if (status.available) {
                     this.initUI();
                 } else {
-                    console.warn('[LLM Chat] Not available:', status.error);
+                    console.warn('[LLM Chat] Not available:', status.error || 'Service unavailable');
                 }
             } catch (e) {
-                console.warn('[LLM Chat] Status check failed:', e);
+                console.warn('[LLM Chat] Status check failed:', e.message || e);
             }
         }
 
