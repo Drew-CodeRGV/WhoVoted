@@ -14,6 +14,12 @@ INSTRUCTIONS FOR STATE SENATE DISTRICTS:
    - PLANS2168_r150.xls (Districts by County)
    - PLANS2168_r365_Prec2024 General.xls (Precincts in District by County)
 
+INSTRUCTIONS FOR STATE HOUSE DISTRICTS:
+1. Go to https://data.capitol.texas.gov/dataset/planh2316
+2. Download these files to WhoVoted/data/district_reference/:
+   - PLANH2316_r150.xls (Districts by County)
+   - PLANH2316_r365_Prec2024 General.xls (Precincts in District by County)
+
 3. Run this script to parse them
 
 This will create comprehensive JSON files showing counties and precincts per district.
@@ -285,6 +291,53 @@ def main():
         print("  https://data.capitol.texas.gov/dataset/plans2168")
         print("  (Look for 'Precincts in District by County' XLS file)")
     
+    # ========== STATE HOUSE DISTRICTS (150 districts) ==========
+    print("\n" + "="*80)
+    print("STATE HOUSE DISTRICTS (PLANH2316)")
+    print("="*80)
+    
+    # Parse State House counties file
+    house_counties_file = data_dir / "PLANH2316_r150.xls"
+    if house_counties_file.exists():
+        house_counties_data = parse_counties_file(house_counties_file)
+        if house_counties_data:
+            output_file = data_dir / "state_house_counties.json"
+            with open(output_file, 'w') as f:
+                json.dump(house_counties_data, f, indent=2)
+            print(f"\n✓ Saved to {output_file}")
+            all_counties_data['state_house'] = house_counties_data
+    else:
+        print(f"\n✗ File not found: {house_counties_file}")
+        print("  Please download PLANH2316_r150.xls from:")
+        print("  https://data.capitol.texas.gov/dataset/planh2316")
+        house_counties_data = None
+    
+    # Parse State House precincts file (try multiple naming patterns)
+    house_precincts_patterns = [
+        "PLANH2316_r365_Prec2024 General.xls",
+        "PLANH2316_r365_Prec24G.xls",
+        "PLANH2316_r365_VTD2024 General.xls"
+    ]
+    
+    house_precincts_data = None
+    for pattern in house_precincts_patterns:
+        house_precincts_file = data_dir / pattern
+        if house_precincts_file.exists():
+            house_precincts_data = parse_precincts_file(house_precincts_file)
+            if house_precincts_data:
+                output_file = data_dir / "state_house_precincts.json"
+                with open(output_file, 'w') as f:
+                    json.dump(house_precincts_data, f, indent=2)
+                print(f"\n✓ Saved to {output_file}")
+                all_precincts_data['state_house'] = house_precincts_data
+            break
+    
+    if not house_precincts_data:
+        print(f"\n✗ File not found: PLANH2316_r365_Prec2024 General.xls")
+        print("  Please download from:")
+        print("  https://data.capitol.texas.gov/dataset/planh2316")
+        print("  (Look for 'Precincts in District by County' XLS file)")
+    
     # Use the first parsed data for summary (backwards compatibility)
     counties_data = all_counties_data.get('congressional')
     precincts_data = all_precincts_data.get('congressional')
@@ -368,6 +421,42 @@ def main():
                             remaining = len(precinct_info['by_county']) - 5
                             print(f"  ... and {remaining} more counties")
                             break
+        
+        # Display State House Districts
+        if 'state_house' in all_counties_data or 'state_house' in all_precincts_data:
+            print("\n" + "="*80)
+            print("STATE HOUSE DISTRICTS (150 total)")
+            print("="*80)
+            
+            house_counties = all_counties_data.get('state_house', {})
+            house_precincts = all_precincts_data.get('state_house', {})
+            
+            all_house_districts = set()
+            all_house_districts.update(house_counties.keys())
+            all_house_districts.update(house_precincts.keys())
+            
+            # Show first 10 districts as sample
+            sample_districts = sorted(all_house_districts, key=lambda x: int(x) if x.isdigit() else 999)[:10]
+            
+            for district in sample_districts:
+                print(f"\n{'='*80}")
+                print(f"HD-{district} STATE HOUSE DISTRICT")
+                print(f"{'='*80}")
+                
+                if district in house_counties:
+                    county_info = house_counties[district]
+                    print(f"\nCOUNTIES: {county_info['total_counties']}")
+                    for county in county_info['counties'][:5]:  # Show first 5
+                        print(f"  - {county}")
+                    if county_info['total_counties'] > 5:
+                        print(f"  ... and {county_info['total_counties'] - 5} more")
+                
+                if district in house_precincts:
+                    precinct_info = house_precincts[district]
+                    print(f"\nPRECINCTS: {precinct_info['total_precincts']} across {precinct_info['total_counties']} counties")
+            
+            if len(all_house_districts) > 10:
+                print(f"\n... and {len(all_house_districts) - 10} more House districts")
         
         print("\n" + "="*80)
         print("✓ PARSING COMPLETE")
