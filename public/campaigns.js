@@ -553,69 +553,32 @@
 
         // County breakdown (from server stats) - MOVED TO BOTTOM
         const cb = stats.county_breakdown || {};
-        const totalVoters = stats.total || 0;
         
-        // Filter out counties with very few voters (likely geocoding errors)
-        // Only show counties with at least 10 voters OR at least 1% of total
-        const minVoters = Math.max(10, Math.ceil(totalVoters * 0.01));
-        const filteredCounties = Object.keys(cb)
-            .filter(county => cb[county].total >= minVoters)
-            .sort((a, b) => cb[b].total - cb[a].total); // Sort by total voters descending
+        // Show ALL counties (no filtering)
+        const allCounties = Object.keys(cb).sort((a, b) => cb[b].total - cb[a].total);
         
-        // Show top 5 counties (with at least 10 votes), rest go to "Other"
-        const top5Counties = filteredCounties.slice(0, 5).filter(c => cb[c].total >= 10);
-        const otherCounties = filteredCounties.filter(c => !top5Counties.includes(c));
-        
-        if (filteredCounties.length > 0) {
-            const filteredCount = Object.keys(cb).length - filteredCounties.length;
-            
-            // Calculate "Other Counties" totals
-            let otherTotal = 0, otherDem = 0, otherRep = 0;
-            otherCounties.forEach(c => {
-                const d = cb[c];
-                otherTotal += d.total;
-                otherDem += d.dem;
-                otherRep += d.rep;
-            });
+        if (allCounties.length > 0) {
+            // Add timestamp if available
+            const timestampHtml = stats.generated_at 
+                ? `<div style="font-size:10px;color:#888;margin-bottom:6px;">📅 Report generated: ${new Date(stats.generated_at).toLocaleString('en-US', {
+                    month: 'short', day: 'numeric', year: 'numeric', 
+                    hour: 'numeric', minute: '2-digit', hour12: true
+                })}</div>`
+                : '';
             
             html += `
             <div class="campaign-section" style="margin-top: 20px; border-top: 2px solid #eee; padding-top: 12px;">
                 <h4>🗺️ Votes by County</h4>
-                ${filteredCount > 0 ? `<div style="font-size:10px;color:#888;margin-bottom:4px;font-style:italic;">${filteredCount} ${filteredCount === 1 ? 'county' : 'counties'} with &lt;${minVoters} voters hidden (likely geocoding errors)</div>` : ''}
+                ${timestampHtml}
                 <table class="campaign-table" style="font-size:11px;width:100%;">
                     <tr><th style="text-align:left;padding:2px 4px">County</th><th style="text-align:right;padding:2px 4px">Total</th><th style="text-align:right;padding:2px 4px;color:#1E90FF">DEM</th><th style="text-align:right;padding:2px 4px;color:#DC143C">REP</th><th style="text-align:right;padding:2px 4px">DEM%</th></tr>
-                    ${top5Counties.map(c => {
+                    ${allCounties.map(c => {
                         const d = cb[c];
                         const pct = (d.dem + d.rep) ? Math.round(d.dem / (d.dem + d.rep) * 100) : 0;
                         return '<tr><td style="padding:1px 4px;font-weight:600">' + c + '</td><td style="text-align:right;padding:1px 4px">' + n(d.total) + '</td><td style="text-align:right;padding:1px 4px;color:#1E90FF">' + n(d.dem) + '</td><td style="text-align:right;padding:1px 4px;color:#DC143C">' + n(d.rep) + '</td><td style="text-align:right;padding:1px 4px">' + pct + '%</td></tr>';
-                    }).join('')}`;
-            
-            // Add "Other Counties" row if there are more than 5
-            if (otherCounties.length > 0) {
-                const otherPct = (otherDem + otherRep) ? Math.round(otherDem / (otherDem + otherRep) * 100) : 0;
-                html += `
-                    <tr class="other-counties-toggle" style="cursor:pointer;background:#f8f8f8;" onclick="this.classList.toggle('expanded');document.getElementById('otherCountiesDetail').style.display=this.classList.contains('expanded')?'table-row-group':'none';">
-                        <td style="padding:1px 4px;font-weight:600;font-style:italic;">
-                            <i class="fas fa-chevron-right" style="font-size:9px;margin-right:4px;transition:transform 0.2s;"></i>
-                            Other Counties (${otherCounties.length})
-                        </td>
-                        <td style="text-align:right;padding:1px 4px">${n(otherTotal)}</td>
-                        <td style="text-align:right;padding:1px 4px;color:#1E90FF">${n(otherDem)}</td>
-                        <td style="text-align:right;padding:1px 4px;color:#DC143C">${n(otherRep)}</td>
-                        <td style="text-align:right;padding:1px 4px">${otherPct}%</td>
-                    </tr>
-                </table>
-                <table class="campaign-table" id="otherCountiesDetail" style="font-size:10px;width:100%;display:none;margin-top:4px;background:#fafafa;">
-                    ${otherCounties.map(c => {
-                        const d = cb[c];
-                        const pct = (d.dem + d.rep) ? Math.round(d.dem / (d.dem + d.rep) * 100) : 0;
-                        return '<tr><td style="padding:1px 4px 1px 20px;color:#666">' + c + '</td><td style="text-align:right;padding:1px 4px;color:#666">' + n(d.total) + '</td><td style="text-align:right;padding:1px 4px;color:#1E90FF">' + n(d.dem) + '</td><td style="text-align:right;padding:1px 4px;color:#DC143C">' + n(d.rep) + '</td><td style="text-align:right;padding:1px 4px;color:#666">' + pct + '%</td></tr>';
                     }).join('')}
                 </table>
             </div>`;
-            } else {
-                html += `</table></div>`;
-            }
         }
 
         if (districtProps.district_type === 'congressional' && oldMapStats) {

@@ -1,0 +1,50 @@
+{
+  "_metadata": {
+    "source": "Texas Legislature HB4 PlanC2333",
+    "legislature": "89th Legislature, 2nd Called Session, 2025",
+    "effective_date": "2026 elections",
+    "total_districts": 38,
+    "data_portal": "https://data.capitol.texas.gov/dataset/planc2333",
+    "last_updated": "2026-03-06",
+    "notes": "This file contains authoritative district boundaries. Counties listed here are what SHOULD be in each district according to the redistricting plan, independent of where we have voter data."
+  },
+  "15": {
+    "counties": [
+      "Aransas",
+      "Bee",
+      "Brooks",
+      "DeWitt",
+      "Goliad",
+      "Gonzales",
+      "Hidalgo",
+      "Jim Wells",
+      "Karnes",
+      "Lavaca",
+      "Live Oak"
+    ],
+    "split_counties": [
+      "Aransas",
+      "Hidalgo"
+    ],
+    "total_counties": 11,
+    "source": "HB4 PlanC2333 bill text",
+    "verified": true,
+    "notes": "9 full counties + 2 partial counties"
+  },
+  "28": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANC2333_r150.xls"
+  },
+  "34": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANC2333_r150.xls"
+  }
+}

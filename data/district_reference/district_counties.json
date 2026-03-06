@@ -1,0 +1,40 @@
+{
+  "15": {
+    "counties": [
+      "Aransas",
+      "Bee",
+      "Brooks",
+      "DeWitt",
+      "Goliad",
+      "Gonzales",
+      "Hidalgo",
+      "Jim Wells",
+      "Karnes",
+      "Lavaca",
+      "Live Oak"
+    ],
+    "split_counties": [
+      "Aransas",
+      "Hidalgo"
+    ],
+    "total_counties": 11,
+    "source": "HB4 PlanC2333 - Texas 89th Legislature, 2nd C.S., 2025",
+    "source_url": "https://data.capitol.texas.gov/dataset/planc2333"
+  },
+  "28": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "HB4 PlanC2333 - Texas 89th Legislature, 2nd C.S., 2025",
+    "source_url": "https://data.capitol.texas.gov/dataset/planc2333",
+    "note": "To be populated from PLANC2333_r150.xls"
+  },
+  "34": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "HB4 PlanC2333 - Texas 89th Legislature, 2nd C.S., 2025",
+    "source_url": "https://data.capitol.texas.gov/dataset/planc2333",
+    "note": "To be populated from PLANC2333_r150.xls"
+  }
+}
