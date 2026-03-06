@@ -1,0 +1,90 @@
+========================================
+UPLOAD ALL ZIP FILES - EXACT COMMANDS
+========================================
+
+REPLACE "ubuntu@your.server.ip" WITH YOUR ACTUAL SERVER!
+
+----------------------------------------
+STEP 1: Upload ZIP Files
+----------------------------------------
+
+From WhoVoted\data\district_reference directory:
+
+scp PLANC2333_All_Files_*.zip ubuntu@your.server.ip:/home/ubuntu/WhoVoted/data/district_reference/
+scp PLANS2168_All_Files_*.zip ubuntu@your.server.ip:/home/ubuntu/WhoVoted/data/district_reference/
+scp PLANH2316_All_Files_*.zip ubuntu@your.server.ip:/home/ubuntu/WhoVoted/data/district_reference/
+
+(Or if you only have one ZIP file, just upload that one)
+
+----------------------------------------
+STEP 2: SSH to Server
+----------------------------------------
+
+ssh ubuntu@your.server.ip
+
+----------------------------------------
+STEP 3: Extract All ZIP Files
+----------------------------------------
+
+cd /home/ubuntu/WhoVoted/data/district_reference
+
+# Install unzip if needed
+sudo apt-get install unzip -y
+
+# Extract all ZIP files (keeps originals)
+unzip -o "PLANC2333_All_Files_*.zip"
+unzip -o "PLANS2168_All_Files_*.zip"
+unzip -o "PLANH2316_All_Files_*.zip"
+
+# Verify extraction
+echo "XLS files:"
+ls -lh *.xls | head -20
+
+echo "Total files:"
+echo "  XLS: $(ls -1 *.xls | wc -l)"
+echo "  PDF: $(ls -1 *.pdf | wc -l)"
+echo "  Shapefiles: $(ls -1 *.shp | wc -l)"
+
+----------------------------------------
+STEP 4: Run Parser
+----------------------------------------
+
+cd /home/ubuntu/WhoVoted
+
+# Install dependencies
+pip install pandas xlrd openpyxl
+
+# Run parser
+python deploy/parse_district_files.py
+
+----------------------------------------
+STEP 5: Verify Results
+----------------------------------------
+
+ls -lh data/district_reference/*.json
+
+# You should see 6 JSON files:
+# - congressional_counties.json (38 districts)
+# - congressional_precincts.json (38 districts)
+# - state_senate_counties.json (31 districts)
+# - state_senate_precincts.json (31 districts)
+# - state_house_counties.json (150 districts)
+# - state_house_precincts.json (150 districts)
+
+# Check district counts
+python3 -c "import json; f=open('data/district_reference/congressional_counties.json'); d=json.load(f); print('Congressional:', len(d), 'districts')"
+python3 -c "import json; f=open('data/district_reference/state_senate_counties.json'); d=json.load(f); print('State Senate:', len(d), 'districts')"
+python3 -c "import json; f=open('data/district_reference/state_house_counties.json'); d=json.load(f); print('State House:', len(d), 'districts')"
+
+----------------------------------------
+DONE!
+----------------------------------------
+
+Your server now has:
+✓ All ZIP files (permanent references)
+✓ All extracted XLS files
+✓ All extracted PDF files  
+✓ All extracted shapefiles
+✓ 6 parsed JSON files with all 219 districts
+
+The system can now reference these files to display accurate data!
