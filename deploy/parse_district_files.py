@@ -200,7 +200,7 @@ def main():
     print("PARSING TEXAS DISTRICT REFERENCE FILES")
     print("="*80)
     
-    data_dir = Path("WhoVoted/data/district_reference")
+    data_dir = Path("data/district_reference")
     data_dir.mkdir(parents=True, exist_ok=True)
     
     # Track all parsed data
