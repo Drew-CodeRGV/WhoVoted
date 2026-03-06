@@ -7,7 +7,7 @@ echo "DOWNLOAD AND PARSE DISTRICT REFERENCE FILES"
 echo "================================================================================"
 echo ""
 
-cd /home/ubuntu/WhoVoted/data/district_reference
+cd /opt/whovoted/data/district_reference
 
 # Install dependencies
 echo "Installing dependencies..."
@@ -86,7 +86,7 @@ echo "RUNNING PARSER"
 echo "================================================================================"
 echo ""
 
-cd /home/ubuntu/WhoVoted
+cd /opt/whovoted
 
 # Run parser
 python deploy/parse_district_files.py
