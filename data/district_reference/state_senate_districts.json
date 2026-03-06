@@ -1,0 +1,259 @@
+{
+  "_metadata": {
+    "source": "Texas Legislature PLANS2168",
+    "legislature": "88th Legislature, Regular Session, 2023",
+    "effective_date": "2023-2026 elections",
+    "total_districts": 31,
+    "data_portal": "https://data.capitol.texas.gov/dataset/plans2168",
+    "last_updated": "2026-03-06",
+    "notes": "This file contains authoritative State Senate district boundaries. Counties listed here are what SHOULD be in each district according to the redistricting plan, independent of where we have voter data."
+  },
+  "1": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "2": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "3": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "4": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "5": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "6": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "7": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "8": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "9": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "10": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "11": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "12": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "13": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "14": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "15": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "16": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "17": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "18": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "19": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "20": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "21": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "22": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "23": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "24": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "25": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "26": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "27": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "28": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "29": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "30": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  },
+  "31": {
+    "counties": [],
+    "split_counties": [],
+    "total_counties": 0,
+    "source": "pending",
+    "verified": false,
+    "notes": "To be populated from PLANS2168_r150.xls"
+  }
+}
