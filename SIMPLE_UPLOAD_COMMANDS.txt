@@ -1,0 +1,49 @@
+===========================================
+SIMPLE UPLOAD COMMANDS - COPY & PASTE
+===========================================
+
+REPLACE "ubuntu@your.server.ip" WITH YOUR ACTUAL SERVER!
+
+-------------------------------------------
+STEP 1: Upload Files (from WhoVoted directory)
+-------------------------------------------
+
+# Upload all XLS files
+scp data/district_reference/*.xls ubuntu@your.server.ip:/home/ubuntu/WhoVoted/data/district_reference/
+
+# Upload JSON reference files
+scp data/district_reference/*districts.json ubuntu@your.server.ip:/home/ubuntu/WhoVoted/data/district_reference/
+
+-------------------------------------------
+STEP 2: SSH to Server
+-------------------------------------------
+
+ssh ubuntu@your.server.ip
+
+-------------------------------------------
+STEP 3: Run Parser (on server)
+-------------------------------------------
+
+cd /home/ubuntu/WhoVoted
+pip install pandas xlrd openpyxl
+python deploy/parse_district_files.py
+
+-------------------------------------------
+STEP 4: Verify (on server)
+-------------------------------------------
+
+ls -lh data/district_reference/*.json
+
+# You should see 6 JSON files:
+# - congressional_counties.json
+# - congressional_precincts.json
+# - state_senate_counties.json
+# - state_senate_precincts.json
+# - state_house_counties.json
+# - state_house_precincts.json
+
+-------------------------------------------
+DONE!
+-------------------------------------------
+
+Your system can now reference these files to display accurate data for all 219 Texas legislative districts.
