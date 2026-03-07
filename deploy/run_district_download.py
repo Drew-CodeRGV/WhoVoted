@@ -7,7 +7,7 @@ This connects via SSH and executes the download script.
 import subprocess
 import sys
 
-SERVER = "root@politiquera.com"
+SERVER = "ubuntu@politiquera.com"
 
 def run_ssh_command(command, description):
     """Run a command on the server via SSH."""

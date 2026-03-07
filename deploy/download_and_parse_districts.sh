@@ -89,7 +89,7 @@ echo ""
 cd /opt/whovoted
 
 # Run parser
-python deploy/parse_district_files.py
+python3 deploy/parse_district_files.py
 
 echo ""
 echo "================================================================================"

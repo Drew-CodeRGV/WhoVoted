@@ -1603,6 +1603,7 @@ body {
     color: white;
 }
 
+/* Bottom right icons - properly spaced */
 .data-icon-btn {
     bottom: 20px;
     right: 20px;
@@ -1610,12 +1611,25 @@ body {
 
 .map-icon-btn {
     bottom: 20px;
-    right: 76px;
+    right: 80px;
+}
+
+.reports-icon-btn {
+    bottom: 20px;
+    right: 140px;
+    color: #1565C0;
+}
+.reports-icon-btn:hover {
+    color: #0D47A1;
+}
+.reports-icon-btn.active {
+    background: #1565C0;
+    color: white;
 }
 
 .newspaper-icon-btn {
     bottom: 20px;
-    right: 132px;
+    right: 200px;
     color: #8B4513;
 }
 .newspaper-icon-btn:hover {
@@ -1624,7 +1638,7 @@ body {
 
 .campaigns-icon-btn {
     bottom: 20px;
-    right: 188px;
+    right: 260px;
     color: #4A148C;
 }
 .campaigns-icon-btn:hover {
@@ -1635,6 +1649,7 @@ body {
     color: white;
 }
 
+/* Bottom left icon */
 .account-icon-btn {
     bottom: 20px;
     left: 20px;

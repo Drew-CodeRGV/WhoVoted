@@ -2277,6 +2277,23 @@ def auth_logout():
     return response
 
 
+@app.route('/admin/api/session-info', methods=['GET'])
+@require_auth
+def api_session_info():
+    """Get current session information."""
+    token = request.cookies.get('session_token')
+    session = get_session_info(token)
+    if not session:
+        return jsonify({'error': 'No session'}), 401
+    return jsonify({
+        'email': session.get('email', ''),
+        'name': session.get('email', '').split('@')[0],  # Extract name from email
+        'role': session.get('role', ''),
+        'created_at': session.get('created_at', ''),
+        'expires_at': session.get('expires_at', '')
+    })
+
+
 @app.route('/admin/api/users', methods=['GET'])
 @require_auth
 def api_list_users():

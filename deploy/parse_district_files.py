@@ -35,18 +35,15 @@ def parse_counties_file(filepath):
     print(f"\nParsing {filepath.name}...")
     
     try:
-        # Try different engines
+        # Skip the first 6 rows which contain headers/metadata
+        # Row 6 (index 5) contains the actual column headers
         try:
-            df = pd.read_excel(filepath, engine='xlrd')
+            df = pd.read_excel(filepath, skiprows=6, engine='xlrd')
         except:
-            df = pd.read_excel(filepath, engine='openpyxl')
+            df = pd.read_excel(filepath, skiprows=6, engine='openpyxl')
         
         print(f"  Loaded {len(df)} rows")
         print(f"  Columns: {list(df.columns)}")
-        
-        # Show first few rows to understand structure
-        print("\n  First 10 rows:")
-        print(df.head(10).to_string())
         
         # Build mapping - try to identify columns intelligently
         district_data = defaultdict(lambda: {'counties': [], 'split_counties': []})
@@ -62,7 +59,7 @@ def parse_counties_file(filepath):
             elif 'county' in col_str and 'split' not in col_str and county_col is None:
                 county_col = col
         
-        print(f"\n  Using columns: District='{district_col}', County='{county_col}'")
+        print(f"  Using columns: District='{district_col}', County='{county_col}'")
         
         if not district_col or not county_col:
             print("  ERROR: Could not identify district and county columns")
@@ -110,18 +107,15 @@ def parse_precincts_file(filepath):
     print(f"\nParsing {filepath.name}...")
     
     try:
-        # Try different engines
+        # Skip the first 4 rows which contain headers/metadata
+        # Row 4 (index 3) contains the actual column headers
         try:
-            df = pd.read_excel(filepath, engine='xlrd')
+            df = pd.read_excel(filepath, skiprows=4, engine='xlrd')
         except:
-            df = pd.read_excel(filepath, engine='openpyxl')
+            df = pd.read_excel(filepath, skiprows=4, engine='openpyxl')
         
         print(f"  Loaded {len(df)} rows")
         print(f"  Columns: {list(df.columns)}")
-        
-        # Show first few rows
-        print("\n  First 10 rows:")
-        print(df.head(10).to_string())
         
         # Build mapping
         district_data = defaultdict(lambda: defaultdict(list))
@@ -140,7 +134,7 @@ def parse_precincts_file(filepath):
             elif 'precinct' in col_str or 'pct' in col_str:
                 precinct_col = col
         
-        print(f"\n  Using columns: District='{district_col}', County='{county_col}', Precinct='{precinct_col}'")
+        print(f"  Using columns: District='{district_col}', County='{county_col}', Precinct='{precinct_col}'")
         
         if not all([district_col, county_col, precinct_col]):
             print("  ERROR: Could not identify required columns")

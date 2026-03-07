@@ -92,8 +92,9 @@
                     </div>
                     <div class="campaign-tab-bar">
                         <button class="campaign-tab${lastActiveTab === 'congressional' ? ' active' : ''}" data-tab="congressional">🇺🇸 U.S. Congress</button>
+                        <button class="campaign-tab${lastActiveTab === 'state_senate' ? ' active' : ''}" data-tab="state_senate">🏛️ Texas State Senate</button>
                         <button class="campaign-tab${lastActiveTab === 'state_house' ? ' active' : ''}" data-tab="state_house">⭐ Texas State House</button>
-                        <button class="campaign-tab${lastActiveTab === 'commissioner' ? ' active' : ''}" data-tab="commissioner">🏛️ Commissioner Pcts</button>
+                        <button class="campaign-tab${lastActiveTab === 'commissioner' ? ' active' : ''}" data-tab="commissioner">📍 Commissioner Pcts</button>
                     </div>
                     <div class="campaign-district-list" id="campaignDistrictList"></div>
                     ${activeDistrict ? '<button class="campaign-clear-btn" id="campaignClearBtn">✕ Clear District Filter</button>' : ''}
@@ -149,7 +150,7 @@
                         <div class="campaign-card-body">
                             <div class="campaign-card-title">${p.district_name}</div>
                             ${incHtml}
-                            <div class="campaign-card-type">${p.district_type === 'congressional' ? 'U.S. Congress' : p.district_type === 'commissioner' ? 'County Commissioner' : 'Texas State House'}</div>
+                            <div class="campaign-card-type">${p.district_type === 'congressional' ? 'U.S. Congress' : p.district_type === 'state_senate' ? 'Texas State Senate' : p.district_type === 'commissioner' ? 'County Commissioner' : 'Texas State House'}</div>
                         </div>
                         <div class="campaign-card-arrow">→</div>
                     `;
