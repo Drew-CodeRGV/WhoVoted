@@ -153,12 +153,22 @@ async function loadCountyOverview(electionDate, votingMethod) {
             }
         });
 
-        // DEFAULT: Show red vs blue party heatmap for county overview
+        // DEFAULT: Show traditional turnout heatmap for county overview
         heatmapLayerDemocratic.addTo(map);
         heatmapLayerRepublican.addTo(map);
         
-        // Set the mode so UI controls know what's active
-        window.heatmapMode = 'party';
+        // Set the mode to traditional (heat) by default
+        window.heatmapMode = 'traditional';
+        
+        // Update UI buttons to reflect default state
+        const heatmapButtons = document.querySelectorAll('.map-option-btn[data-option="heatmap"]');
+        heatmapButtons.forEach(btn => {
+            if (btn.getAttribute('data-value') === 'traditional') {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
 
         // Add invisible markers for each county to enable popups
         if (!countyOverviewLayer) {

@@ -535,7 +535,6 @@ def generate_county_report_data(county: str, election_date: str, voting_method: 
             new_voters = 0
             new_dem = 0
             new_rep = 0
-        """, params_base + [min_birth_year_18, max_birth_year_18]).fetchone()[0]
     
     # Gender
     female_count = conn.execute(f"""

@@ -120,7 +120,7 @@
             <div class="gz-bar-dem" style="width:${demPct}%"></div>
             <div class="gz-bar-rep" style="width:${repPct}%"></div>
         </div>
-        <p class="gz-text">Democrats lead <span class="gz-dem gz-big">${ratio}</span>-to-1 across Texas.${votingMethod === 'combined' ? ` Early: ${f(d.early_voting)} (${evPct}%) · Election Day: ${f(d.election_day)} (${edPct}%)` : votingMethod === 'early-voting' ? ` Mail-in: ${f(d.mail_in)} (${mailPct}%)` : ''}</p>
+        <p class="gz-text">Democrats lead <span class="gz-dem gz-big">${ratio}</span>-to-1 across Texas.${votingMethod === 'combined' ? ` Early: ${f(d.early_voting)} (${evPct}%) · Election Day: ${f(d.election_day)} (${edPct}%)` : (votingMethod === 'early-voting' ? ` Mail-in: ${f(d.mail_in)} (${mailPct}%)` : '')}</p>
     </div>
 </div>`;
 

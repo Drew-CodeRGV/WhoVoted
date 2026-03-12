@@ -2017,6 +2017,7 @@ body {
         font-size: 18px;
     }
     
+    /* Right side icons - properly spaced for mobile */
     .data-icon-btn {
         bottom: 16px;
         right: 12px;
@@ -2027,19 +2028,40 @@ body {
         right: 64px;
     }
     
-    .newspaper-icon-btn {
+    .reports-icon-btn {
         bottom: 16px;
-        right: 120px;
+        right: 116px;
     }
     
-    .campaigns-icon-btn {
+    .newspaper-icon-btn {
         bottom: 16px;
         right: 168px;
     }
     
+    .campaigns-icon-btn {
+        bottom: 16px;
+        right: 220px;
+    }
+    
+    /* Left side icons */
     .account-icon-btn {
         bottom: 16px;
+        left: 12px;
+    }
+    
+    .legend-info-btn {
+        bottom: 16px;
         left: 64px;
+    }
+    
+    .search-icon-btn {
+        bottom: 16px;
+        left: 116px;
+    }
+    
+    .geo-icon-btn {
+        bottom: 16px;
+        left: 168px;
     }
     
     .panel-popup {
