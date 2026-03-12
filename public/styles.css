@@ -2015,52 +2015,53 @@ body {
         width: 44px;
         height: 44px;
         font-size: 18px;
+        z-index: 1000;
     }
     
-    /* Right side icons - properly spaced for mobile */
+    /* Right side icons - properly spaced for mobile with safe area */
     .data-icon-btn {
-        bottom: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom));
         right: 12px;
     }
     
     .map-icon-btn {
-        bottom: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom));
         right: 64px;
     }
     
     .reports-icon-btn {
-        bottom: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom));
         right: 116px;
     }
     
     .newspaper-icon-btn {
-        bottom: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom));
         right: 168px;
     }
     
     .campaigns-icon-btn {
-        bottom: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom));
         right: 220px;
     }
     
     /* Left side icons */
     .account-icon-btn {
-        bottom: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom));
         left: 12px;
     }
     
     .legend-info-btn {
-        bottom: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom));
         left: 64px;
     }
     
     .search-icon-btn {
-        bottom: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom));
         left: 116px;
     }
     
     .geo-icon-btn {
-        bottom: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom));
         left: 168px;
     }
     
@@ -2071,11 +2072,11 @@ body {
     }
     
     .map-options-popup {
-        bottom: 68px;
+        bottom: calc(68px + env(safe-area-inset-bottom));
     }
     
     .data-options-popup {
-        bottom: 68px;
+        bottom: calc(68px + env(safe-area-inset-bottom));
     }
     
     .panel-popup-header h3 {
