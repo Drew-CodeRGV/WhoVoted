@@ -1431,42 +1431,42 @@ body {
     }
     
     .legend-info-btn {
-        bottom: 80px;
-        bottom: calc(80px + env(safe-area-inset-bottom));
-        left: 12px;
-        width: 44px;
-        height: 44px;
-        font-size: 20px;
+        bottom: 15px;
+        bottom: calc(15px + env(safe-area-inset-bottom));
+        left: calc(11.11% + 5px);
+        width: 38px;
+        height: 38px;
+        font-size: 16px;
     }
     
     .legend-popup {
-        bottom: 132px;
-        bottom: calc(132px + env(safe-area-inset-bottom));
+        bottom: 68px;
+        bottom: calc(68px + env(safe-area-inset-bottom));
         left: 12px;
         width: 200px;
     }
     
     .search-icon-btn {
-        bottom: 80px;
-        bottom: calc(80px + env(safe-area-inset-bottom));
-        left: 64px;
-        width: 44px;
-        height: 44px;
-        font-size: 18px;
+        bottom: 15px;
+        bottom: calc(15px + env(safe-area-inset-bottom));
+        left: calc(22.22% + 5px);
+        width: 38px;
+        height: 38px;
+        font-size: 16px;
     }
     
     .geo-icon-btn {
-        bottom: 80px;
-        bottom: calc(80px + env(safe-area-inset-bottom));
-        left: 116px;
-        width: 44px;
-        height: 44px;
-        font-size: 18px;
+        bottom: 15px;
+        bottom: calc(15px + env(safe-area-inset-bottom));
+        left: calc(33.33% + 5px);
+        width: 38px;
+        height: 38px;
+        font-size: 16px;
     }
     
     .search-popup {
-        bottom: 132px;
-        bottom: calc(132px + env(safe-area-inset-bottom));
+        bottom: 68px;
+        bottom: calc(68px + env(safe-area-inset-bottom));
         left: 12px;
         width: calc(100vw - 24px);
         max-width: 380px;
