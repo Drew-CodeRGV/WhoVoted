@@ -2017,83 +2017,82 @@ body {
 /* Mobile responsive */
 @media (max-width: 768px) {
     .panel-icon-btn {
-        width: 44px;
-        height: 44px;
-        font-size: 18px;
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
         z-index: 1000;
     }
     
-    /* Right side icons - properly spaced for mobile with safe area */
-    /* Fallback for browsers that don't support env() */
+    /* Right side icons - tighter spacing for mobile screens */
     .data-icon-btn {
-        bottom: 80px;
-        bottom: calc(80px + env(safe-area-inset-bottom));
-        right: 12px;
+        bottom: 20px;
+        bottom: calc(20px + env(safe-area-inset-bottom));
+        right: 10px;
     }
     
     .map-icon-btn {
-        bottom: 80px;
-        bottom: calc(80px + env(safe-area-inset-bottom));
-        right: 64px;
+        bottom: 20px;
+        bottom: calc(20px + env(safe-area-inset-bottom));
+        right: 56px;
     }
     
     .reports-icon-btn {
-        bottom: 80px;
-        bottom: calc(80px + env(safe-area-inset-bottom));
-        right: 116px;
+        bottom: 20px;
+        bottom: calc(20px + env(safe-area-inset-bottom));
+        right: 102px;
     }
     
     .newspaper-icon-btn {
-        bottom: 80px;
-        bottom: calc(80px + env(safe-area-inset-bottom));
-        right: 168px;
+        bottom: 20px;
+        bottom: calc(20px + env(safe-area-inset-bottom));
+        right: 148px;
     }
     
     .campaigns-icon-btn {
-        bottom: 80px;
-        bottom: calc(80px + env(safe-area-inset-bottom));
-        right: 220px;
+        bottom: 20px;
+        bottom: calc(20px + env(safe-area-inset-bottom));
+        right: 194px;
     }
     
-    /* Left side icons */
+    /* Left side icons - tighter spacing */
     .account-icon-btn {
-        bottom: 80px;
-        bottom: calc(80px + env(safe-area-inset-bottom));
-        left: 12px;
+        bottom: 20px;
+        bottom: calc(20px + env(safe-area-inset-bottom));
+        left: 10px;
     }
     
     .legend-info-btn {
-        bottom: 80px;
-        bottom: calc(80px + env(safe-area-inset-bottom));
-        left: 64px;
+        bottom: 20px;
+        bottom: calc(20px + env(safe-area-inset-bottom));
+        left: 56px;
     }
     
     .search-icon-btn {
-        bottom: 80px;
-        bottom: calc(80px + env(safe-area-inset-bottom));
-        left: 116px;
+        bottom: 20px;
+        bottom: calc(20px + env(safe-area-inset-bottom));
+        left: 102px;
     }
     
     .geo-icon-btn {
-        bottom: 80px;
-        bottom: calc(80px + env(safe-area-inset-bottom));
-        left: 168px;
+        bottom: 20px;
+        bottom: calc(20px + env(safe-area-inset-bottom));
+        left: 148px;
     }
     
     .panel-popup {
-        right: 12px;
-        width: calc(100vw - 24px);
+        right: 10px;
+        width: calc(100vw - 20px);
         max-width: 300px;
     }
     
     .map-options-popup {
-        bottom: 132px;
-        bottom: calc(132px + env(safe-area-inset-bottom));
+        bottom: 68px;
+        bottom: calc(68px + env(safe-area-inset-bottom));
     }
     
     .data-options-popup {
-        bottom: 132px;
-        bottom: calc(132px + env(safe-area-inset-bottom));
+        bottom: 68px;
+        bottom: calc(68px + env(safe-area-inset-bottom));
     }
     
     .panel-popup-header h3 {
