@@ -295,6 +295,23 @@
         const sortBy = document.getElementById('turfSortBy')?.value || 'precinct';
         const electionDate = currentDataset?.election_date || '2026-03-03';
         
+        // Show loading indicator
+        const reportContent = document.getElementById('reportContent');
+        const reportFilters = document.getElementById('reportFilters');
+        const isReload = reportFilters.innerHTML.trim() !== '';
+        
+        if (isReload) {
+            // Show loading overlay on existing content
+            reportContent.innerHTML = `
+                <div class="report-loading-overlay">
+                    <div class="report-loading-spinner">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <div>Filtering results...</div>
+                    </div>
+                </div>
+            `;
+        }
+        
         // Add filters HTML
         document.getElementById('reportFilters').innerHTML = `
             <div class="report-filter-group">
@@ -344,19 +361,30 @@
         }
         
         // Add event listeners AFTER setting values
-        document.getElementById('turfSortBy')?.addEventListener('change', () => loadTurfCuts());
-        document.getElementById('turfPrecinct')?.addEventListener('change', () => loadTurfCuts());
-        document.getElementById('turfPartyAffinity')?.addEventListener('change', () => loadTurfCuts());
-        document.getElementById('turfHistory')?.addEventListener('change', () => loadTurfCuts());
+        const filterElements = [
+            document.getElementById('turfSortBy'),
+            document.getElementById('turfPrecinct'),
+            document.getElementById('turfPartyAffinity'),
+            document.getElementById('turfHistory')
+        ];
         
-        const response = await fetch(`/api/reports/non-voters?county=${encodeURIComponent(county)}&election_date=${encodeURIComponent(electionDate)}&precinct=${precinct}&history=${history}&party_affinity=${partyAffinity}&sort_by=${sortBy}`);
-        const data = await response.json();
+        // Disable filters during load
+        filterElements.forEach(el => {
+            if (el) {
+                el.disabled = true;
+                el.addEventListener('change', () => loadTurfCuts());
+            }
+        });
         
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to load report');
-        }
-        
-        currentReportData = data.non_voters;
+        try {
+            const response = await fetch(`/api/reports/non-voters?county=${encodeURIComponent(county)}&election_date=${encodeURIComponent(electionDate)}&precinct=${precinct}&history=${history}&party_affinity=${partyAffinity}&sort_by=${sortBy}`);
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load report');
+            }
+            
+            currentReportData = data.non_voters;
         
         // Group by precinct
         const byPrecinct = {};
@@ -445,6 +473,11 @@
         
         document.getElementById('reportContent').innerHTML = html;
         
+        // Re-enable filters after loading
+        filterElements.forEach(el => {
+            if (el) el.disabled = false;
+        });
+        
         // Add toggle handlers for precinct headers
         document.querySelectorAll('.precinct-header').forEach(header => {
             header.addEventListener('click', function(e) {
@@ -474,6 +507,20 @@
                 showPrecinctOnMap(precinctName, byPrecinct[precinctName].voters);
             });
         });
+        
+        } catch (error) {
+            console.error('Error loading turf cuts:', error);
+            reportContent.innerHTML = `
+                <div class="report-error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div>Failed to load report: ${error.message}</div>
+                </div>
+            `;
+            // Re-enable filters on error
+            filterElements.forEach(el => {
+                if (el) el.disabled = false;
+            });
+        }
     }
     
     function showPrecinctOnMap(precinctName, voters) {
