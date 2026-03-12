@@ -2019,49 +2019,59 @@ body {
     }
     
     /* Right side icons - properly spaced for mobile with safe area */
+    /* Fallback for browsers that don't support env() */
     .data-icon-btn {
-        bottom: calc(16px + env(safe-area-inset-bottom));
+        bottom: 80px;
+        bottom: calc(80px + env(safe-area-inset-bottom));
         right: 12px;
     }
     
     .map-icon-btn {
-        bottom: calc(16px + env(safe-area-inset-bottom));
+        bottom: 80px;
+        bottom: calc(80px + env(safe-area-inset-bottom));
         right: 64px;
     }
     
     .reports-icon-btn {
-        bottom: calc(16px + env(safe-area-inset-bottom));
+        bottom: 80px;
+        bottom: calc(80px + env(safe-area-inset-bottom));
         right: 116px;
     }
     
     .newspaper-icon-btn {
-        bottom: calc(16px + env(safe-area-inset-bottom));
+        bottom: 80px;
+        bottom: calc(80px + env(safe-area-inset-bottom));
         right: 168px;
     }
     
     .campaigns-icon-btn {
-        bottom: calc(16px + env(safe-area-inset-bottom));
+        bottom: 80px;
+        bottom: calc(80px + env(safe-area-inset-bottom));
         right: 220px;
     }
     
     /* Left side icons */
     .account-icon-btn {
-        bottom: calc(16px + env(safe-area-inset-bottom));
+        bottom: 80px;
+        bottom: calc(80px + env(safe-area-inset-bottom));
         left: 12px;
     }
     
     .legend-info-btn {
-        bottom: calc(16px + env(safe-area-inset-bottom));
+        bottom: 80px;
+        bottom: calc(80px + env(safe-area-inset-bottom));
         left: 64px;
     }
     
     .search-icon-btn {
-        bottom: calc(16px + env(safe-area-inset-bottom));
+        bottom: 80px;
+        bottom: calc(80px + env(safe-area-inset-bottom));
         left: 116px;
     }
     
     .geo-icon-btn {
-        bottom: calc(16px + env(safe-area-inset-bottom));
+        bottom: 80px;
+        bottom: calc(80px + env(safe-area-inset-bottom));
         left: 168px;
     }
     
@@ -2072,11 +2082,13 @@ body {
     }
     
     .map-options-popup {
-        bottom: calc(68px + env(safe-area-inset-bottom));
+        bottom: 132px;
+        bottom: calc(132px + env(safe-area-inset-bottom));
     }
     
     .data-options-popup {
-        bottom: calc(68px + env(safe-area-inset-bottom));
+        bottom: 132px;
+        bottom: calc(132px + env(safe-area-inset-bottom));
     }
     
     .panel-popup-header h3 {
