@@ -1431,7 +1431,8 @@ body {
     }
     
     .legend-info-btn {
-        bottom: 16px;
+        bottom: 80px;
+        bottom: calc(80px + env(safe-area-inset-bottom));
         left: 12px;
         width: 44px;
         height: 44px;
@@ -1439,13 +1440,15 @@ body {
     }
     
     .legend-popup {
-        bottom: 68px;
+        bottom: 132px;
+        bottom: calc(132px + env(safe-area-inset-bottom));
         left: 12px;
         width: 200px;
     }
     
     .search-icon-btn {
-        bottom: 16px;
+        bottom: 80px;
+        bottom: calc(80px + env(safe-area-inset-bottom));
         left: 64px;
         width: 44px;
         height: 44px;
@@ -1453,7 +1456,8 @@ body {
     }
     
     .geo-icon-btn {
-        bottom: 16px;
+        bottom: 80px;
+        bottom: calc(80px + env(safe-area-inset-bottom));
         left: 116px;
         width: 44px;
         height: 44px;
@@ -1461,7 +1465,8 @@ body {
     }
     
     .search-popup {
-        bottom: 68px;
+        bottom: 132px;
+        bottom: calc(132px + env(safe-area-inset-bottom));
         left: 12px;
         width: calc(100vw - 24px);
         max-width: 380px;
