@@ -61,7 +61,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <!-- Custom Styles -->
-    <link rel="stylesheet" href="styles.css?v=20260312-05" />
+    <link rel="stylesheet" href="styles.css?v=20260312-06" />
 
     <!-- Clean sans-serif for gazette -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -580,6 +580,43 @@
                 }, 2000); // Hide after fade completes
             }
         }, 10000);
+    </script>
+    
+    <!-- Safari iOS Fix: Prevent icons from being hidden behind address bar -->
+    <script>
+        // Detect Safari on iOS
+        const isSafariIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) && 
+                           /Safari/.test(navigator.userAgent) && 
+                           !/CriOS|FxiOS|EdgiOS/.test(navigator.userAgent);
+        
+        if (isSafariIOS) {
+            // Force icons to stay visible by ensuring z-index and position
+            function fixIconVisibility() {
+                const icons = document.querySelectorAll('.panel-icon-btn');
+                icons.forEach(icon => {
+                    if (icon.style.display !== 'none') {
+                        icon.style.zIndex = '10000';
+                        icon.style.position = 'fixed';
+                    }
+                });
+            }
+            
+            // Run on scroll, resize, and orientation change
+            let scrollTimeout;
+            window.addEventListener('scroll', () => {
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(fixIconVisibility, 100);
+            }, { passive: true });
+            
+            window.addEventListener('resize', fixIconVisibility);
+            window.addEventListener('orientationchange', fixIconVisibility);
+            
+            // Run initially and after popups close
+            document.addEventListener('DOMContentLoaded', fixIconVisibility);
+            setTimeout(fixIconVisibility, 500);
+            setTimeout(fixIconVisibility, 1000);
+            setTimeout(fixIconVisibility, 2000);
+        }
     </script>
 </body>
 </html>
