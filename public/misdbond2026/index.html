@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>McAllen ISD Bond 2026 - Early Voting Tracker</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-00CE4L33RG"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-00CE4L33RG');
+    </script>
+    
+    <meta property="og:title" content="McAllen ISD Bond 2026 - Early Voting Tracker">
+    <meta property="og:description" content="Track early voting turnout for the McAllen ISD Bond election">
+    <meta property="og:image" content="https://images.squarespace-cdn.com/content/v1/69825f8a6cf298297f7627c4/ae46a970-77ef-41b6-939e-25f4611d1c68/Bond+Logo.png">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="../styles.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        #map {
+            height: 100vh;
+            width: 100%;
+            z-index: 1;
+        }
+        
+        /* Top header bar */
+        .header-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            padding: 8px 15px;
+            gap: 15px;
+            touch-action: manipulation;
+        }
+        
+        .bond-logo {
+            flex-shrink: 0;
+        }
+        
+        .bond-logo img {
+            height: 50px;
+            width: auto;
+            display: block;
+        }
+        
+        /* Stats section */
+        .stats-section {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 2px;
+            flex-shrink: 0;
+        }
+        
+        .stat-main {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0066cc;
+            text-decoration: underline dotted;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+        }
+        
+        .stat-meta {
+            font-size: 10px;
+            color: #888;
+        }
+        
+        .stat-meta a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        
+        .stat-meta a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Mobile disclaimer link - hidden on desktop, shown on mobile */
+        .mobile-disclaimer {
+            display: none;
+            font-size: 11px;
+            color: #0066cc;
+            cursor: pointer;
+            margin-left: auto;
+            white-space: nowrap;
+            text-decoration: underline;
+        }
+        
+        /* Mobile/Desktop visibility helpers */
+        .mobile-only { display: none !important; }
+        .desktop-only { display: inline-flex !important; }
+        
+        /* Settings button (mobile) */
+        .settings-btn {
+            background: #555;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+        }
+        .settings-btn:hover { background: #333; }
+        
+        /* Settings dropdown */
+        .settings-dropdown {
+            display: none;
+            position: fixed;
+            top: 56px;
+            right: 10px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            padding: 10px 16px;
+            z-index: 1500;
+        }
+        .settings-dropdown.visible { display: block; }
+        .settings-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+            font-size: 14px;
+            color: #333;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .settings-item:last-child { border-bottom: none; }
+        .settings-item input { width: 18px; height: 18px; cursor: pointer; }
+        
+        .heatmap-toggle {
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            background: white;
+            cursor: pointer;
+        }
+        
+        /* Controls section - right aligned */
+        .controls-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: auto;
+        }
+        
+        .search-input {
+            flex: 1;
+            max-width: 300px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            outline: none;
+            touch-action: manipulation;
+        }
+        
+        .search-input:focus {
+            border-color: #0066cc;
+        }
+        
+        .search-wrapper {
+            position: relative;
+            flex: 1;
+            max-width: 300px;
+        }
+        
+        .search-wrapper .search-input {
+            width: 100%;
+            max-width: none;
+        }
+        
+        .search-results {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 2000;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .search-results.visible {
+            display: block;
+        }
+        
+        .search-result-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+        }
+        
+        .search-result-item:hover {
+            background: #f0f5ff;
+        }
+        
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .search-result-name {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .search-result-address {
+            font-size: 11px;
+            color: #888;
+            margin-top: 1px;
+        }
+        
+        .location-btn {
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .location-btn:hover {
+            background: #0052a3;
+        }
+        
+        .filter-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            color: #666;
+            white-space: nowrap;
+        }
+        
+        .filter-checkbox input {
+            cursor: pointer;
+        }
+        
+        /* Disclaimer notice */
+        .disclaimer-notice {
+            position: fixed;
+            top: 66px;
+            left: 0;
+            right: 0;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            padding: 6px 15px;
+            text-align: center;
+            font-size: 11px;
+            color: #666;
+            z-index: 999;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .disclaimer-notice:hover {
+            background: #e9ecef;
+        }
+        
+        /* Disclaimer modal */
+        .disclaimer-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .disclaimer-modal.visible {
+            display: flex;
+        }
+        
+        .disclaimer-content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 500px;
+            margin: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .disclaimer-content h3 {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            color: #333;
+        }
+        
+        .disclaimer-content p {
+            margin: 0 0 15px 0;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #555;
+        }
+        
+        .disclaimer-close {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .disclaimer-close:hover {
+            background: #0052a3;
+        }
+        
+        .reportcard-btn {
+            background: #6c5ce7;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+        }
+        .reportcard-btn:hover { background: #5a4bd1; }
+        
+        .reportcard-panel {
+            display: none;
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 420px;
+            max-width: 95vw;
+            height: 100vh;
+            background: #fffef5;
+            background-image: 
+                linear-gradient(#e8d8c4 1px, transparent 1px);
+            background-size: 100% 32px;
+            z-index: 2000;
+            box-shadow: -4px 0 20px rgba(0,0,0,0.25);
+            flex-direction: column;
+            overflow: hidden;
+            font-family: 'Patrick Hand', 'Comic Sans MS', 'Segoe Print', cursive;
+        }
+        .reportcard-panel.visible { display: flex; }
+        .reportcard-header {
+            display: flex;
+            align-items: stretch;
+            padding: 0;
+            background: #d4b87a;
+            font-family: 'Patrick Hand', 'Comic Sans MS', cursive;
+            border-bottom: 1px solid #c4a96a;
+            min-height: 44px;
+        }
+        .reportcard-header .rc-file-tab {
+            background: #fffef5;
+            padding: 10px 24px 8px 18px;
+            border-radius: 8px 8px 0 0;
+            margin-left: 12px;
+            box-shadow: 1px -2px 4px rgba(0,0,0,0.08);
+            border: 1px solid #c4a96a;
+            border-bottom: none;
+            position: relative;
+            z-index: 1;
+            margin-bottom: -1px;
+        }
+        .reportcard-close {
+            background: none;
+            border: none;
+            color: #333;
+            font-size: 22px;
+            cursor: pointer;
+            padding: 0 5px;
+        }
+        .reportcard-summary {
+            padding: 12px 18px;
+            background: #fff9e6;
+            border-bottom: 2px dashed #d4a853;
+        }
+        .reportcard-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px 0;
+        }
+        .rc-row {
+            display: flex;
+            align-items: center;
+            padding: 10px 18px;
+            border-bottom: 1px dashed #d4c9a8;
+            gap: 12px;
+        }
+        .rc-row:hover { background: rgba(255,240,200,0.5); }
+        .rc-grade {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 20px;
+            color: white;
+            flex-shrink: 0;
+            font-family: 'Patrick Hand', 'Comic Sans MS', cursive;
+            border: 3px solid rgba(0,0,0,0.15);
+            transform: rotate(-3deg);
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.15);
+        }
+        .rc-grade-A { background: #27ae60; }
+        .rc-grade-B { background: #2ecc71; }
+        .rc-grade-C { background: #f39c12; }
+        .rc-grade-D { background: #e67e22; }
+        .rc-grade-F { background: #e74c3c; }
+        .rc-info { flex: 1; min-width: 0; }
+        .rc-pct { font-weight: 700; font-size: 14px; color: #333; font-family: 'Patrick Hand', 'Comic Sans MS', cursive; }
+        .rc-rep { font-size: 11px; color: #0066cc; font-style: italic; }
+        .rc-detail { font-size: 11px; color: #777; font-family: 'Patrick Hand', 'Comic Sans MS', cursive; }
+        .rc-turnout { font-weight: 800; font-size: 16px; color: #333; white-space: nowrap; font-family: 'Patrick Hand', 'Comic Sans MS', cursive; }
+        .rc-bar { width: 50px; height: 6px; background: #e8d8c4; border-radius: 3px; overflow: hidden; flex-shrink: 0; }
+        .rc-bar-fill { height: 100%; border-radius: 3px; }
+        
+        .reportcard-footer {
+            padding: 8px 18px;
+            text-align: center;
+            border-top: 2px dashed #d4a853;
+            background: #fff9e6;
+            flex-shrink: 0;
+        }
+        .reportcard-footer a {
+            text-decoration: none;
+            color: inherit;
+        }
+        .reportcard-footer img {
+            height: 28px;
+            vertical-align: middle;
+            margin-left: 6px;
+        }
+        
+        .rc-tab {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            background: transparent;
+            font-family: 'Patrick Hand', cursive;
+            font-size: 14px;
+            cursor: pointer;
+            color: #999;
+            border-bottom: 3px solid transparent;
+        }
+        .rc-tab.active {
+            color: #c0392b;
+            border-bottom-color: #c0392b;
+            font-weight: 700;
+        }
+        
+        /* Info strip at bottom */
+        .info-strip {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 15px;
+            text-align: center;
+            font-size: 11px;
+            color: #666;
+            z-index: 1000;
+            box-shadow: 0 -2px 6px rgba(0,0,0,0.08);
+        }
+        
+        /* Sliding banner - starts hidden */
+        .sliding-banner {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%) translateY(100%);
+            width: 20%;
+            max-width: 300px;
+            z-index: 1001;
+            transition: transform 0.5s ease-out;
+            cursor: pointer;
+        }
+        
+        .sliding-banner.hidden {
+            transform: translateX(-50%) translateY(100%);
+        }
+        
+        .sliding-banner:not(.hidden) {
+            transform: translateX(-50%) translateY(0);
+        }
+        
+        .sliding-banner img {
+            width: 100%;
+            height: auto;
+            display: block;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.2);
+            border-radius: 8px 8px 0 0;
+        }
+        
+        /* Blue tab that stays visible */
+        .banner-tab {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0066cc;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 8px 8px 0 0;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 1002;
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.2);
+            transition: background 0.3s;
+            display: none;
+        }
+        
+        .banner-tab.visible {
+            display: block;
+        }
+        
+        .banner-tab:hover {
+            background: #0052a3;
+        }
+        
+        @media (max-width: 768px) {
+            .sliding-banner {
+                width: 40%;
+            }
+        }
+        
+        @media (max-width: 1024px) {
+            .header-bar {
+                flex-wrap: wrap;
+                padding: 8px 10px;
+                gap: 10px;
+            }
+            
+            .controls-section {
+                order: 3;
+                width: 100%;
+                flex-wrap: wrap;
+            }
+            
+            .search-input {
+                flex: 1;
+                max-width: none;
+            }
+        }
+        
+            @media (max-width: 768px) {
+            .bond-logo img {
+                height: 40px;
+            }
+            
+            .stat-value {
+                font-size: 20px;
+            }
+            
+            .stat-label {
+                font-size: 12px;
+            }
+            
+            .controls-section {
+                flex-wrap: wrap;
+            }
+            
+            .mobile-disclaimer {
+                display: inline;
+            }
+            
+            .disclaimer-notice {
+                display: none;
+            }
+            
+            .mobile-only { display: inline-flex !important; }
+            .desktop-only { display: none !important; }
+            
+            .btn-label { display: none; }
+            
+            .location-btn {
+                padding: 8px;
+            }
+            
+            .controls-section {
+                order: 3;
+                width: 100%;
+            }
+            
+            .search-wrapper {
+                flex: 1;
+                max-width: none;
+            }
+            
+            .reportcard-panel {
+                width: 100vw;
+                max-width: 100vw;
+            }
+        }
+        
+        /* Hide cluster circles completely */
+        .invisible-cluster {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        .marker-cluster {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        .marker-cluster div {
+            background: transparent !important;
+        }
+        .marker-cluster-small,
+        .marker-cluster-medium,
+        .marker-cluster-large {
+            background: transparent !important;
+        }
+        .marker-cluster-small div,
+        .marker-cluster-medium div,
+        .marker-cluster-large div {
+            background: transparent !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Header Bar -->
+    <div class="header-bar">
+        <!-- Logo -->
+        <div class="bond-logo">
+            <img src="https://images.squarespace-cdn.com/content/v1/69825f8a6cf298297f7627c4/ae46a970-77ef-41b6-939e-25f4611d1c68/Bond+Logo.png?format=500w" alt="McAllen ISD Bond 2026">
+        </div>
+        
+        <!-- Stats -->
+        <div class="stats-section">
+            <div class="stat-main">
+                <span class="stat-value" id="total-voters">-</span>
+                <span class="stat-label">voters have voted</span>
+                <span class="mobile-disclaimer" id="mobile-disclaimer">Who's responsible for this?</span>
+            </div>
+            <div class="stat-meta">
+                Data from <a href="https://www.hidalgocounty.us/3473/May-2-2026-Local-Entities-Elections" target="_blank">Hidalgo County Elections</a> | Last update: <span id="last-update">-</span>
+            </div>
+        </div>
+        
+        <!-- Controls (right-aligned) -->
+        <div class="controls-section">
+            <button class="location-btn" id="location-btn" title="Zoom to my location">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <circle cx="12" cy="12" r="3"/>
+                </svg>
+                <span class="btn-label">My Location</span>
+            </button>
+            
+            <!-- Search Bar -->
+            <div class="search-wrapper">
+                <input type="text" class="search-input" id="search-input" placeholder="Lookup Name or Address">
+                <div class="search-results" id="search-results"></div>
+            </div>
+            
+            <!-- Desktop checkboxes -->
+            <label class="filter-checkbox desktop-only">
+                <input type="checkbox" id="mcallen-filter" checked>
+                McAllen only
+            </label>
+            
+            <label class="filter-checkbox desktop-only">
+                <input type="checkbox" id="show-city-districts">
+                City Districts
+            </label>
+            
+            <label class="filter-checkbox desktop-only">
+                <input type="checkbox" id="show-school-zones">
+                MS Zones
+            </label>
+            
+            <label class="filter-checkbox desktop-only">
+                <input type="checkbox" id="show-hs-zones">
+                HS Zones
+            </label>
+            
+            <!-- Desktop heatmap toggle -->
+            <select class="heatmap-toggle desktop-only" id="heatmap-mode">
+                <option value="voters">🗳️ Voters</option>
+                <option value="opportunity">🎯 Opportunity</option>
+                <option value="students">🎒 Students</option>
+                <option value="nonvoters">👻 Non-voters</option>
+            </select>
+            
+            <select class="heatmap-toggle desktop-only" id="opp-type-select" style="display:none;">
+                <option value="regular_occasional">🔥 Regular + Occasional</option>
+                <option value="regular">🔥 Regular only (3+)</option>
+                <option value="occasional">⚡ Occasional only (1-2)</option>
+                <option value="never">💤 Never voted</option>
+                <option value="all">All non-voters</option>
+            </select>
+            
+            <!-- Mobile settings gear -->
+            <button class="settings-btn mobile-only" id="settings-btn" title="Settings">⚙️</button>
+            
+            <button class="reportcard-btn" id="reportcard-btn" title="Precinct Report Card">
+                <span class="desktop-only">📊</span>
+                <span class="mobile-only">📋</span>
+            </button>
+        </div>
+        
+        <!-- Settings dropdown (mobile) -->
+        <div class="settings-dropdown" id="settings-dropdown">
+            <label class="settings-item">
+                <input type="checkbox" id="mcallen-filter-mobile" checked>
+                McAllen only
+            </label>
+            <label class="settings-item">
+                <input type="checkbox" id="show-city-districts-mobile">
+                City commission boundaries
+            </label>
+            <label class="settings-item">
+                <input type="checkbox" id="show-school-zones-mobile">
+                MS zone boundaries
+            </label>
+            <label class="settings-item">
+                <input type="checkbox" id="show-hs-zones-mobile">
+                HS zone boundaries
+            </label>
+            <label class="settings-item" style="border-bottom:none;">
+                Heatmap:
+                <select id="heatmap-mode-mobile" style="margin-left:auto;padding:4px 8px;border-radius:4px;border:1px solid #ddd;">
+                    <option value="voters">🗳️ Voters</option>
+                    <option value="opportunity">🎯 Opportunity</option>
+                    <option value="students">🎒 Students</option>
+                    <option value="nonvoters">👻 Non-voters</option>
+                </select>
+            </label>
+            <label class="settings-item" id="opp-type-mobile-row" style="display:none;border-bottom:none;">
+                Type:
+                <select id="opp-type-select-mobile" style="margin-left:auto;padding:4px 8px;border-radius:4px;border:1px solid #ddd;">
+                    <option value="regular_occasional">🔥 Regular + Occasional</option>
+                    <option value="regular">🔥 Regular only</option>
+                    <option value="occasional">⚡ Occasional only</option>
+                    <option value="never">💤 Never voted</option>
+                    <option value="all">All non-voters</option>
+                </select>
+            </label>
+        </div>
+        </div>
+    </div>
+
+    <!-- Disclaimer Notice -->
+    <div class="disclaimer-notice" id="disclaimer-notice">
+        This site is not affiliated, endorsed, or supported by any political candidate, PAC, or party.
+    </div>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Student Filters (shown when students mode active) -->
+    <div id="student-filters" style="display:none;position:fixed;top:90px;left:10px;background:white;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.2);padding:10px 14px;z-index:1100;font-size:13px;">
+        <div style="font-weight:600;margin-bottom:6px;font-size:12px;color:#666;">🎒 Show by school level:</div>
+        <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;">
+            <input type="checkbox" id="stu-elem" checked onchange="refreshStudentLayers()">
+            <span style="width:10px;height:10px;border-radius:50%;background:#dc0000;"></span>
+            📚 Elementary (~23K)
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;">
+            <input type="checkbox" id="stu-mid" checked onchange="refreshStudentLayers()">
+            <span style="width:10px;height:10px;border-radius:50%;background:#c8b400;"></span>
+            🏫 Middle (~26K)
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;">
+            <input type="checkbox" id="stu-high" checked onchange="refreshStudentLayers()">
+            <span style="width:10px;height:10px;border-radius:50%;background:#00a000;"></span>
+            🎓 High (~28K)
+        </label>
+        <div style="font-size:10px;color:#aaa;margin-top:4px;">Est. from 2020 Census, age-adjusted to 2026</div>
+    </div>
+
+    <!-- Report Card Panel -->
+    <div class="reportcard-panel" id="reportcard-panel">
+        <div class="reportcard-header">
+            <div style="display:flex;align-items:flex-end;width:100%;padding-right:12px;">
+                <div class="rc-file-tab">
+                    <span style="font-size:18px;font-weight:700;font-family:'Patrick Hand',cursive;color:#3a2e1e;">📝 Report Card</span>
+                </div>
+                <div style="flex:1;"></div>
+                <a href="https://politiquera.com" target="_blank" style="display:flex;align-items:center;text-decoration:none;align-self:center;">
+                    <img src="../assets/politiquera.png" alt="Politiquera" style="height:24px;border-radius:3px;">
+                </a>
+                <button class="reportcard-close" id="reportcard-close" style="align-self:center;margin-left:10px;">✕</button>
+            </div>
+        </div>
+        <div style="display:flex;border-bottom:2px solid #d4a853;background:#fff9e6;">
+            <button class="rc-tab active" id="rc-tab-districts" onclick="switchReportTab('districts')">🏛️ City</button>
+            <button class="rc-tab" id="rc-tab-hs" onclick="switchReportTab('hs')">🎓 HS</button>
+            <button class="rc-tab" id="rc-tab-campuses" onclick="switchReportTab('campuses')">🏫 MS</button>
+            <button class="rc-tab" id="rc-tab-elem" onclick="switchReportTab('elem')">📚 Elem</button>
+            <button class="rc-tab" id="rc-tab-demo" onclick="switchReportTab('demo')">📊 Stats</button>
+        </div>
+        <div class="reportcard-summary" id="reportcard-summary"></div>
+        <div class="reportcard-list" id="reportcard-list"></div>
+        <div class="reportcard-footer" id="reportcard-footer">
+            <a href="https://politiquera.com" target="_blank">
+                <span style="font-family:'Patrick Hand',cursive;font-size:13px;color:#999;" id="footer-quip">🗳️ Brought to you by your neighborhood</span>
+                <img src="../assets/politiquera.png" alt="Politiquera.com">
+            </a>
+        </div>
+    </div>
+
+    <!-- Info Strip -->
+    <div class="info-strip">
+        McAllen ISD Bond Election • May 10, 2026 • Data from Hidalgo County Elections
+    </div>
+
+    <!-- Sliding Banner -->
+    <a href="https://haddadfortexas.com/" target="_blank" class="sliding-banner" id="sliding-banner">
+        <img src="https://scontent-dfw5-1.xx.fbcdn.net/v/t39.30808-6/658156339_1393515425915585_5417881175307657395_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=13d280&_nc_ohc=YrNEK--H4mIQ7kNvwEh_0WW&_nc_oc=AdpXic3nr708D05t4eRdEug-bJv3LmeI-F1oJMFpj5wdCL13gAvO4BX0U-ga1gp0E1M&_nc_zt=23&_nc_ht=scontent-dfw5-1.xx&_nc_gid=HFjDbPTyai_s8Eyqr39hrw&_nc_ss=7a3a8&oh=00_Af3sq_m004PHpLgE7Y4OWYlTXoljUgL6BESffFnrmDg_rA&oe=69EEA755" alt="Haddad for Texas">
+    </a>
+
+    <!-- Blue Tab -->
+    <div class="banner-tab" id="banner-tab">VOTE FOR SEBY</div>
+
+    <!-- Disclaimer Modal -->
+    <div class="disclaimer-modal" id="disclaimer-modal">
+        <div class="disclaimer-content">
+            <h3>About This Site</h3>
+            <p>This site was created and organized by an independent citizen of the City of McAllen who believes in ensuring our students have access to everything they need to be the best version of themselves.</p>
+            <p>No political advertisement fee was paid to promote this site. The advertisement for State Representative District 41 candidate Seby Haddad is a donation because I truly believe he has the best interests of the citizens of our great area at heart.</p>
+            <p>This site is not affiliated with, endorsed by, or supported by any political candidate, PAC, or party.</p>
+            <button class="disclaimer-close" id="disclaimer-close">Close</button>
+        </div>
+    </div>
+
+    <script src="map.js?v=20260424-05"></script>
+</body>
+</html>

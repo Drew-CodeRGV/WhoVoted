@@ -1,0 +1,35 @@
+{
+  "operationalLayers": [
+    {
+      "id": "51417654686942a6b90012e8078f29c4",
+      "layerType": "ArcGISMapServiceLayer",
+      "url": "https://gis.rgv911.org/server/rest/services/Hidalgo_County_Emergency_Service_District_Map_MIL1/MapServer/",
+      "visibility": true,
+      "opacity": 1,
+      "title": "Hidalgo_County_Emergency_Service_District_Map_MIL1",
+      "itemId": "3c670c8416d04109a6f116bd7114ab5d",
+      "timeAnimation": false
+    }
+  ],
+  "baseMap": {
+    "baseMapLayers": [
+      {
+        "id": "8eaae61d2c614db895c2dba001a4a53e",
+        "type": "VectorTileLayer",
+        "layerType": "VectorTileLayer",
+        "title": "World Navigation Map",
+        "styleUrl": "https://cdn.arcgis.com/sharing/rest/content/items/63c47b7177f946b49902c24129b87252/resources/styles/root.json",
+        "visibility": true,
+        "opacity": 1
+      }
+    ],
+    "title": "World Navigation Map"
+  },
+  "spatialReference": {
+    "wkid": 102100,
+    "latestWkid": 3857
+  },
+  "authoringApp": "WebMapViewer",
+  "authoringAppVersion": "10.9.1",
+  "version": "2.21"
+}

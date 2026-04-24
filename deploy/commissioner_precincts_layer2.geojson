@@ -1,0 +1,49 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": 0,
+      "geometry": null,
+      "properties": {
+        "FID": 0,
+        "district": "1",
+        "ndistrict": 1,
+        "Name": "PCT. 1"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 1,
+      "geometry": null,
+      "properties": {
+        "FID": 1,
+        "district": "2",
+        "ndistrict": 2,
+        "Name": "PCT. 2"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 2,
+      "geometry": null,
+      "properties": {
+        "FID": 2,
+        "district": "3",
+        "ndistrict": 3,
+        "Name": "PCT. 3"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 3,
+      "geometry": null,
+      "properties": {
+        "FID": 3,
+        "district": "4",
+        "ndistrict": 4,
+        "Name": "PCT. 4"
+      }
+    }
+  ]
+}
