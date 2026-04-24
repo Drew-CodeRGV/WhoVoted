@@ -324,6 +324,175 @@ def voter_history(vuid):
         return jsonify({'error': str(e)}), 500
 
 
+# ── McAllen ISD Bond 2026 API ──
+
+@app.route('/api/misdbond2026/stats')
+def misdbond2026_stats():
+    """Get statistics for McAllen ISD Bond 2026 election."""
+    conn = None
+    try:
+        ELECTION_DATE = '2026-05-10'
+        # McAllen zip codes
+        MCALLEN_ZIPS = ('78501', '78502', '78503', '78504', '78505')
+        
+        conn = db.get_connection()
+        
+        # Total voters in McAllen
+        total_voters = conn.execute("""
+            SELECT COUNT(DISTINCT ve.vuid) as total
+            FROM voter_elections ve
+            INNER JOIN voters v ON ve.vuid = v.vuid
+            WHERE ve.election_date = ?
+            AND v.zip IN (?, ?, ?, ?, ?)
+        """, (ELECTION_DATE,) + MCALLEN_ZIPS).fetchone()['total']
+        
+        # Precinct breakdown (McAllen only)
+        precinct_rows = conn.execute("""
+            SELECT 
+                v.precinct,
+                AVG(v.lat) as lat,
+                AVG(v.lng) as lng,
+                COUNT(DISTINCT ve.vuid) as voters
+            FROM voters v
+            INNER JOIN voter_elections ve ON v.vuid = ve.vuid
+            WHERE ve.election_date = ?
+            AND v.precinct IS NOT NULL
+            AND v.lat IS NOT NULL
+            AND v.lng IS NOT NULL
+            AND v.zip IN (?, ?, ?, ?, ?)
+            GROUP BY v.precinct
+            ORDER BY voters DESC
+        """, (ELECTION_DATE,) + MCALLEN_ZIPS).fetchall()
+        
+        precincts = []
+        for row in precinct_rows:
+            precincts.append({
+                'name': row['precinct'],
+                'lat': row['lat'],
+                'lng': row['lng'],
+                'voters': row['voters']
+            })
+        
+        # Last update
+        last_update_row = conn.execute("""
+            SELECT MAX(created_at) as last_update
+            FROM voter_elections
+            WHERE election_date = ?
+        """, (ELECTION_DATE,)).fetchone()
+        
+        last_update = last_update_row['last_update'] if last_update_row['last_update'] else datetime.now().isoformat()
+        
+        return jsonify({
+            'total_voters': total_voters,
+            'precincts_count': len(precincts),
+            'precincts': precincts,
+            'last_update': last_update
+        })
+    except Exception as e:
+        logger.error(f"McAllen ISD Bond stats failed: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/misdbond2026/voters')
+def misdbond2026_voters():
+    """Get individual voter locations for McAllen ISD Bond 2026 election."""
+    conn = None
+    try:
+        ELECTION_DATE = '2026-05-10'
+        # McAllen zip codes
+        MCALLEN_ZIPS = ('78501', '78502', '78503', '78504', '78505')
+        
+        conn = db.get_connection()
+        
+        # Get all voters with full details, filtered by McAllen zip codes
+        voter_rows = conn.execute("""
+            SELECT 
+                v.vuid,
+                v.lat,
+                v.lng,
+                v.precinct,
+                v.address,
+                v.city,
+                v.zip,
+                v.firstname,
+                v.lastname,
+                v.birth_year,
+                v.sex,
+                v.current_party,
+                ve.party_voted,
+                ve.voting_method
+            FROM voters v
+            INNER JOIN voter_elections ve ON v.vuid = ve.vuid
+            WHERE ve.election_date = ?
+            AND v.lat IS NOT NULL
+            AND v.lng IS NOT NULL
+            AND v.zip IN (?, ?, ?, ?, ?)
+            ORDER BY v.precinct, v.address
+        """, (ELECTION_DATE,) + MCALLEN_ZIPS).fetchall()
+        
+        voters = []
+        for row in voter_rows:
+            voters.append({
+                'vuid': row['vuid'],
+                'lat': row['lat'],
+                'lng': row['lng'],
+                'precinct': row['precinct'],
+                'address': row['address'],
+                'city': row['city'],
+                'zip': row['zip'],
+                'firstname': row['firstname'],
+                'lastname': row['lastname'],
+                'name': f"{row['firstname'] or ''} {row['lastname'] or ''}".strip(),
+                'birth_year': row['birth_year'],
+                'sex': row['sex'],
+                'current_party': row['current_party'],
+                'party_voted': row['party_voted'],
+                'voting_method': row['voting_method']
+            })
+        
+        return jsonify({
+            'voters': voters,
+            'count': len(voters)
+        })
+    except Exception as e:
+        logger.error(f"McAllen ISD Bond voters failed: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/misdbond2026/precinct/<precinct_id>')
+def misdbond2026_precinct(precinct_id):
+    """Get detailed information for a specific precinct."""
+    try:
+        ELECTION_DATE = '2026-05-10'
+        conn = db.get_connection()
+        
+        row = conn.execute("""
+            SELECT 
+                COUNT(DISTINCT ve.vuid) as total_voters,
+                COUNT(DISTINCT CASE WHEN ve.voting_method = 'early-voting' THEN ve.vuid END) as early_voters
+            FROM voters v
+            INNER JOIN voter_elections ve ON v.vuid = ve.vuid
+            WHERE v.precinct = ? AND ve.election_date = ?
+        """, (precinct_id, ELECTION_DATE)).fetchone()
+        
+        conn.close()
+        
+        return jsonify({
+            'precinct': precinct_id,
+            'total_voters': row['total_voters'],
+            'early_voters': row['early_voters']
+        })
+    except Exception as e:
+        logger.error(f"McAllen ISD Bond precinct detail failed: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 # ── DB-driven API endpoints (replace GeoJSON file serving) ──
 
 @app.route('/api/elections')

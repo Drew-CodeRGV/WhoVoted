@@ -33,6 +33,20 @@ def get_connection() -> sqlite3.Connection:
         _local.conn.execute("PRAGMA journal_mode=WAL")
         _local.conn.execute("PRAGMA synchronous=NORMAL")
         _local.conn.execute("PRAGMA cache_size=-64000")  # 64MB cache
+    else:
+        # Verify the connection is still alive
+        try:
+            _local.conn.execute("SELECT 1")
+        except Exception:
+            try:
+                _local.conn.close()
+            except Exception:
+                pass
+            _local.conn = sqlite3.connect(str(DB_PATH), timeout=30)
+            _local.conn.row_factory = sqlite3.Row
+            _local.conn.execute("PRAGMA journal_mode=WAL")
+            _local.conn.execute("PRAGMA synchronous=NORMAL")
+            _local.conn.execute("PRAGMA cache_size=-64000")
     return _local.conn
 
 

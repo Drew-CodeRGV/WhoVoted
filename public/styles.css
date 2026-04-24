@@ -2020,49 +2020,53 @@ body {
         width: 38px;
         height: 38px;
         font-size: 16px;
-        z-index: 1000;
+        z-index: 10000 !important;
         position: fixed !important;
         bottom: 15px;
         bottom: calc(15px + env(safe-area-inset-bottom));
+        /* Safari iOS fix: prevent icons from being hidden */
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+        will-change: transform;
     }
     
-    /* Evenly distribute all 9 icons across the screen width */
+    /* Evenly distribute all icons across the screen width in one row */
     /* Order from left to right: account, legend, search, geo, campaigns, newspaper, reports, map, data */
     
     .account-icon-btn {
-        left: calc(0% + 5px);
+        left: calc((100vw - 38px * 9) / 10 + (38px + (100vw - 38px * 9) / 10) * 0);
     }
     
     .legend-info-btn {
-        left: calc(11.11% + 5px);
+        left: calc((100vw - 38px * 9) / 10 + (38px + (100vw - 38px * 9) / 10) * 1);
     }
     
     .search-icon-btn {
-        left: calc(22.22% + 5px);
+        left: calc((100vw - 38px * 9) / 10 + (38px + (100vw - 38px * 9) / 10) * 2);
     }
     
     .geo-icon-btn {
-        left: calc(33.33% + 5px);
+        left: calc((100vw - 38px * 9) / 10 + (38px + (100vw - 38px * 9) / 10) * 3);
     }
     
     .campaigns-icon-btn {
-        left: calc(44.44% + 5px);
+        left: calc((100vw - 38px * 9) / 10 + (38px + (100vw - 38px * 9) / 10) * 4);
     }
     
     .newspaper-icon-btn {
-        left: calc(55.55% + 5px);
+        left: calc((100vw - 38px * 9) / 10 + (38px + (100vw - 38px * 9) / 10) * 5);
     }
     
     .reports-icon-btn {
-        left: calc(66.66% + 5px);
+        left: calc((100vw - 38px * 9) / 10 + (38px + (100vw - 38px * 9) / 10) * 6);
     }
     
     .map-icon-btn {
-        left: calc(77.77% + 5px);
+        left: calc((100vw - 38px * 9) / 10 + (38px + (100vw - 38px * 9) / 10) * 7);
     }
     
     .data-icon-btn {
-        left: calc(88.88% + 5px);
+        left: calc((100vw - 38px * 9) / 10 + (38px + (100vw - 38px * 9) / 10) * 8);
     }
     
     .panel-popup {

@@ -61,7 +61,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <!-- Custom Styles -->
-    <link rel="stylesheet" href="styles.css?v=20260312-06" />
+    <link rel="stylesheet" href="styles.css?v=20260312-07" />
 
     <!-- Clean sans-serif for gazette -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -592,28 +592,44 @@
         if (isSafariIOS) {
             // Force icons to stay visible by ensuring z-index and position
             function fixIconVisibility() {
-                const icons = document.querySelectorAll('.panel-icon-btn');
+                const icons = document.querySelectorAll('.panel-icon-btn, .legend-info-btn, .search-icon-btn, .geo-icon-btn');
                 icons.forEach(icon => {
-                    if (icon.style.display !== 'none') {
+                    if (icon.style.display !== 'none' && window.getComputedStyle(icon).display !== 'none') {
                         icon.style.zIndex = '10000';
                         icon.style.position = 'fixed';
+                        icon.style.transform = 'translateZ(0)';
+                        icon.style.webkitTransform = 'translateZ(0)';
                     }
                 });
+                
+                // Force a repaint
+                document.body.style.display = 'none';
+                document.body.offsetHeight; // Trigger reflow
+                document.body.style.display = '';
             }
             
-            // Run on scroll, resize, and orientation change
+            // Run on various events
             let scrollTimeout;
             window.addEventListener('scroll', () => {
                 clearTimeout(scrollTimeout);
-                scrollTimeout = setTimeout(fixIconVisibility, 100);
+                scrollTimeout = setTimeout(fixIconVisibility, 50);
             }, { passive: true });
             
             window.addEventListener('resize', fixIconVisibility);
             window.addEventListener('orientationchange', fixIconVisibility);
             
-            // Run initially and after popups close
+            // Run when popups close
+            document.addEventListener('click', (e) => {
+                if (e.target.classList.contains('panel-popup-close') || 
+                    e.target.classList.contains('vs-close') ||
+                    e.target.classList.contains('gazette-close')) {
+                    setTimeout(fixIconVisibility, 100);
+                }
+            });
+            
+            // Run initially and after delays
             document.addEventListener('DOMContentLoaded', fixIconVisibility);
-            setTimeout(fixIconVisibility, 500);
+            setTimeout(fixIconVisibility, 300);
             setTimeout(fixIconVisibility, 1000);
             setTimeout(fixIconVisibility, 2000);
         }
