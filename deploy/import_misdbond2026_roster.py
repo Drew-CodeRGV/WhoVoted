@@ -220,15 +220,15 @@ def main():
         except Exception as e:
             print(f"Mail-in import skipped: {e}")
         
-        # Always regenerate cache (it's fast and ensures consistency)
-        print("\nRegenerating cache...")
+        # Always regenerate ALL caches (not just voters)
+        print("\nRegenerating all caches...")
         import subprocess
         try:
             subprocess.run([
                 sys.executable,
-                '/opt/whovoted/deploy/cache_misdbond2026_voters.py'
+                '/opt/whovoted/deploy/refresh_bond_caches.py'
             ], check=True)
-            print("✓ Cache regenerated")
+            print("✓ All caches regenerated")
         except Exception as e:
             print(f"⚠ Cache regeneration failed: {e}")
         

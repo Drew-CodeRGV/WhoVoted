@@ -1084,6 +1084,25 @@ function renderStaffReport(d) {
     
     let html = '';
     
+    // Narrative blurb
+    html += '<div style="padding:10px 18px;border-bottom:2px solid #d4a853;background:#fff3e0;">';
+    html += '<div style="font-size:12px;color:#555;line-height:1.5;' + font + '">';
+    html += '📝 Of ' + d.total_staff.toLocaleString() + ' MISD staff listed on mcallenisd.org, ' + d.matched_to_voters + ' were found in McAllen voter rolls. ';
+    html += 'Only <b>' + d.voted + '</b> (' + d.turnout_pct + '%) have voted in the bond that would directly fund their schools and workplaces. ';
+    if (d.roles && d.roles.length > 0) {
+        const instr = d.roles.find(r => r.role === 'Instructional');
+        const fac = d.roles.find(r => r.role === 'Facilities & Operations');
+        if (instr && fac && fac.turnout_pct > 0) {
+            html += 'Teachers and instructional staff lead at ' + instr.turnout_pct + '% turnout — ';
+            html += Math.round(instr.turnout_pct / fac.turnout_pct) + 'x the rate of facilities and operations staff (' + fac.turnout_pct + '%). ';
+        }
+        const subs = d.roles.find(r => r.role === 'Substitute');
+        if (subs) {
+            html += 'Substitutes make up half the staff directory but vote at just ' + subs.turnout_pct + '%.';
+        }
+    }
+    html += '</div></div>';
+    
     // Role breakdown (if available)
     if (d.roles && d.roles.length > 0) {
         html += '<div style="padding:10px 18px;border-bottom:2px solid #d4a853;">';

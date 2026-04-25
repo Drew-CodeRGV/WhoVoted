@@ -45,10 +45,12 @@ def empty_demo():
         'age': {g: 0 for g in AGE_GROUPS}, 'reg_age': {g: 0 for g in AGE_GROUPS},
         'gender': {'M': 0, 'F': 0}, 'reg_gender': {'M': 0, 'F': 0},
         'party': {'Democratic': 0, 'Republican': 0, 'Other': 0},
-        'dates': {}, 'total_voted': 0, 'total_registered': 0
+        'dates': {}, 'method_dates': {},
+        'methods': {'early-voting': 0, 'mail-in': 0, 'election-day': 0},
+        'total_voted': 0, 'total_registered': 0
     }
 
-def add_voter(demo, by, sex, party, created, voted):
+def add_voter(demo, by, sex, party, created, voted, method=None):
     b = age_bucket(by)
     g = sex if sex in ('M', 'F') else None
     if voted:
@@ -59,8 +61,11 @@ def add_voter(demo, by, sex, party, created, voted):
         if 'democrat' in p: demo['party']['Democratic'] += 1
         elif 'republican' in p: demo['party']['Republican'] += 1
         else: demo['party']['Other'] += 1
+        # Track voting method
+        m = method or 'unknown'
+        if m in demo['methods']:
+            demo['methods'][m] += 1
         if created:
-            # Shift date back 1 day: roster is posted the day AFTER voting
             from datetime import datetime as _dt, timedelta as _td
             try:
                 actual_date = _dt.strptime(created[:10], '%Y-%m-%d') - _td(days=1)
@@ -68,6 +73,10 @@ def add_voter(demo, by, sex, party, created, voted):
             except:
                 d = created[:10]
             demo['dates'][d] = demo['dates'].get(d, 0) + 1
+            # Track method per day
+            if d not in demo['method_dates']:
+                demo['method_dates'][d] = {}
+            demo['method_dates'][d][m] = demo['method_dates'][d].get(m, 0) + 1
     demo['total_registered'] += 1
     if b: demo['reg_age'][b] += 1
     if g: demo['reg_gender'][g] += 1
@@ -85,8 +94,13 @@ def finalize(demo):
     cum = 0
     for d in sorted(demo['dates'].keys()):
         cum += demo['dates'][d]
-        daily.append({'date': d, 'new': demo['dates'][d], 'total': cum})
+        entry = {'date': d, 'new': demo['dates'][d], 'total': cum}
+        # Add method breakdown per day
+        if d in demo.get('method_dates', {}):
+            entry['methods'] = demo['method_dates'][d]
+        daily.append(entry)
     return {'age': age, 'gender': gender, 'party': demo['party'], 'daily': daily,
+            'methods': demo.get('methods', {}),
             'total_voted': demo['total_voted'], 'total_registered': demo['total_registered']}
 
 def load_zones(path):
@@ -114,7 +128,7 @@ def main():
     
     rows = conn.execute(f"""
         SELECT v.vuid, v.lat, v.lng, v.birth_year, v.sex, v.current_party,
-               ve.created_at,
+               ve.created_at, ve.voting_method,
                CASE WHEN ve.vuid IS NOT NULL THEN 1 ELSE 0 END as voted
         FROM voters v
         LEFT JOIN voter_elections ve ON v.vuid = ve.vuid AND ve.election_date = ?
@@ -134,20 +148,20 @@ def main():
     ms_demos = {n: empty_demo() for n in ms_zones}
     hs_demos = {n: empty_demo() for n in hs_zones}
     
-    for vuid, lat, lng, by, sex, party, created, voted in rows:
-        add_voter(overall, by, sex, party, created, voted)
+    for vuid, lat, lng, by, sex, party, created, method, voted in rows:
+        add_voter(overall, by, sex, party, created, voted, method)
         
         for name, geom in smd_zones.items():
             if pip_geom(lng, lat, geom):
-                add_voter(smd_demos[name], by, sex, party, created, voted)
+                add_voter(smd_demos[name], by, sex, party, created, voted, method)
                 break
         for name, geom in ms_zones.items():
             if pip_geom(lng, lat, geom):
-                add_voter(ms_demos[name], by, sex, party, created, voted)
+                add_voter(ms_demos[name], by, sex, party, created, voted, method)
                 break
         for name, geom in hs_zones.items():
             if pip_geom(lng, lat, geom):
-                add_voter(hs_demos[name], by, sex, party, created, voted)
+                add_voter(hs_demos[name], by, sex, party, created, voted, method)
                 break
     
     result = {
