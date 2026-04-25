@@ -1084,6 +1084,25 @@ function renderStaffReport(d) {
     
     let html = '';
     
+    // Role breakdown (if available)
+    if (d.roles && d.roles.length > 0) {
+        html += '<div style="padding:10px 18px;border-bottom:2px solid #d4a853;">';
+        html += '<div style="font-size:14px;font-weight:700;color:#333;' + font + '">🏫 Turnout by Role</div>';
+        d.roles.forEach(function(r) {
+            const barW = Math.min(Math.round(r.turnout_pct / 25 * 100), 100);
+            const color = r.turnout_pct >= 20 ? '#27ae60' : r.turnout_pct >= 10 ? '#f39c12' : '#e74c3c';
+            html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;' + font + '">';
+            html += '<span style="font-size:14px;">' + (r.icon || '') + '</span>';
+            html += '<span style="width:100px;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + r.role + '">' + r.role + '</span>';
+            html += '<div style="flex:1;height:18px;background:#eee;border-radius:3px;overflow:hidden;">';
+            html += '<div style="width:' + barW + '%;height:100%;background:' + color + ';border-radius:3px;"></div></div>';
+            html += '<span style="font-size:12px;font-weight:600;width:40px;text-align:right;">' + r.turnout_pct + '%</span>';
+            html += '<span style="font-size:10px;color:#999;width:70px;text-align:right;">' + r.voted + '/' + r.matched + ' of ' + r.total + '</span>';
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+    
     // Age breakdown
     html += '<div style="padding:10px 18px;border-bottom:2px solid #d4a853;">';
     html += '<div style="font-size:14px;font-weight:700;color:#333;' + font + '">👤 Staff Turnout by Age</div>';
@@ -1158,7 +1177,7 @@ function renderStaffReport(d) {
     html += '<span>🔴 Rep: ' + d.party_registered.Republican + '</span>';
     html += '<span>⚪ Other: ' + d.party_registered.Other + '</span>';
     html += '</div>';
-    html += '<div style="font-size:10px;color:#bbb;font-style:italic;margin-top:8px;' + font + '">⚠️ Staff matched by name against Hidalgo County voter rolls (McAllen zips only). Name collisions may cause minor inaccuracies.</div>';
+    html += '<div style="font-size:10px;color:#bbb;font-style:italic;margin-top:8px;' + font + '">⚠️ This is a rough guesstimate only. Staff names were matched against public voter rolls by first and last name. Common names may produce false matches, married/hyphenated names may be missed, and many staff live outside McAllen. These numbers could be totally inaccurate — take them with a big grain of salt.</div>';
     html += '</div>';
     
     list.innerHTML = html;
