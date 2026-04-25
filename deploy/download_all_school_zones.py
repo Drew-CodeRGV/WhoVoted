@@ -18,7 +18,7 @@ for layer_id, label in [(4, 'High'), (5, 'Elementary')]:
 
 # Download high school zones (McAllen ISD only)
 # Note: Lincoln MS was renamed to Early Achieve HS
-MCALLEN_HS = ['MCALLEN HS', 'MCALLEN MEMORIAL HS', 'NIKKI ROWE HS', 'LAMAR ACADEMY']
+MCALLEN_HS = ['MCALLEN HS', 'MEMORIAL HS', 'NIKKI ROWE HS', 'LAMAR ACADEMY']
 # Also grab Lincoln MS zone from layer 6 (MS) and rename it for HS
 LINCOLN_AS_HS = True
 where_hs = ' OR '.join(f"NAME = '{n}'" for n in MCALLEN_HS)

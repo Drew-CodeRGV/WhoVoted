@@ -907,6 +907,17 @@ async function switchReportTab(tab) {
         return;
     }
     
+    if (tab === 'staff') {
+        if (!reportCardCache.staff) {
+            try {
+                const resp = await fetch('/cache/misdbond2026_staff.json?t=' + Date.now());
+                reportCardCache.staff = await resp.json();
+            } catch(err) { console.error('Failed to load staff data:', err); return; }
+        }
+        renderStaffReport(reportCardCache.staff);
+        return;
+    }
+    
     const urls = {
         districts: '/cache/misdbond2026_reportcard.json?t=' + Date.now(),
         campuses: '/cache/misdbond2026_campus_reportcard.json?t=' + Date.now(),
@@ -1045,6 +1056,110 @@ function renderDemoContent(dd, list, font) {
     html += '<span>🔴 Rep: ' + dd.party.Republican + '</span>';
     html += '<span>⚪ Other: ' + dd.party.Other + '</span>';
     html += '</div></div>';
+    
+    list.innerHTML = html;
+}
+
+function renderStaffReport(d) {
+    const font = "font-family:'Patrick Hand',cursive;";
+    const summary = document.getElementById('reportcard-summary');
+    const list = document.getElementById('reportcard-list');
+    
+    const grade = d.turnout_pct >= 20 ? 'A' : d.turnout_pct >= 15 ? 'B' : d.turnout_pct >= 10 ? 'C' : d.turnout_pct >= 5 ? 'D' : 'F';
+    const gradeColor = {A:'#27ae60',B:'#2ecc71',C:'#f39c12',D:'#e67e22',F:'#e74c3c'};
+    const gradeEmoji = {A:'⭐',B:'👍',C:'😐',D:'😬',F:'😱'};
+    
+    summary.innerHTML = '<div style="text-align:center;margin-bottom:4px;">' +
+        '<div style="font-size:12px;color:#999;' + font + '">McAllen ISD Staff</div>' +
+        '<div style="font-size:18px;font-weight:700;' + font + 'color:#333;">👩‍🏫 Staff Turnout</div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;justify-content:center;gap:14px;">' +
+        '<div class="rc-grade rc-grade-' + grade + '" style="width:56px;height:56px;font-size:28px;transform:rotate(-5deg);">' + grade + '</div>' +
+        '<div style="text-align:left;">' +
+        '<div style="font-size:18px;font-weight:700;color:#333;' + font + '">' + d.turnout_pct + '% of staff voted ' + gradeEmoji[grade] + '</div>' +
+        '<div style="font-size:13px;color:#666;' + font + '">✅ ' + d.voted + ' voted · 🪑 ' + d.not_voted + ' didn\'t</div>' +
+        '<div style="font-size:13px;color:#888;' + font + '">📋 ' + d.matched_to_voters + ' found in voter rolls of ' + d.total_staff + ' staff</div>' +
+        '<div style="font-size:11px;color:#aaa;' + font + '">🔍 ' + d.not_found + ' staff not found (may live outside McAllen)</div>' +
+        '</div></div>';
+    
+    let html = '';
+    
+    // Age breakdown
+    html += '<div style="padding:10px 18px;border-bottom:2px solid #d4a853;">';
+    html += '<div style="font-size:14px;font-weight:700;color:#333;' + font + '">👤 Staff Turnout by Age</div>';
+    const maxAge = Math.max(...d.age.map(a => a.turnout_pct), 0.01);
+    d.age.forEach(function(a) {
+        const pct = Math.round(a.turnout_pct / maxAge * 100);
+        const color = a.turnout_pct >= 20 ? '#27ae60' : a.turnout_pct >= 10 ? '#f39c12' : '#e74c3c';
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;' + font + '">';
+        html += '<span style="width:50px;font-size:13px;font-weight:600;">' + a.group + '</span>';
+        html += '<div style="flex:1;height:18px;background:#eee;border-radius:3px;overflow:hidden;">';
+        html += '<div style="width:' + pct + '%;height:100%;background:' + color + ';border-radius:3px;"></div></div>';
+        html += '<span style="font-size:12px;font-weight:600;width:45px;text-align:right;">' + a.turnout_pct + '%</span>';
+        html += '<span style="font-size:11px;color:#999;width:60px;text-align:right;">' + a.voted + '/' + a.registered + '</span>';
+        html += '</div>';
+    });
+    html += '</div>';
+    
+    // Gender breakdown
+    html += '<div style="padding:10px 18px;border-bottom:2px solid #d4a853;">';
+    html += '<div style="font-size:14px;font-weight:700;color:#333;' + font + '">⚤ Staff Turnout by Gender</div>';
+    d.gender.forEach(function(g) {
+        const icon = g.group === 'Women' ? '👩' : '👨';
+        const clr = g.group === 'Women' ? '#e91e63' : '#2196f3';
+        const barW = Math.min(Math.round(g.turnout_pct / 25 * 100), 100);
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;' + font + '">';
+        html += '<span style="font-size:16px;">' + icon + '</span>';
+        html += '<span style="width:55px;font-size:13px;font-weight:600;">' + g.group + '</span>';
+        html += '<div style="flex:1;height:20px;background:#eee;border-radius:3px;overflow:hidden;">';
+        html += '<div style="width:' + barW + '%;height:100%;background:' + clr + ';border-radius:3px;"></div></div>';
+        html += '<span style="font-size:13px;font-weight:700;width:45px;text-align:right;">' + g.turnout_pct + '%</span>';
+        html += '<span style="font-size:11px;color:#999;width:55px;text-align:right;">' + g.voted + '/' + g.registered + '</span>';
+        html += '</div>';
+    });
+    html += '</div>';
+    
+    // Party breakdown of those who voted
+    html += '<div style="padding:10px 18px;border-bottom:2px solid #d4a853;">';
+    html += '<div style="font-size:14px;font-weight:700;color:#333;' + font + '">🗳️ Staff Who Voted - Party</div>';
+    const totalP = d.party.Democratic + d.party.Republican + d.party.Other;
+    if (totalP > 0) {
+        const demPct = Math.round(d.party.Democratic / totalP * 100);
+        const repPct = Math.round(d.party.Republican / totalP * 100);
+        const othPct = 100 - demPct - repPct;
+        html += '<div style="display:flex;height:28px;border-radius:4px;overflow:hidden;margin:6px 0;">';
+        html += '<div style="width:' + demPct + '%;background:#1E90FF;display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;">' + demPct + '%</div>';
+        html += '<div style="width:' + repPct + '%;background:#DC143C;display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;">' + repPct + '%</div>';
+        html += '<div style="width:' + othPct + '%;background:#95a5a6;display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;">' + othPct + '%</div>';
+        html += '</div>';
+    }
+    html += '<div style="display:flex;justify-content:space-between;font-size:12px;' + font + '">';
+    html += '<span>🔵 Dem: ' + d.party.Democratic + '</span>';
+    html += '<span>🔴 Rep: ' + d.party.Republican + '</span>';
+    html += '<span>⚪ Other: ' + d.party.Other + '</span>';
+    html += '</div></div>';
+    
+    // Party breakdown of all registered staff
+    html += '<div style="padding:10px 18px;">';
+    html += '<div style="font-size:14px;font-weight:700;color:#333;' + font + '">📋 All Registered Staff - Party</div>';
+    const totalR = d.party_registered.Democratic + d.party_registered.Republican + d.party_registered.Other;
+    if (totalR > 0) {
+        const demR = Math.round(d.party_registered.Democratic / totalR * 100);
+        const repR = Math.round(d.party_registered.Republican / totalR * 100);
+        const othR = 100 - demR - repR;
+        html += '<div style="display:flex;height:28px;border-radius:4px;overflow:hidden;margin:6px 0;">';
+        html += '<div style="width:' + demR + '%;background:#1E90FF;display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;">' + demR + '%</div>';
+        html += '<div style="width:' + repR + '%;background:#DC143C;display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;">' + repR + '%</div>';
+        html += '<div style="width:' + othR + '%;background:#95a5a6;display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;">' + othR + '%</div>';
+        html += '</div>';
+    }
+    html += '<div style="display:flex;justify-content:space-between;font-size:12px;' + font + '">';
+    html += '<span>🔵 Dem: ' + d.party_registered.Democratic + '</span>';
+    html += '<span>🔴 Rep: ' + d.party_registered.Republican + '</span>';
+    html += '<span>⚪ Other: ' + d.party_registered.Other + '</span>';
+    html += '</div>';
+    html += '<div style="font-size:10px;color:#bbb;font-style:italic;margin-top:8px;' + font + '">⚠️ Staff matched by name against Hidalgo County voter rolls (McAllen zips only). Name collisions may cause minor inaccuracies.</div>';
+    html += '</div>';
     
     list.innerHTML = html;
 }
