@@ -1418,6 +1418,16 @@ function renderGazette(g) {
     g.bullets.forEach(function(b) { h += '<li>' + b + '</li>'; });
     h += '</ul></div>';
     
+    // Stories
+    if (g.stories && g.stories.length > 0) {
+        g.stories.forEach(function(s) {
+            h += '<div style="padding:12px 20px;border-bottom:1px solid #d4c9a8;">';
+            h += '<div style="font-size:15px;font-weight:700;color:#1a1a1a;margin-bottom:4px;">' + s.icon + ' ' + s.title + '</div>';
+            h += '<div style="font-size:12.5px;line-height:1.6;color:#333;text-align:justify;">' + s.text + '</div>';
+            h += '</div>';
+        });
+    }
+    
     // Three columns
     h += '<div class="gazette-columns">';
     

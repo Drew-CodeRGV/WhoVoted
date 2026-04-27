@@ -122,6 +122,82 @@ def main():
     staff_col = [{'role':r['role'],'icon':r['icon'],'voted':r['voted'],'matched':r['matched'],
                   'total':r['total'],'pct':r['turnout_pct']} for r in staff.get('roles',[])]
 
+    # F-grade schools
+    f_schools = [s for s in all_schools if s['grade'] == 'F' and s['registered'] > 0]
+    f_total_reg = sum(s['registered'] for s in f_schools)
+    f_total_voted = sum(s['voted'] for s in f_schools)
+    f_names = ', '.join(s['name'] for s in f_schools[:4])
+
+    # Stories
+    stories = []
+
+    # Story 1: The Overview
+    not_voted_pct = round(100 - turnout, 1)
+    stories.append({
+        'title': 'A City Deciding Its Future in Slow Motion',
+        'icon': '🏙️',
+        'text': f"McAllen ISD put a $335 million bond on the ballot to modernize every campus in the district. "
+                f"So far, {total:,} of {registered:,} registered voters have shown up — {turnout}%. "
+                f"That means {not_voted_pct}% of McAllen hasn't weighed in on a decision that affects 20,058 students, "
+                f"68% of whom are economically disadvantaged. The district earned a TEA 'A' rating and a 98% graduation rate "
+                f"despite aging facilities. The buildings need the work. The question is whether enough people care to say yes or no."
+    })
+
+    # Story 2: Two McAllens
+    if top_school and bot_school and bot_school['turnout_pct'] > 0:
+        gap = round(top_school['turnout_pct'] / bot_school['turnout_pct'], 0)
+        stories.append({
+            'title': 'Two McAllens: The North-South Divide',
+            'icon': '🗺️',
+            'text': f"The data draws a line across the city. {top_school['name']} leads all campuses at "
+                    f"{top_school['turnout_pct']}% ({top_school['grade']}), in north McAllen's established neighborhoods. "
+                    f"Meanwhile {bot_school['name']} sits at {bot_school['turnout_pct']}% ({bot_school['grade']}) in south McAllen. "
+                    f"That's a {gap:.0f}x gap. "
+                    f"The F-grade zones ({f_names}) contain {f_total_reg:,} registered voters — {f_total_voted} have voted ({round(f_total_voted/f_total_reg*100,2) if f_total_reg else 0}%). "
+                    f"The campuses that need modernization most are surrounded by the voters least likely to show up."
+        })
+
+    # Story 3: The Age Cliff
+    young_data = age_dict.get('18-25', {})
+    old_data = age_dict.get('65+', {})
+    if young_data.get('pct') and old_data.get('pct') and young_data['pct'] > 0:
+        age_ratio = round(old_data['pct'] / young_data['pct'])
+        stories.append({
+            'title': 'The Age Cliff: Grandparents Decide',
+            'icon': '👴',
+            'text': f"65+ voters turn out at {old_data['pct']}%. 18-25 year olds at {young_data['pct']}%. "
+                    f"That's a {age_ratio}x gap. The people whose kids graduated decades ago are deciding the future "
+                    f"of the kids in school right now. There are an estimated 77,744 school-age children in McAllen "
+                    f"and only {total:,} adults have voted — roughly 1 voter for every {round(77744/total) if total else '?'} students."
+        })
+
+    # Story 4: District 4
+    if bot_dist:
+        stories.append({
+            'title': f"District 4: The Silent Majority",
+            'icon': '🏚️',
+            'text': f"{bot_dist['name']} ({bot_dist.get('rep','')}) has {bot_dist['registered']:,} registered voters "
+                    f"and {bot_dist['voted']} have shown up — {bot_dist['turnout_pct']}%, a {bot_dist['grade']} grade. "
+                    f"This is south McAllen — younger, more working-class, more school-age children per household. "
+                    f"The bond's classroom additions would have the most impact here. "
+                    f"Meanwhile {top_dist['name']} ({top_dist.get('rep','')}) leads at {top_dist['turnout_pct']}% — "
+                    f"a {round(top_dist['turnout_pct']/bot_dist['turnout_pct'],1) if bot_dist['turnout_pct'] > 0 else '?'}x difference."
+        })
+
+    # Story 5: The Teachers Get It
+    instr = next((r for r in staff.get('roles', []) if r['role'] == 'Instructional'), None)
+    fac = next((r for r in staff.get('roles', []) if r['role'] == 'Facilities & Operations'), None)
+    if instr and fac:
+        stories.append({
+            'title': 'The Teachers Get It',
+            'icon': '👩‍🏫',
+            'text': f"Of {staff['total_staff']:,} MISD staff, {staff['matched_to_voters']} were found in McAllen voter rolls. "
+                    f"{staff['voted']} have voted ({staff['turnout_pct']}%). Teachers and instructional staff lead at "
+                    f"{instr['turnout_pct']}% — {round(instr['turnout_pct']/fac['turnout_pct'],1) if fac['turnout_pct'] > 0 else '?'}x "
+                    f"the rate of facilities staff ({fac['turnout_pct']}%). "
+                    f"The people closest to the classroom care the most about what happens to it."
+        })
+
     result = {
         'headline': headline,
         'subhead': subhead,
@@ -141,7 +217,8 @@ def main():
         'staff': staff_col,
         'staff_summary': {'voted': staff['voted'], 'matched': staff['matched_to_voters'],
                           'total': staff['total_staff'], 'pct': staff['turnout_pct']},
-        'overall_grade': districts['summary']['overall_grade']
+        'overall_grade': districts['summary']['overall_grade'],
+        'stories': stories
     }
 
     Path(CACHE_PATH).parent.mkdir(parents=True, exist_ok=True)
