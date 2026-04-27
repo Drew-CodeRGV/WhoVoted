@@ -372,13 +372,8 @@ function showBannerAfterDelay() {
         const banner = document.getElementById('sliding-banner');
         if (banner) {
             banner.classList.remove('hidden');
-            
             // Auto-hide after 5 seconds
             bannerTimeout = setTimeout(hideBanner, 5000);
-            
-            // Hide on any tap/click anywhere
-            document.addEventListener('click', hideBannerOnTap, { once: true });
-            document.addEventListener('touchstart', hideBannerOnTap, { once: true });
         }
     }, 7000);
 }
@@ -1287,7 +1282,8 @@ function renderReportCard(data, itemKey, tab) {
 }
 
 // Click tab to show banner again
-document.getElementById('banner-tab').addEventListener('click', function() {
+document.getElementById('banner-tab').addEventListener('click', function(e) {
+    e.stopPropagation();
     const banner = document.getElementById('sliding-banner');
     const tab = document.getElementById('banner-tab');
     
@@ -1295,10 +1291,9 @@ document.getElementById('banner-tab').addEventListener('click', function() {
         banner.classList.remove('hidden');
         tab.classList.remove('visible');
         
-        // Auto-hide after 5 seconds or on tap
+        // Auto-hide after 5 seconds
+        if (bannerTimeout) clearTimeout(bannerTimeout);
         bannerTimeout = setTimeout(hideBanner, 5000);
-        document.addEventListener('click', hideBannerOnTap, { once: true });
-        document.addEventListener('touchstart', hideBannerOnTap, { once: true });
     }
 });
 
