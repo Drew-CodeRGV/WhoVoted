@@ -72,7 +72,7 @@ def main():
     try:
         import requests, openpyxl, re
         from io import BytesIO
-        ROSTER_URL = 'https://www.hidalgocounty.us/DocumentCenter/View/72488/EV-Roster-May-2-2026-Cumulative'
+        ROSTER_URL = 'https://www.hidalgocounty.us/DocumentCenter/View/72534/EV-Roster-May-2-2026-Cumulative'
         resp = requests.get(ROSTER_URL, timeout=30)
         wb = openpyxl.load_workbook(BytesIO(resp.content))
         sheet = wb.active

@@ -1358,3 +1358,122 @@ document.getElementById('disclaimer-modal').addEventListener('click', function(e
         this.classList.remove('visible');
     }
 });
+
+// === GAZETTE ===
+document.getElementById('gazette-btn').addEventListener('click', async function() {
+    document.getElementById('gazette-panel').classList.add('visible');
+    try {
+        const resp = await fetch('/cache/misdbond2026_gazette.json?t=' + Date.now());
+        const g = await resp.json();
+        renderGazette(g);
+    } catch(err) {
+        document.getElementById('gazette-content').innerHTML = '<p style="padding:20px;text-align:center;">Could not load gazette data.</p>';
+    }
+});
+document.getElementById('gazette-close').addEventListener('click', function() {
+    document.getElementById('gazette-panel').classList.remove('visible');
+});
+document.getElementById('gazette-panel').addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('visible');
+});
+
+function renderGazette(g) {
+    const gc = document.getElementById('gazette-content');
+    let h = '';
+    
+    // Masthead
+    h += '<div class="gazette-masthead">';
+    h += '<h1>The Politiquera Gazette</h1>';
+    h += '<div class="gazette-date">McAllen ISD Bond 2026 Edition &mdash; ' + g.date + '</div>';
+    h += '</div>';
+    
+    // Headline
+    h += '<div class="gazette-headline">';
+    h += '<h2>' + g.headline + '</h2>';
+    const arrow = g.change > 0 ? '📈' : g.change < 0 ? '📉' : '➡️';
+    h += '<div class="sub">' + arrow + ' ' + g.subhead + '</div>';
+    h += '</div>';
+    
+    // Daily chart
+    if (g.daily && g.daily.length > 0) {
+        h += '<div class="gazette-chart">';
+        h += '<h3>📅 Daily Voting Pace</h3>';
+        const maxNew = Math.max(...g.daily.map(d => d.new));
+        g.daily.forEach(function(d) {
+            const pct = Math.round(d.new / maxNew * 100);
+            const dateStr = new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+            h += '<div class="gazette-bar">';
+            h += '<span style="width:80px;color:#666;">' + dateStr + '</span>';
+            h += '<div style="flex:1;height:14px;background:#eee;border-radius:2px;overflow:hidden;">';
+            h += '<div class="gazette-bar-fill" style="width:' + pct + '%;background:#2980b9;"></div></div>';
+            h += '<span style="width:35px;text-align:right;font-weight:600;">+' + d.new.toLocaleString() + '</span>';
+            h += '<span style="width:40px;text-align:right;color:#999;">' + d.total.toLocaleString() + '</span>';
+            h += '</div>';
+        });
+        h += '</div>';
+    }
+    
+    // Bullet points
+    h += '<div class="gazette-bullets"><ul style="margin:0;padding-left:20px;">';
+    g.bullets.forEach(function(b) { h += '<li>' + b + '</li>'; });
+    h += '</ul></div>';
+    
+    // Three columns
+    h += '<div class="gazette-columns">';
+    
+    // Districts column
+    h += '<div class="gazette-col">';
+    h += '<h3>🏛️ City Districts</h3>';
+    g.districts.forEach(function(d) {
+        const color = {A:'#27ae60',B:'#2ecc71',C:'#f39c12',D:'#e67e22',F:'#e74c3c'}[d.grade] || '#999';
+        h += '<div class="gazette-col-item">';
+        h += '<span>' + d.name + '</span>';
+        h += '<span style="font-weight:700;color:' + color + ';">' + d.pct + '% ' + d.grade + '</span>';
+        h += '</div>';
+    });
+    h += '</div>';
+    
+    // Schools column
+    h += '<div class="gazette-col">';
+    h += '<h3>🏫 Top Campuses</h3>';
+    g.schools_top.forEach(function(s) {
+        const color = {A:'#27ae60',B:'#2ecc71',C:'#f39c12',D:'#e67e22',F:'#e74c3c'}[s.grade] || '#999';
+        h += '<div class="gazette-col-item">';
+        h += '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px;">' + s.name + '</span>';
+        h += '<span style="font-weight:700;color:' + color + ';">' + s.pct + '% ' + s.grade + '</span>';
+        h += '</div>';
+    });
+    h += '<h3 style="margin-top:8px;">💀 Bottom Campuses</h3>';
+    g.schools_bottom.forEach(function(s) {
+        const color = {A:'#27ae60',B:'#2ecc71',C:'#f39c12',D:'#e67e22',F:'#e74c3c'}[s.grade] || '#999';
+        h += '<div class="gazette-col-item">';
+        h += '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px;">' + s.name + '</span>';
+        h += '<span style="font-weight:700;color:' + color + ';">' + s.pct + '% ' + s.grade + '</span>';
+        h += '</div>';
+    });
+    h += '</div>';
+    
+    // Staff column
+    h += '<div class="gazette-col">';
+    h += '<h3>👩‍🏫 Staff Turnout</h3>';
+    h += '<div style="font-size:11px;color:#666;margin-bottom:4px;">' + g.staff_summary.voted + '/' + g.staff_summary.matched + ' staff voted (' + g.staff_summary.pct + '%)</div>';
+    g.staff.forEach(function(s) {
+        h += '<div class="gazette-col-item">';
+        h += '<span>' + s.icon + ' ' + s.role + '</span>';
+        h += '<span style="font-weight:600;">' + s.pct + '%</span>';
+        h += '</div>';
+    });
+    h += '</div>';
+    
+    h += '</div>'; // end columns
+    
+    // Footer
+    h += '<div class="gazette-footer">';
+    h += '<a href="https://politiquera.com" target="_blank" style="text-decoration:none;color:#999;">';
+    h += 'Published by <img src="../assets/politiquera.png" alt="Politiquera" style="height:18px;vertical-align:middle;margin:0 4px;"> politiquera.com';
+    h += '</a><br>';
+    h += '<span style="font-size:10px;">Data: Hidalgo County Elections, U.S. Census Bureau, TEA, McAllen ISD</span>';
+    h += '</div>';
+    
+    gc.innerHTML = h;
+}

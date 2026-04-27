@@ -17,7 +17,7 @@ ELECTION_DATE = '2026-05-10'
 ELECTION_NAME = 'McAllen ISD Bond 2026'
 
 # Roster URL
-ROSTER_URL = 'https://www.hidalgocounty.us/DocumentCenter/View/72488/EV-Roster-May-2-2026-Cumulative'
+ROSTER_URL = 'https://www.hidalgocounty.us/DocumentCenter/View/72534/EV-Roster-May-2-2026-Cumulative'
 
 def download_roster(url):
     """Download roster file from URL."""

@@ -645,6 +645,67 @@
             }
         }
         
+        /* Gazette panel */
+        .gazette-panel {
+            display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+            background:rgba(0,0,0,0.7);z-index:3000;align-items:center;justify-content:center;
+            overflow-y:auto;padding:20px;box-sizing:border-box;
+        }
+        .gazette-panel.visible { display:flex; }
+        .gazette-inner {
+            background:#fdf6e3;max-width:700px;width:100%;border-radius:4px;
+            box-shadow:0 8px 40px rgba(0,0,0,0.4);font-family:'Georgia','Times New Roman',serif;
+            color:#2c2c2c;max-height:90vh;overflow-y:auto;
+            border:3px double #8b7355;
+        }
+        .gazette-masthead {
+            text-align:center;padding:16px 20px 8px;border-bottom:3px double #8b7355;
+        }
+        .gazette-masthead h1 {
+            font-family:'Old Standard TT','Georgia',serif;font-size:32px;margin:0;
+            letter-spacing:3px;text-transform:uppercase;color:#1a1a1a;
+        }
+        .gazette-masthead .gazette-date {
+            font-size:12px;color:#666;font-style:italic;margin-top:2px;
+        }
+        .gazette-headline {
+            text-align:center;padding:12px 20px;border-bottom:1px solid #d4c9a8;
+        }
+        .gazette-headline h2 { font-size:22px;margin:0 0 4px;color:#1a1a1a;line-height:1.2; }
+        .gazette-headline .sub { font-size:14px;color:#666;font-style:italic; }
+        .gazette-bullets {
+            padding:12px 20px;border-bottom:1px solid #d4c9a8;
+        }
+        .gazette-bullets li {
+            font-size:13px;line-height:1.5;margin-bottom:6px;color:#333;
+        }
+        .gazette-columns {
+            display:flex;gap:0;border-bottom:1px solid #d4c9a8;
+        }
+        .gazette-col {
+            flex:1;padding:10px 14px;font-size:12px;
+        }
+        .gazette-col:not(:last-child) { border-right:1px solid #d4c9a8; }
+        .gazette-col h3 { font-size:13px;margin:0 0 6px;text-transform:uppercase;letter-spacing:1px;color:#555; }
+        .gazette-col-item { padding:3px 0;display:flex;justify-content:space-between;border-bottom:1px dotted #ddd; }
+        .gazette-chart { padding:10px 20px;border-bottom:1px solid #d4c9a8; }
+        .gazette-chart h3 { font-size:13px;margin:0 0 6px;text-transform:uppercase;letter-spacing:1px;color:#555; }
+        .gazette-bar { display:flex;align-items:center;gap:6px;padding:2px 0;font-size:11px; }
+        .gazette-bar-fill { height:14px;border-radius:2px;min-width:2px; }
+        .gazette-footer {
+            text-align:center;padding:10px 20px;font-size:11px;color:#999;
+        }
+        .gazette-close {
+            position:absolute;top:10px;right:16px;font-size:24px;cursor:pointer;
+            color:#666;background:none;border:none;z-index:3001;
+        }
+        @media (max-width:600px) {
+            .gazette-columns { flex-direction:column; }
+            .gazette-col:not(:last-child) { border-right:none;border-bottom:1px solid #d4c9a8; }
+            .gazette-masthead h1 { font-size:22px; }
+            .gazette-headline h2 { font-size:17px; }
+        }
+        
         /* Hide cluster circles completely */
         .invisible-cluster {
             background: transparent !important;
@@ -750,6 +811,9 @@
             <button class="reportcard-btn" id="reportcard-btn" title="Precinct Report Card">
                 <span class="desktop-only">📊</span>
                 <span class="mobile-only">📋</span>
+            </button>
+            <button class="reportcard-btn" id="gazette-btn" title="Politiquera Gazette" style="background:#2c3e50;">
+                <span>📰</span>
             </button>
         </div>
         
@@ -862,7 +926,7 @@
 
     <!-- Sliding Banner -->
     <a href="https://haddadfortexas.com/" target="_blank" class="sliding-banner" id="sliding-banner">
-        <img src="https://scontent-dfw5-1.xx.fbcdn.net/v/t39.30808-6/658156339_1393515425915585_5417881175307657395_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=13d280&_nc_ohc=YrNEK--H4mIQ7kNvwEh_0WW&_nc_oc=AdpXic3nr708D05t4eRdEug-bJv3LmeI-F1oJMFpj5wdCL13gAvO4BX0U-ga1gp0E1M&_nc_zt=23&_nc_ht=scontent-dfw5-1.xx&_nc_gid=HFjDbPTyai_s8Eyqr39hrw&_nc_ss=7a3a8&oh=00_Af3sq_m004PHpLgE7Y4OWYlTXoljUgL6BESffFnrmDg_rA&oe=69EEA755" alt="Haddad for Texas">
+        <img src="../assets/x-card.jpg" alt="Haddad for Texas">
     </a>
 
     <!-- Blue Tab -->
@@ -876,6 +940,14 @@
             <p>No political advertisement fee was paid to promote this site. The advertisement for State Representative District 41 candidate Seby Haddad is a donation because I truly believe he has the best interests of the citizens of our great area at heart.</p>
             <p>This site is not affiliated with, endorsed by, or supported by any political candidate, PAC, or party.</p>
             <button class="disclaimer-close" id="disclaimer-close">Close</button>
+        </div>
+    </div>
+
+    <!-- Gazette Panel -->
+    <div class="gazette-panel" id="gazette-panel">
+        <div class="gazette-inner" id="gazette-inner" style="position:relative;">
+            <button class="gazette-close" id="gazette-close">&times;</button>
+            <div id="gazette-content">Loading...</div>
         </div>
     </div>
 

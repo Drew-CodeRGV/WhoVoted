@@ -13,6 +13,7 @@ SCRIPTS = [
     (B + '/cache_misdbond2026_all_campus_reportcards.py', 'School cards'),
     (B + '/cache_misdbond2026_demographics.py', 'Demographics'),
     (B + '/cache_misdbond2026_staff.py', 'Staff matching'),
+    (B + '/cache_misdbond2026_gazette.py', 'Gazette'),
 ]
 
 def main():
