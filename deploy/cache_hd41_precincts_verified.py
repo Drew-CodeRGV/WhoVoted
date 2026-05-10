@@ -21,6 +21,7 @@ from pathlib import Path
 DB_PATH = '/opt/whovoted/data/whovoted.db'
 DISTRICTS_PATH = '/opt/whovoted/public/data/districts.json'
 BOUNDARY_FILES = [
+    '/opt/whovoted/public/data/hidalgo_vtd_boundaries.json',
     '/opt/whovoted/public/data/precinct_boundaries.json',
     '/opt/whovoted/public/data/precinct_boundaries_cameron.json',
     '/opt/whovoted/public/data/precinct_boundaries_combined.json',
@@ -138,9 +139,10 @@ def main():
 
         # Find precinct field
         props = features[0].get('properties', {})
-        pct_field = next((f for f in ['precinct', 'PRECINCT', 'Precinct', 'PCT', 'NAME', 'name', 'VTDST', 'precinct_id'] if f in props), None)
+        pct_field = next((f for f in ['db_precinct', 'vtd_id', 'vtd_name', 'VTD', 'precinct', 'PRECINCT', 'Precinct', 'PCT', 'NAME', 'name', 'VTDST', 'precinct_id'] if f in props), None)
         if not pct_field:
             continue
+        print(f"    Using field: {pct_field}")
 
         tested = 0
         kept = 0
