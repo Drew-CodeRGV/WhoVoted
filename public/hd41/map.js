@@ -116,57 +116,89 @@ function handleCandidateChange(e) {
 function renderCandidateAnalysis(candidateName) {
     markerClusterGroup.clearLayers();
     if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
+    // Remove any existing precinct layer
+    if (window._precinctLayer) { map.removeLayer(window._precinctLayer); window._precinctLayer = null; }
 
     const cand = candidateData.candidates[candidateName];
     if (!cand) return;
 
     const color = cand.party === 'Democratic' ? '#1565c0' : '#c62828';
-    const precincts = cand.precincts;
 
-    for (const p of precincts) {
-        if (!p.lat || !p.lng) continue;
-        // Size by votes, color intensity by share
-        const size = Math.max(8, Math.min(30, Math.sqrt(p.votes) * 3));
-        const opacity = Math.max(0.3, p.share / 100);
-
-        // Green = strong (>40%), Yellow = mid, Red = weak (<25%)
-        let fillColor;
-        if (p.share >= 45) fillColor = '#27ae60';
-        else if (p.share >= 35) fillColor = '#f39c12';
-        else fillColor = '#e74c3c';
-
-        const marker = L.circleMarker([p.lat, p.lng], {
-            radius: size, fillColor, color: fillColor, weight: 2, opacity: 0.9, fillOpacity: opacity
-        });
-
-        // Build popup with competitive analysis
-        let popupHtml = `<div style="font-family:sans-serif;min-width:240px">`;
-        popupHtml += `<div style="font-weight:700;font-size:14px;color:${color}">Precinct ${p.precinct}</div>`;
-        popupHtml += `<div style="font-size:12px;margin:4px 0;padding:6px;background:${fillColor}15;border-radius:4px;">`;
-        popupHtml += `<b>${candidateName}:</b> ${p.votes} votes (${p.share}% of ${cand.party} ballots)`;
-        popupHtml += `</div>`;
-
-        if (p.beaten_by && p.beaten_by.length > 0) {
-            popupHtml += `<div style="font-size:11px;color:#c62828;margin-top:4px;font-weight:600;">⚠️ Lost this precinct to:</div>`;
-            for (const b of p.beaten_by) {
-                popupHtml += `<div style="font-size:11px;padding:2px 0;">• ${b.candidate}: ${b.votes} votes (${b.share}%)</div>`;
-            }
-        } else {
-            popupHtml += `<div style="font-size:11px;color:#27ae60;margin-top:4px;font-weight:600;">✓ Won this precinct</div>`;
-        }
-
-        popupHtml += `<div style="font-size:10px;color:#888;margin-top:6px;border-top:1px solid #eee;padding-top:4px;">`;
-        popupHtml += `Total ${cand.party} ballots in pct: ${p.pct_total} · Registered: ${p.registered}`;
-        popupHtml += `</div></div>`;
-
-        marker.bindPopup(popupHtml, { maxWidth: 300 });
-        markerClusterGroup.addLayer(marker);
+    // Build lookup: precinct -> candidate data
+    const pctLookup = {};
+    for (const p of cand.precincts) {
+        pctLookup[p.precinct] = p;
     }
 
-    // Update the info strip with candidate summary
+    // Load precinct shapes and color them
+    fetch('/cache/hd41_precinct_shapes.json').then(r => r.json()).then(shapes => {
+        window._precinctLayer = L.geoJSON(shapes, {
+            style: function(feature) {
+                const dbPct = feature.properties.db_precinct;
+                const p = pctLookup[dbPct];
+                if (!p) return { fillColor: '#ccc', fillOpacity: 0.2, color: '#999', weight: 1 };
+
+                // Color by candidate share: green=strong, yellow=mid, red=weak
+                let fillColor;
+                if (p.share >= 45) fillColor = '#27ae60';
+                else if (p.share >= 35) fillColor = '#f39c12';
+                else fillColor = '#e74c3c';
+
+                return { fillColor, fillOpacity: 0.55, color: '#333', weight: 1.5 };
+            },
+            onEachFeature: function(feature, layer) {
+                const dbPct = feature.properties.db_precinct;
+                const p = pctLookup[dbPct];
+                if (!p) {
+                    layer.bindPopup(`<b>Precinct ${dbPct}</b><br>No data for this candidate`);
+                    return;
+                }
+
+                let html = `<div style="font-family:sans-serif;min-width:240px">`;
+                html += `<div style="font-weight:700;font-size:14px;color:${color}">Precinct ${p.precinct}</div>`;
+                html += `<div style="font-size:12px;margin:4px 0;padding:6px;background:${p.share>=45?'#27ae6015':p.share>=35?'#f39c1215':'#e74c3c15'};border-radius:4px;">`;
+                html += `<b>${candidateName}:</b> ${p.votes} votes (${p.share}%)`;
+                html += `</div>`;
+
+                if (p.beaten_by && p.beaten_by.length > 0) {
+                    html += `<div style="font-size:11px;color:#c62828;margin-top:4px;font-weight:600;">⚠️ Lost to:</div>`;
+                    for (const b of p.beaten_by) {
+                        html += `<div style="font-size:11px;padding:2px 0;">• ${b.candidate}: ${b.votes} votes (${b.share}%)</div>`;
+                    }
+                } else {
+                    html += `<div style="font-size:11px;color:#27ae60;margin-top:4px;font-weight:600;">✓ Won this precinct</div>`;
+                }
+                html += `<div style="font-size:10px;color:#888;margin-top:6px;border-top:1px solid #eee;padding-top:4px;">Total ${cand.party} ballots: ${p.pct_total} · Registered: ${p.registered}</div></div>`;
+                layer.bindPopup(html, { maxWidth: 300 });
+            }
+        }).addTo(map);
+
+        // For precincts WITHOUT shapes, fall back to circles
+        for (const p of cand.precincts) {
+            if (!p.lat || !p.lng) continue;
+            // Check if this precinct has a shape
+            const hasShape = shapes.features.some(f => f.properties.db_precinct === p.precinct);
+            if (hasShape) continue;
+
+            const size = Math.max(6, Math.min(20, Math.sqrt(p.votes) * 2));
+            let fillColor;
+            if (p.share >= 45) fillColor = '#27ae60';
+            else if (p.share >= 35) fillColor = '#f39c12';
+            else fillColor = '#e74c3c';
+
+            const marker = L.circleMarker([p.lat, p.lng], { radius: size, fillColor, color: fillColor, weight: 2, opacity: 0.9, fillOpacity: 0.5 });
+            let html = `<div style="font-family:sans-serif"><div style="font-weight:700;color:${color}">Pct ${p.precinct}</div><div style="font-size:12px">${candidateName}: ${p.votes} (${p.share}%)</div>`;
+            if (p.beaten_by && p.beaten_by.length) { html += `<div style="font-size:11px;color:#c62828">Lost to: ${p.beaten_by.map(b=>b.candidate+' '+b.share+'%').join(', ')}</div>`; }
+            html += '</div>';
+            marker.bindPopup(html);
+            markerClusterGroup.addLayer(marker);
+        }
+    });
+
+    // Update info strip
     const infoStrip = document.querySelector('.info-strip');
     if (infoStrip) {
-        infoStrip.innerHTML = `<b>${candidateName}</b> (${cand.party}) · ${cand.total_votes} votes · ${cand.district_share}% share · Strong: ${cand.strong_precincts} pcts · Weak: ${cand.weak_precincts} pcts · <span style="color:#27ae60">Green=strong</span> <span style="color:#f39c12">Yellow=mid</span> <span style="color:#e74c3c">Red=weak</span>`;
+        infoStrip.innerHTML = `<b>${candidateName}</b> (${cand.party}) · ${cand.total_votes} votes · ${cand.district_share}% share · <span style="color:#27ae60">■ Strong (>45%)</span> <span style="color:#f39c12">■ Mid (35-45%)</span> <span style="color:#e74c3c">■ Weak (<35%)</span>`;
     }
 }
 
@@ -225,14 +257,42 @@ function renderVoters(voters) {
 function renderMarchVoters(data) {
     markerClusterGroup.clearLayers();
     if (heatLayer) { map.removeLayer(heatLayer); heatLayer=null; }
-    for (const pct of data.precincts) {
-        if (!pct.lat||!pct.lng) continue;
-        const color = pct.dem_share>=60?'#1565c0':pct.dem_share<=40?'#c62828':'#9c27b0';
-        const size = Math.max(8,Math.min(25,Math.sqrt(pct.total)*2));
-        const marker = L.circleMarker([pct.lat,pct.lng],{radius:size,fillColor:color,color,weight:2,opacity:0.9,fillOpacity:0.4});
-        marker.bindPopup(`<div style="font-family:sans-serif"><div style="font-weight:700">Precinct ${pct.precinct}</div><div style="font-size:12px;margin-top:4px">${pct.total} voted · 🔵${pct.dem} (${pct.dem_share}%) · 🔴${pct.rep} (${pct.rep_share}%)<br>Dem retention: ${pct.dem_retention_pct}% · Rep: ${pct.rep_retention_pct}%<br><b style="color:#c62828">Targets:</b> 🔵${pct.dem_not_returned} 🔴${pct.rep_not_returned}</div></div>`,{maxWidth:300});
-        markerClusterGroup.addLayer(marker);
-    }
+    if (window._precinctLayer) { map.removeLayer(window._precinctLayer); window._precinctLayer=null; }
+
+    // Build precinct lookup from march data
+    const pctLookup = {};
+    for (const pct of data.precincts) { pctLookup[pct.precinct] = pct; }
+
+    // Load precinct shapes and color by party lean
+    fetch('/cache/hd41_precinct_shapes.json').then(r=>r.json()).then(shapes => {
+        window._precinctLayer = L.geoJSON(shapes, {
+            style: function(feature) {
+                const dbPct = feature.properties.db_precinct;
+                const p = pctLookup[dbPct];
+                if (!p) return { fillColor:'#ccc', fillOpacity:0.2, color:'#999', weight:1 };
+                const fillColor = p.dem_share>=60?'#1565c0':p.dem_share<=40?'#c62828':'#9c27b0';
+                return { fillColor, fillOpacity:0.45, color:'#333', weight:1.5 };
+            },
+            onEachFeature: function(feature, layer) {
+                const dbPct = feature.properties.db_precinct;
+                const p = pctLookup[dbPct];
+                if (!p) return;
+                layer.bindPopup(`<div style="font-family:sans-serif"><div style="font-weight:700">Precinct ${p.precinct}</div><div style="font-size:12px;margin-top:4px">${p.total} voted · 🔵${p.dem} (${p.dem_share}%) · 🔴${p.rep} (${p.rep_share}%)<br>Dem retention: ${p.dem_retention_pct}% · Rep: ${p.rep_retention_pct}%<br><b style="color:#c62828">Targets:</b> 🔵${p.dem_not_returned} 🔴${p.rep_not_returned}</div></div>`,{maxWidth:300});
+            }
+        }).addTo(map);
+
+        // Fallback circles for precincts without shapes
+        for (const pct of data.precincts) {
+            if (!pct.lat||!pct.lng) continue;
+            const hasShape = shapes.features.some(f=>f.properties.db_precinct===pct.precinct);
+            if (hasShape) continue;
+            const color = pct.dem_share>=60?'#1565c0':pct.dem_share<=40?'#c62828':'#9c27b0';
+            const size = Math.max(6,Math.min(20,Math.sqrt(pct.total)*1.5));
+            const marker = L.circleMarker([pct.lat,pct.lng],{radius:size,fillColor:color,color,weight:1.5,opacity:0.8,fillOpacity:0.4});
+            marker.bindPopup(`<div style="font-family:sans-serif"><div style="font-weight:700">Pct ${pct.precinct}</div><div style="font-size:12px">${pct.total} voted · 🔵${pct.dem} 🔴${pct.rep}</div></div>`);
+            markerClusterGroup.addLayer(marker);
+        }
+    });
 }
 
 // ── Heatmap modes ──
@@ -242,6 +302,7 @@ async function handleHeatmapChange(e) {
     selectedCandidate = null;
     markerClusterGroup.clearLayers();
     if (heatLayer) { map.removeLayer(heatLayer); heatLayer=null; }
+    if (window._precinctLayer) { map.removeLayer(window._precinctLayer); window._precinctLayer=null; }
     document.querySelector('.info-strip').innerHTML = 'HD-41 Runoff • May 26, 2026 • Dem: Salinas vs Haddad • Rep: Sanchez vs Groves';
 
     if (currentHeatMode==='voters') { if(allVotersData.count>0) renderVoters(allVotersData.voters); else renderMarchVoters(marchData); }
