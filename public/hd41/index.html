@@ -16,10 +16,11 @@
     </script>
 
     <meta property="og:title" content="HD-41 Runoff Election Tracker — Politiquera">
-    <meta property="og:description" content="Track early voting turnout for the Texas House District 41 runoff election. Dem: Salinas vs Haddad. Rep: Sanchez vs Groves.">
+    <meta property="og:description" content="Track early voting for the Texas House District 41 runoff. Dem: Salinas vs Haddad. Rep: Sanchez vs Groves.">
     <meta property="og:image" content="https://politiquera.com/assets/seby_banner.jpg">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     <link rel="stylesheet" href="../styles.css">
@@ -35,122 +36,249 @@
             position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
             background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
             display: flex; align-items: center; padding: 8px 15px; gap: 15px;
+            touch-action: manipulation;
         }
-        .header-logo { font-size: 18px; font-weight: 700; color: #1a237e; white-space: nowrap; }
-        .header-logo small { font-size: 11px; color: #666; font-weight: 400; display: block; }
-
-        .stats-section { display: flex; flex-direction: column; gap: 2px; }
+        .header-logo { flex-shrink: 0; }
+        .header-logo img { height: 50px; width: auto; display: block; }
+        .stats-section { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; flex-shrink: 0; }
         .stat-main { display: flex; align-items: center; gap: 8px; }
-        .stat-value { font-size: 24px; font-weight: 700; color: #0066cc; }
-        .stat-label { font-size: 14px; color: #666; }
+        .stat-value { font-size: 24px; font-weight: 700; color: #0066cc; text-decoration: underline dotted; }
+        .stat-label { font-size: 14px; font-weight: 500; color: #666; }
         .stat-meta { font-size: 10px; color: #888; }
+        .stat-meta a { color: #0066cc; text-decoration: none; }
 
         .controls-section { display: flex; align-items: center; gap: 10px; margin-left: auto; }
-        .search-wrapper { position: relative; }
-        .search-input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; width: 200px; }
-        .search-input:focus { border-color: #0066cc; outline: none; }
-        .search-results { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-radius: 4px; max-height: 300px; overflow-y: auto; display: none; z-index: 2000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .search-wrapper { position: relative; flex: 1; max-width: 300px; }
+        .search-input { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; outline: none; }
+        .search-input:focus { border-color: #0066cc; }
+        .search-results { display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-top: none; border-radius: 0 0 4px 4px; max-height: 200px; overflow-y: auto; z-index: 2000; box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
         .search-results.visible { display: block; }
-        .search-result-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0; }
-        .search-result-item:hover { background: #f5f5f5; }
-        .search-result-name { font-weight: 600; font-size: 13px; }
-        .search-result-address { font-size: 11px; color: #666; }
+        .search-result-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+        .search-result-item:hover { background: #f0f5ff; }
+        .search-result-name { font-weight: 600; color: #333; }
+        .search-result-address { font-size: 11px; color: #888; margin-top: 1px; }
 
-        .btn { padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; background: white; cursor: pointer; font-size: 13px; }
-        .btn:hover { background: #f5f5f5; }
-        .btn-active { background: #0066cc; color: white; border-color: #0066cc; }
+        .location-btn { background: #0066cc; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 5px; }
+        .location-btn:hover { background: #0052a3; }
+        .heatmap-toggle { padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; background: white; cursor: pointer; }
+        .reportcard-btn { background: #6c5ce7; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 16px; line-height: 1; }
+        .reportcard-btn:hover { background: #5a4bd1; }
 
-        .toolbar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; gap: 8px; background: white; padding: 8px 12px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.2); }
+        .desktop-only { display: inline-flex !important; }
+        .mobile-only { display: none !important; }
+        .btn-label { }
 
-        /* Gazette panel */
-        .gazette-panel { position: fixed; top: 0; right: -420px; width: 400px; height: 100vh; background: white; z-index: 2000; box-shadow: -4px 0 16px rgba(0,0,0,0.2); transition: right 0.3s; overflow-y: auto; padding: 20px; }
-        .gazette-panel.visible { right: 0; }
-        .gazette-close { position: absolute; top: 10px; right: 10px; font-size: 24px; cursor: pointer; background: none; border: none; }
-        .gazette-headline { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
-        .gazette-subhead { font-size: 14px; color: #666; margin-bottom: 16px; }
-        .gazette-bullet { padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; line-height: 1.5; }
-        .gazette-story { margin-top: 20px; padding: 16px; background: #f9f9f9; border-radius: 8px; }
-        .gazette-story-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
-        .gazette-story-text { font-size: 13px; line-height: 1.6; color: #333; }
+        /* Report Card Panel — same as bond */
+        .reportcard-panel {
+            display:none;position:fixed;top:0;right:0;width:420px;max-width:95vw;height:100vh;
+            background:#fffef5;background-image:linear-gradient(#e8d8c4 1px, transparent 1px);background-size:100% 32px;
+            z-index:2000;box-shadow:-4px 0 20px rgba(0,0,0,0.25);flex-direction:column;overflow:hidden;
+            font-family:'Patrick Hand','Comic Sans MS','Segoe Print',cursive;
+        }
+        .reportcard-panel.visible { display:flex; }
+        .reportcard-header { display:flex;align-items:stretch;padding:0;background:#d4b87a;font-family:'Patrick Hand',cursive;border-bottom:1px solid #c4a96a;min-height:44px; }
+        .reportcard-header .rc-file-tab { background:#fffef5;padding:10px 24px 8px 18px;border-radius:8px 8px 0 0;margin-left:12px;box-shadow:1px -2px 4px rgba(0,0,0,0.08);border:1px solid #c4a96a;border-bottom:none;position:relative;z-index:1;margin-bottom:-1px; }
+        .reportcard-close { background:none;border:none;color:#333;font-size:22px;cursor:pointer;padding:0 5px; }
+        .reportcard-summary { padding:12px 18px;background:#fff9e6;border-bottom:2px dashed #d4a853; }
+        .reportcard-list { flex:1;overflow-y:auto;padding:4px 0; }
+        .rc-row { display:flex;align-items:center;padding:10px 18px;border-bottom:1px dashed #d4c9a8;gap:12px; }
+        .rc-row:hover { background:rgba(255,240,200,0.5); }
+        .rc-grade { width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;color:white;flex-shrink:0;font-family:'Patrick Hand',cursive;border:3px solid rgba(0,0,0,0.15);transform:rotate(-3deg);box-shadow:2px 2px 4px rgba(0,0,0,0.15); }
+        .rc-grade-A { background:#27ae60; }
+        .rc-grade-B { background:#2ecc71; }
+        .rc-grade-C { background:#f39c12; }
+        .rc-grade-D { background:#e67e22; }
+        .rc-grade-F { background:#e74c3c; }
+        .rc-info { flex:1;min-width:0; }
+        .rc-pct { font-weight:700;font-size:14px;color:#333;font-family:'Patrick Hand',cursive; }
+        .rc-detail { font-size:11px;color:#777;font-family:'Patrick Hand',cursive; }
+        .rc-turnout { font-weight:800;font-size:16px;color:#333;white-space:nowrap;font-family:'Patrick Hand',cursive; }
+        .rc-bar { width:50px;height:6px;background:#e8d8c4;border-radius:3px;overflow:hidden;flex-shrink:0; }
+        .rc-bar-fill { height:100%;border-radius:3px; }
+        .reportcard-footer { padding:8px 18px;text-align:center;border-top:2px dashed #d4a853;background:#fff9e6;flex-shrink:0; }
+        .reportcard-footer a { text-decoration:none;color:inherit; }
+        .reportcard-footer img { height:28px;vertical-align:middle;margin-left:6px; }
+        .rc-tab { flex:1;padding:8px;border:none;background:transparent;font-family:'Patrick Hand',cursive;font-size:14px;cursor:pointer;color:#999;border-bottom:3px solid transparent; }
+        .rc-tab.active { color:#c0392b;border-bottom-color:#c0392b;font-weight:700; }
 
-        /* Report card panel */
-        .reportcard-panel { position: fixed; top: 0; left: -420px; width: 400px; height: 100vh; background: white; z-index: 2000; box-shadow: 4px 0 16px rgba(0,0,0,0.2); transition: left 0.3s; overflow-y: auto; padding: 20px; }
-        .reportcard-panel.visible { left: 0; }
-        .reportcard-close { position: absolute; top: 10px; right: 10px; font-size: 24px; cursor: pointer; background: none; border: none; }
+        /* Gazette Panel — newspaper style */
+        .gazette-panel { display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:3000;align-items:center;justify-content:center;overflow-y:auto;padding:20px;box-sizing:border-box; }
+        .gazette-panel.visible { display:flex; }
+        .gazette-inner { background:#fdf6e3;max-width:700px;width:100%;border-radius:4px;box-shadow:0 8px 40px rgba(0,0,0,0.4);font-family:'Georgia','Times New Roman',serif;color:#2c2c2c;max-height:90vh;overflow-y:auto;border:3px double #8b7355; }
+        .gazette-masthead { text-align:center;padding:16px 20px 8px;border-bottom:3px double #8b7355; }
+        .gazette-masthead h1 { font-family:'Old Standard TT','Georgia',serif;font-size:32px;margin:0;letter-spacing:3px;text-transform:uppercase;color:#1a1a1a; }
+        .gazette-masthead .gazette-date { font-size:12px;color:#666;font-style:italic;margin-top:2px; }
+        .gazette-headline { text-align:center;padding:12px 20px;border-bottom:1px solid #d4c9a8; }
+        .gazette-headline h2 { font-size:22px;margin:0 0 4px;color:#1a1a1a;line-height:1.2; }
+        .gazette-headline .sub { font-size:14px;color:#666;font-style:italic; }
+        .gazette-bullets { padding:12px 20px;border-bottom:1px solid #d4c9a8; }
+        .gazette-bullets li { font-size:13px;line-height:1.5;margin-bottom:6px;color:#333; }
+        .gazette-story { padding:14px 20px;border-bottom:1px solid #d4c9a8; }
+        .gazette-story h3 { font-size:15px;margin:0 0 6px;color:#1a1a1a; }
+        .gazette-story p { font-size:13px;line-height:1.6;margin:0;color:#333; }
+        .gazette-footer { text-align:center;padding:10px 20px;font-size:11px;color:#999; }
+        .gazette-close { position:absolute;top:10px;right:16px;font-size:24px;cursor:pointer;color:#666;background:none;border:none;z-index:3001; }
+        @media (max-width:600px) { .gazette-masthead h1 { font-size:22px; } .gazette-headline h2 { font-size:17px; } }
 
-        /* Voters breakdown modal */
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 3000; align-items: center; justify-content: center; }
-        .modal-overlay.visible { display: flex; }
-        .modal-content { background: white; border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; }
-        .modal-close { float: right; font-size: 20px; cursor: pointer; background: none; border: none; }
+        /* Disclaimer */
+        .disclaimer-notice { position:fixed;top:66px;left:0;right:0;background:#f8f9fa;border-bottom:1px solid #dee2e6;padding:6px 15px;text-align:center;font-size:11px;color:#666;z-index:999;cursor:pointer; }
+        .disclaimer-modal { display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;align-items:center;justify-content:center; }
+        .disclaimer-modal.visible { display:flex; }
+        .disclaimer-content { background:white;padding:30px;border-radius:8px;max-width:500px;margin:20px;box-shadow:0 4px 20px rgba(0,0,0,0.3); }
+        .disclaimer-close { background:#0066cc;color:white;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-size:14px;font-weight:600; }
 
-        @media (max-width: 768px) {
-            .header-bar { padding: 6px 10px; gap: 8px; }
-            .search-input { width: 120px; font-size: 12px; }
-            .gazette-panel, .reportcard-panel { width: 100%; right: -100%; }
-            .gazette-panel.visible { right: 0; }
-            .reportcard-panel { left: -100%; }
-            .reportcard-panel.visible { left: 0; }
-            .stat-value { font-size: 20px; }
+        /* Info strip */
+        .info-strip { position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,0.95);padding:8px 15px;text-align:center;font-size:11px;color:#666;z-index:1000;box-shadow:0 -2px 6px rgba(0,0,0,0.08); }
+
+        /* Invisible clusters */
+        .invisible-cluster,.marker-cluster,.marker-cluster div,.marker-cluster-small,.marker-cluster-medium,.marker-cluster-large,.marker-cluster-small div,.marker-cluster-medium div,.marker-cluster-large div { background:transparent !important;border:none !important;box-shadow:none !important; }
+
+        @media (max-width:768px) {
+            .header-bar { flex-wrap:wrap;padding:8px 10px;gap:10px; }
+            .controls-section { order:3;width:100%;flex-wrap:wrap; }
+            .search-wrapper { flex:1;max-width:none; }
+            .stat-value { font-size:20px; }
+            .desktop-only { display:none !important; }
+            .mobile-only { display:inline-flex !important; }
+            .btn-label { display:none; }
+            .reportcard-panel { width:100vw;max-width:100vw; }
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
+    <!-- Top Header Bar -->
     <div class="header-bar">
         <div class="header-logo">
-            HD-41 Runoff
-            <small>May 26, 2026 · Replacing Bobby Guerra</small>
+            <img src="../assets/seby_banner.jpg" alt="HD-41 Runoff" style="height:50px;border-radius:4px;">
         </div>
+
         <div class="stats-section">
             <div class="stat-main">
-                <span class="stat-value" id="total-voters">—</span>
-                <span class="stat-label">voted</span>
+                <span class="stat-value" id="total-voters">-</span>
+                <span class="stat-label">voters have voted</span>
             </div>
-            <div class="stat-meta">Last update: <span id="last-update">—</span></div>
+            <div class="stat-meta">
+                <a href="https://www.hidalgocounty.us" target="_blank">Hidalgo County Elections</a> Data | Updated: <span id="last-update" style="cursor:pointer;text-decoration:underline;color:#1a237e">-</span>
+            </div>
         </div>
+
         <div class="controls-section">
             <div class="search-wrapper">
-                <input type="text" class="search-input" id="search-input" placeholder="Search voter...">
+                <input type="text" class="search-input" id="search-input" placeholder="Lookup Name or Address">
                 <div class="search-results" id="search-results"></div>
             </div>
-            <button class="btn" id="location-btn" title="My Location">📍</button>
+
+            <button class="location-btn" id="location-btn" title="Zoom to my location">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+                <span class="btn-label">My Location</span>
+            </button>
+
+            <select class="heatmap-toggle desktop-only" id="heatmap-mode">
+                <option value="voters">🗳️ Voters</option>
+                <option value="nonvoters">👻 Non-voters</option>
+                <option value="march">📜 March Primary</option>
+                <option value="dem-targets">🔵 Dem Targets</option>
+                <option value="rep-targets">🔴 Rep Targets</option>
+            </select>
+
+            <button class="reportcard-btn desktop-only" id="reportcard-btn" title="Precinct Report Card">📊</button>
+            <button class="reportcard-btn desktop-only" id="gazette-btn" title="Politiquera Gazette" style="background:#2c3e50;">📰</button>
         </div>
+    </div>
+
+    <!-- Disclaimer Notice -->
+    <div class="disclaimer-notice" id="disclaimer-notice">
+        HD-41 Runoff • Dem: Julio Salinas vs. Victor "Seby" Haddad • Rep: Sergio Sanchez vs. Gary Groves • This site is not affiliated with any candidate.
     </div>
 
     <!-- Map -->
     <div id="map"></div>
 
-    <!-- Bottom toolbar -->
-    <div class="toolbar">
-        <button class="btn" id="gazette-btn" title="Gazette">📰 Gazette</button>
-        <button class="btn" id="reportcard-btn" title="Report Card">📋 Report Card</button>
-        <button class="btn" id="heatmap-btn" title="Toggle heatmap">🔥 Heat</button>
-        <button class="btn" id="nonvoters-btn" title="Show non-voters">👻 Non-voters</button>
-        <button class="btn" id="layer-dem-btn" title="Democrats only">🔵</button>
-        <button class="btn" id="layer-rep-btn" title="Republicans only">🔴</button>
-    </div>
-
-    <!-- Gazette panel -->
-    <div class="gazette-panel" id="gazette-panel">
-        <button class="gazette-close" id="gazette-close">&times;</button>
-        <div id="gazette-content">Loading...</div>
-    </div>
-
-    <!-- Report card panel -->
+    <!-- Report Card Panel -->
     <div class="reportcard-panel" id="reportcard-panel">
-        <button class="reportcard-close" id="reportcard-close">&times;</button>
-        <div id="reportcard-content">Loading...</div>
-    </div>
-
-    <!-- Voters breakdown modal -->
-    <div class="modal-overlay" id="voters-breakdown-modal">
-        <div class="modal-content">
-            <button class="modal-close" id="modal-close">&times;</button>
-            <div id="voters-breakdown-content"></div>
+        <div class="reportcard-header">
+            <div style="display:flex;align-items:flex-end;width:100%;padding-right:12px;">
+                <div class="rc-file-tab">
+                    <span style="font-size:18px;font-weight:700;font-family:'Patrick Hand',cursive;color:#3a2e1e;">📝 Report Card</span>
+                </div>
+                <div style="flex:1;"></div>
+                <a href="https://politiquera.com" target="_blank" style="display:flex;align-items:center;text-decoration:none;align-self:center;">
+                    <img src="../assets/politiquera.png" alt="Politiquera" style="height:24px;border-radius:3px;">
+                </a>
+                <button class="reportcard-close" id="reportcard-close" style="align-self:center;margin-left:10px;">✕</button>
+            </div>
+        </div>
+        <div style="display:flex;border-bottom:2px solid #d4a853;background:#fff9e6;">
+            <button class="rc-tab active" id="rc-tab-all" onclick="switchReportTab('all')">📊 All</button>
+            <button class="rc-tab" id="rc-tab-dem" onclick="switchReportTab('dem')">🔵 Dem</button>
+            <button class="rc-tab" id="rc-tab-rep" onclick="switchReportTab('rep')">🔴 Rep</button>
+            <button class="rc-tab" id="rc-tab-march" onclick="switchReportTab('march')">📜 March</button>
+            <button class="rc-tab" id="rc-tab-demo" onclick="switchReportTab('demo')">👥 Demo</button>
+        </div>
+        <div class="reportcard-summary" id="reportcard-summary"></div>
+        <div class="reportcard-list" id="reportcard-list"></div>
+        <div class="reportcard-footer">
+            <a href="https://politiquera.com" target="_blank">
+                <span style="font-family:'Patrick Hand',cursive;font-size:13px;color:#999;">🗳️ Brought to you by your neighborhood</span>
+                <img src="../assets/politiquera.png" alt="Politiquera.com">
+            </a>
         </div>
     </div>
 
-    <script src="map.js"></script>
+    <!-- Gazette Panel -->
+    <div class="gazette-panel" id="gazette-panel">
+        <div class="gazette-inner" id="gazette-inner" style="position:relative;">
+            <button class="gazette-close" id="gazette-close">&times;</button>
+            <div id="gazette-content">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Disclaimer Modal -->
+    <div class="disclaimer-modal" id="disclaimer-modal">
+        <div class="disclaimer-content">
+            <h3>About This Site</h3>
+            <p>This site tracks early voting turnout for the Texas House District 41 runoff election on May 26, 2026.</p>
+            <p>HD-41 is an open seat following the retirement of Rep. Bobby Guerra (D). Both parties have contested runoffs.</p>
+            <p>This site is not affiliated with, endorsed by, or supported by any political candidate, PAC, or party.</p>
+            <button class="disclaimer-close" id="disclaimer-close">Close</button>
+        </div>
+    </div>
+
+    <!-- Voters Breakdown Modal -->
+    <div class="disclaimer-modal" id="voters-breakdown-modal">
+        <div class="disclaimer-content" style="max-width:600px">
+            <div id="voters-breakdown-content">Loading...</div>
+            <button class="disclaimer-close" onclick="document.getElementById('voters-breakdown-modal').classList.remove('visible')">Close</button>
+        </div>
+    </div>
+
+    <!-- Info Strip -->
+    <div class="info-strip">
+        HD-41 Runoff • May 26, 2026 • Dem: Salinas vs Haddad • Rep: Sanchez vs Groves • Data from Hidalgo County Elections
+    </div>
+
+    <!-- Paywall -->
+    <script>
+        window.__electionSlug = 'hd41';
+        window.__subscribed = false;
+        window.__paywallEnabled = false;
+        (async function() {
+            try {
+                const authResp = await fetch('/auth/me', {credentials:'include'});
+                const auth = await authResp.json();
+                if (auth.authenticated && (auth.role === 'superadmin' || auth.role === 'admin')) {
+                    window.__subscribed = true;
+                }
+                const pwResp = await fetch('/api/paywall-status/hd41');
+                if (pwResp.ok) {
+                    const pw = await pwResp.json();
+                    window.__paywallEnabled = pw.paywall_enabled;
+                }
+            } catch(e) {}
+            window.__paywallChecked = true;
+        })();
+    </script>
+    <script src="/paywall.js?v=20260510"></script>
+    <script src="map.js?v=20260510"></script>
 </body>
 </html>
