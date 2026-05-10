@@ -123,6 +123,9 @@ conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
 - Fix errors quickly
 - Check schema before writing queries
 - Use exact patterns from this config
+- **Only display real, verifiable data — never estimates or proportional allocations**
+- **Show "no data" rather than wrong data**
+- **Trace every displayed number to a specific source**
 
 ### DON'T:
 - Confirm user statements
@@ -130,3 +133,6 @@ conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
 - Repeat yourself
 - Use verbose summaries
 - Create unnecessary documentation files
+- **Display estimated candidate-level results as if they were real**
+- **Fill missing precinct data with district-wide averages**
+- **Show boundaries from outdated sources without verification**

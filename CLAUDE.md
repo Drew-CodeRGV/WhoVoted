@@ -195,6 +195,7 @@ The ~140 `*_COMPLETE.md`, `*_STATUS.md`, `*_SUMMARY.md`, `*_IMPLEMENTATION.md`, 
 - Check schema before writing queries.
 - Terse explanations; verbose code.
 - Fix errors without narrating the fix.
+- **Data integrity is non-negotiable.** Never display estimated data as real. Never fill gaps with assumptions. If data is missing, show nothing rather than something wrong. See `.kiro/steering/data-integrity.md`.
 
 ---
 
