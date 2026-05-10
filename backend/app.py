@@ -36,6 +36,22 @@ CORS(app, origins=Config.CORS_ORIGINS, supports_credentials=True)
 # Initialize database
 db.init_db()
 
+# Register subscription admin blueprint
+from subscription_admin import sub_admin
+app.register_blueprint(sub_admin)
+
+# Register subscribe API blueprint
+from subscribe_api import subscribe_bp
+app.register_blueprint(subscribe_bp)
+
+# Register Stripe webhook blueprint
+from stripe_webhook import stripe_bp
+app.register_blueprint(stripe_bp)
+
+# Register HD-41 runoff election blueprint
+from hd41_api import bp as hd41_bp
+app.register_blueprint(hd41_bp)
+
 # ── Simple in-memory cache for expensive queries ──
 import time as _time
 
@@ -265,6 +281,30 @@ def client_config():
     return jsonify({
         'google_client_id': Config.GOOGLE_CLIENT_ID,
     })
+
+# Subscribe page route — serves the shared subscribe.html for any election
+@app.route('/<slug>/subscribe')
+def subscribe_page(slug):
+    """Serve the subscribe page for any election."""
+    return send_from_directory(Config.PUBLIC_DIR, 'subscribe.html')
+
+# Payment success redirect page
+@app.route('/subscribe-success')
+def subscribe_success():
+    """Serve the payment success redirect page."""
+    return send_from_directory(Config.PUBLIC_DIR, 'subscribe-success.html')
+
+# Account management page
+@app.route('/account')
+def account_page():
+    """Serve the account management page."""
+    return send_from_directory(Config.PUBLIC_DIR, 'account.html')
+
+# HD-41 Runoff Election mini-site
+@app.route('/hd41/')
+def hd41_index():
+    """Serve the HD-41 runoff election tracker."""
+    return send_from_directory(Config.PUBLIC_DIR, 'hd41/index.html')
 
 @app.route('/<path:path>')
 def static_files(path):
@@ -2346,6 +2386,16 @@ def admin_dashboard_js():
     """Serve admin dashboard JavaScript with no-cache headers."""
     admin_dir = Path(__file__).parent / 'admin'
     response = send_from_directory(admin_dir, 'dashboard.js', mimetype='application/javascript')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/admin/subscription.js')
+def admin_subscription_js():
+    """Serve subscription admin JavaScript with no-cache headers."""
+    admin_dir = Path(__file__).parent / 'admin'
+    response = send_from_directory(admin_dir, 'subscription.js', mimetype='application/javascript')
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
