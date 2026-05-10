@@ -117,7 +117,7 @@ def main():
             'icon': '🗳️',
             'text': f"{dem_count:,} voters pulled Democratic ballots. {rep_count:,} pulled Republican. "
                     f"That's a {round(dem_count/rep_count, 1) if rep_count else '∞'}:1 ratio — "
-                    f"{'consistent with HD-41\'s historically Democratic lean.' if dem_count > rep_count else 'a shift toward Republican participation.'} "
+                    f"{'consistent with HD-41 historically Democratic lean.' if dem_count > rep_count else 'a shift toward Republican participation.'} "
                     f"In a runoff, the smaller electorate amplifies the impact of each vote."
         })
 
