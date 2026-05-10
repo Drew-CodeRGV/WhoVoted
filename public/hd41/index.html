@@ -173,21 +173,14 @@
                 <span class="btn-label">My Location</span>
             </button>
 
-            <select class="heatmap-toggle desktop-only" id="heatmap-mode">
-                <option value="voters">🗳️ Voters</option>
-                <option value="nonvoters">👻 Non-voters</option>
-                <option value="march">📜 March Primary</option>
-                <option value="dem-targets">🔵 Dem Targets</option>
-                <option value="rep-targets">🔴 Rep Targets</option>
+            <select class="heatmap-toggle desktop-only" id="view-mode">
+                <option value="party">🗳️ Party Results</option>
+                <option value="planner">🎯 Priority Planner</option>
             </select>
 
             <label class="desktop-only" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#666;white-space:nowrap;">
                 <input type="checkbox" id="boundary-toggle" checked> HD-41 Boundary
             </label>
-
-            <select class="heatmap-toggle desktop-only" id="candidate-select" style="max-width:180px;">
-                <option value="">— Candidate —</option>
-            </select>
 
             <button class="reportcard-btn desktop-only" id="reportcard-btn" title="Precinct Report Card">📊</button>
             <button class="reportcard-btn desktop-only" id="gazette-btn" title="Politiquera Gazette" style="background:#2c3e50;">📰</button>
