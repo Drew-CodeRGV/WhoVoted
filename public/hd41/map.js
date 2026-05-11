@@ -388,6 +388,12 @@ function isHostileSign(voterParty, signCandidate){
     return false;
 }
 
+function isHostileToCandidate(signCandidate, selectedCand){
+    // From a specific candidate's perspective: any sign that's NOT for them is hostile
+    if(!selectedCand||!signCandidate)return false;
+    return signCandidate!==selectedCand;
+}
+
 async function loadYardSigns(){
     try{
         const resp=await fetch('/api/hd41/yardsigns');
@@ -400,11 +406,15 @@ function addVoterDotsForView(){
     markerClusterGroup.clearLayers();
     const bounds=map.getBounds();
     const yardSignLookup=window.__yardSigns||{};
+    const activeCand=currentMain.startsWith('cand-')?getSelectedCandidate():'';
+
     for(const v of voterData.voters){
         if(!v.lat||!v.lng)continue;
         if(!bounds.contains([v.lat,v.lng]))continue;
         const ys=yardSignLookup[v.vuid];
-        const isHostile=ys&&isHostileSign(v.party_voted,ys.candidate);
+        // Hostile check: if a candidate is selected, hostile = sign for anyone else
+        // If no candidate selected, hostile = sign for other party
+        const isHostile=ys&&(activeCand?isHostileToCandidate(ys.candidate,activeCand):isHostileSign(v.party_voted,ys.candidate));
         const color=isHostile?'#FF8C00':v.party_voted==='Democratic'?'#1E90FF':v.party_voted==='Republican'?'#DC143C':'#888';
         const marker=L.circleMarker([v.lat,v.lng],{radius:6,fillColor:color,color:isHostile?'#FF4500':'#fff',weight:2,opacity:1,fillOpacity:0.8});
         if(isHostile){
