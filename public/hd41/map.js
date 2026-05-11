@@ -40,19 +40,19 @@ function setupListeners(){
     const boundSel=document.getElementById('boundary-select');
 
     // Ensure sub-select is hidden on load
-    subSel.style.display='none';
+    subSel.style.cssText='display:none !important;';
 
     mainSel.addEventListener('change',e=>{
         currentMain=e.target.value;
         // Show sub-dropdown ONLY for candidate selections
         if(currentMain.startsWith('cand-')){
-            subSel.style.display='inline-block';
+            subSel.style.cssText='display:inline-block !important;';
             candidateSubView=subSel.value||'won';
             // Update sub-select label based on party
             const isDem=currentMain.includes('seby')||currentMain.includes('julio');
             subSel.querySelector('[value="partyvotes"]').textContent=isDem?'🔵 All Dem Votes':'🔴 All GOP Votes';
         } else {
-            subSel.style.display='none';
+            subSel.style.cssText='display:none !important;';
         }
         render();
     });
@@ -166,6 +166,17 @@ function renderCandidate(){
                 if(myV>oppV&&elimV>0)return{fillColor:'#1b5e20',fillOpacity:0.3+Math.min(0.5,elimV/150*0.5),color:'#1b5e20',weight:2};
                 return{fillColor:myV>oppV?'#e8f5e9':'#f5f5f5',fillOpacity:0.08,color:'#ccc',weight:1};
             }
+            if(sv==='otherparty'){
+                // Show precincts where the OTHER party had more total votes than your party
+                const myPartyTotal=isDem?p.dem_votes:p.rep_votes;
+                const otherPartyTotal=isDem?p.rep_votes:p.dem_votes;
+                if(otherPartyTotal>myPartyTotal){
+                    const margin=otherPartyTotal-myPartyTotal;
+                    const i=Math.min(1,margin/150);
+                    return{fillColor:isDem?'#c62828':'#0d47a1',fillOpacity:0.3+i*0.5,color:isDem?'#b71c1c':'#1a237e',weight:2};
+                }
+                return{fillColor:'#f5f5f5',fillOpacity:0.08,color:'#ccc',weight:1};
+            }
             return{fillColor:'#ccc',fillOpacity:0.1,color:'#999',weight:1};
         },
         onEachFeature:(f,l)=>{const p=pL[f.properties.db_precinct];if(p)l.bindPopup(()=>buildCandidatePopup(p,candName,oppName,elimName,pk,isDem),{maxWidth:360});}
@@ -176,7 +187,8 @@ function renderCandidate(){
     else if(sv==='lost')updateStrip(`<b>${sn} — Where I Lost</b> · Darker = bigger gap · Click to see who beat you + how many votes needed`);
     else if(sv==='myvotes')updateStrip(`<b>${sn} — My Vote Count</b> · Darker = more votes for ${sn} in that precinct`);
     else if(sv==='partyvotes')updateStrip(`<b>${sn} — All ${isDem?'Dem':'GOP'} Votes</b> · Total ${isDem?'Democratic':'Republican'} ballots per precinct (the full universe)`);
-    else if(sv==='mopup')updateStrip(`<b>${sn} — Mop-Up</b> · Precincts I won + ${shortName(elimName)}'s voters to absorb · Darker = more swing votes`);
+    else if(sv==='mopup')updateStrip(`<b>${sn} \u2014 Mop-Up</b> \xB7 Precincts I won + ${shortName(elimName)}'s voters to absorb \xB7 Darker = more swing votes`);
+    else if(sv==='otherparty')updateStrip(`<b>${sn} \u2014 Where ${isDem?'GOP':'Dem'} Won</b> \xB7 Precincts where the other party had more total ballots \xB7 Darker = bigger ${isDem?'Republican':'Democratic'} advantage`);
 }
 
 // ═══ POPUPS ═══
