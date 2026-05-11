@@ -149,13 +149,18 @@ function renderVoters(){
     const yardSignLookup=window.__yardSigns||{};
     for(const v of voterData.voters){if(!v.lat||!v.lng)continue;hp.push([v.lat,v.lng,0.5]);
         const ys=yardSignLookup[v.vuid];
-        const isHostile=ys&&isHostileSign(v.party_voted,ys.candidate);
+        const activeCand=currentMain.startsWith('cand-')?getSelectedCandidate():'';
+        const isHostile=ys&&(activeCand?isHostileToCandidate(ys.candidate,activeCand):isHostileSign(v.party_voted,ys.candidate));
+        const isFriendly=ys&&activeCand&&ys.candidate===activeCand;
         const color=isHostile?'#FF8C00':v.party_voted==='Democratic'?'#1E90FF':v.party_voted==='Republican'?'#DC143C':'#888';
-        const marker=L.circleMarker([v.lat,v.lng],{radius:6,fillColor:color,color:isHostile?'#FF4500':'#fff',weight:2,opacity:1,fillOpacity:0.8});
+        const marker=L.circleMarker([v.lat,v.lng],{radius:6,fillColor:color,color:isHostile?'#FF4500':isFriendly?'#4caf50':'#fff',weight:2,opacity:1,fillOpacity:0.8});
         if(isHostile){
-            // Add warning flag marker on top
             const flag=L.marker([v.lat,v.lng],{icon:L.divIcon({html:'<div style="font-size:14px;transform:rotate(-15deg);text-shadow:0 1px 2px rgba(0,0,0,0.5);">⚠️</div>',className:'',iconSize:[16,16],iconAnchor:[8,20]})});
             markerClusterGroup.addLayer(flag);
+        }
+        if(isFriendly){
+            const sign=L.marker([v.lat,v.lng],{icon:L.divIcon({html:'<div style="font-size:14px;transform:rotate(5deg);text-shadow:0 1px 2px rgba(0,0,0,0.5);">🪧</div>',className:'',iconSize:[16,16],iconAnchor:[8,20]})});
+            markerClusterGroup.addLayer(sign);
         }
         if(window.__subscribed){
             marker.bindPopup(()=>buildVoterPopup(v),{maxWidth:380});
@@ -423,14 +428,17 @@ function addVoterDotsForView(){
         if(!v.lat||!v.lng)continue;
         if(!bounds.contains([v.lat,v.lng]))continue;
         const ys=yardSignLookup[v.vuid];
-        // Hostile check: if a candidate is selected, hostile = sign for anyone else
-        // If no candidate selected, hostile = sign for other party
         const isHostile=ys&&(activeCand?isHostileToCandidate(ys.candidate,activeCand):isHostileSign(v.party_voted,ys.candidate));
+        const isFriendly=ys&&activeCand&&ys.candidate===activeCand;
         const color=isHostile?'#FF8C00':v.party_voted==='Democratic'?'#1E90FF':v.party_voted==='Republican'?'#DC143C':'#888';
-        const marker=L.circleMarker([v.lat,v.lng],{radius:6,fillColor:color,color:isHostile?'#FF4500':'#fff',weight:2,opacity:1,fillOpacity:0.8});
+        const marker=L.circleMarker([v.lat,v.lng],{radius:6,fillColor:color,color:isHostile?'#FF4500':isFriendly?'#4caf50':'#fff',weight:2,opacity:1,fillOpacity:0.8});
         if(isHostile){
             const flag=L.marker([v.lat,v.lng],{icon:L.divIcon({html:'<div style="font-size:14px;transform:rotate(-15deg);text-shadow:0 1px 2px rgba(0,0,0,0.5);">⚠️</div>',className:'',iconSize:[16,16],iconAnchor:[8,20]})});
             markerClusterGroup.addLayer(flag);
+        }
+        if(isFriendly){
+            const sign=L.marker([v.lat,v.lng],{icon:L.divIcon({html:'<div style="font-size:14px;transform:rotate(5deg);text-shadow:0 1px 2px rgba(0,0,0,0.5);">🪧</div>',className:'',iconSize:[16,16],iconAnchor:[8,20]})});
+            markerClusterGroup.addLayer(sign);
         }
         marker.bindPopup(()=>buildVoterPopup(v),{maxWidth:380});
         markerClusterGroup.addLayer(marker);
