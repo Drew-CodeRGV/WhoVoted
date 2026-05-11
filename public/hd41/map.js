@@ -24,7 +24,7 @@ function showLoading() {
 function hideLoading(){const e=document.getElementById('loading-screen');if(e)e.remove();}
 
 function initMap() {
-    map = L.map('map').setView([26.16, -97.99], 11);
+    map = L.map('map').setView([26.245, -98.23], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution:'© OpenStreetMap',maxZoom:18}).addTo(map);
     setupListeners();
     loadData();
@@ -67,6 +67,8 @@ async function loadData() {
 
         // Draw HD-41 boundary
         boundaryLayer = L.geoJSON(boundGeoJSON, {style:{color:'#1a237e',weight:3,fillOpacity:0.02,dashArray:'8,4'}}).addTo(map);
+        // Fit map to the HD-41 boundary
+        map.fitBounds(boundaryLayer.getBounds(), {padding: [20, 20]});
 
         // Update header stats
         const s = precinctData.summary;
