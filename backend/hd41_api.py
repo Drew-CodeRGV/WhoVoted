@@ -4,7 +4,7 @@ API endpoints for HD-41 Runoff Election tracking.
 Dem: Salinas vs Haddad | Rep: Sanchez vs Groves | May 26, 2026
 """
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 import sqlite3
 from datetime import datetime
 
@@ -95,3 +95,44 @@ def get_precinct_detail(precinct_id):
         'dem': row['dem'],
         'rep': row['rep']
     })
+
+
+@bp.route('/yardsign', methods=['POST'])
+def save_yardsign():
+    """Save a yard sign observation for a voter."""
+    data = request.get_json()
+    if not data or not data.get('vuid') or not data.get('candidate'):
+        return jsonify({'error': 'vuid and candidate required'}), 400
+
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        conn.execute("""
+            INSERT OR REPLACE INTO yard_signs (vuid, election_slug, candidate, lat, lng, reported_at)
+            VALUES (?, 'hd41', ?, ?, ?, datetime('now'))
+        """, (data['vuid'], data['candidate'], data.get('lat'), data.get('lng')))
+        conn.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@bp.route('/yardsign/<vuid>', methods=['DELETE'])
+def remove_yardsign(vuid):
+    """Remove a yard sign observation."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("DELETE FROM yard_signs WHERE vuid = ? AND election_slug = 'hd41'", (vuid,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+@bp.route('/yardsigns')
+def get_yardsigns():
+    """Get all yard sign observations for HD-41."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("SELECT vuid, candidate, reported_at, lat, lng FROM yard_signs WHERE election_slug = 'hd41'").fetchall()
+    conn.close()
+    return jsonify({'signs': [dict(r) for r in rows]})

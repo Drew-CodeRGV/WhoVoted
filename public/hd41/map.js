@@ -45,6 +45,7 @@ async function loadData(){
         boundaryLayer=L.geoJSON(bnd,{style:{color:'#1a237e',weight:3,fillOpacity:0.02,dashArray:'8,4'}}).addTo(map);
         map.fitBounds(boundaryLayer.getBounds(),{padding:[20,20]});
         document.getElementById('total-voters').textContent=voterData.count.toLocaleString();
+        await loadYardSigns();
         setupListeners();
         render();
         hideLoading();
@@ -144,9 +145,17 @@ function shortName(c){return c.replace("Victor 'Seby' ","Seby ").replace("Sarah 
 function renderVoters(){
     clearLayers();if(!voterData||!voterData.voters)return;
     const hp=[];
+    const yardSignLookup=window.__yardSigns||{};
     for(const v of voterData.voters){if(!v.lat||!v.lng)continue;hp.push([v.lat,v.lng,0.5]);
-        const color=v.party_voted==='Democratic'?'#1E90FF':v.party_voted==='Republican'?'#DC143C':'#888';
-        const marker=L.circleMarker([v.lat,v.lng],{radius:6,fillColor:color,color:'#fff',weight:2,opacity:1,fillOpacity:0.8});
+        const ys=yardSignLookup[v.vuid];
+        const isHostile=ys&&isHostileSign(v.party_voted,ys.candidate);
+        const color=isHostile?'#FF8C00':v.party_voted==='Democratic'?'#1E90FF':v.party_voted==='Republican'?'#DC143C':'#888';
+        const marker=L.circleMarker([v.lat,v.lng],{radius:6,fillColor:color,color:isHostile?'#FF4500':'#fff',weight:2,opacity:1,fillOpacity:0.8});
+        if(isHostile){
+            // Add warning flag marker on top
+            const flag=L.marker([v.lat,v.lng],{icon:L.divIcon({html:'<div style="font-size:14px;transform:rotate(-15deg);text-shadow:0 1px 2px rgba(0,0,0,0.5);">⚠️</div>',className:'',iconSize:[16,16],iconAnchor:[8,20]})});
+            markerClusterGroup.addLayer(flag);
+        }
         if(window.__subscribed){
             marker.bindPopup(()=>buildVoterPopup(v),{maxWidth:380});
         } else {
@@ -247,8 +256,28 @@ function buildVoterPopup(v){
     const details=[party,v.sex==='F'?'Female':v.sex==='M'?'Male':'',age?`Age ${age}`:'',v.precinct?'Pct '+v.precinct:''].filter(Boolean).join(' · ');
     if(details)h+=`<div style="font-size:11px;color:#666;margin-bottom:3px;">${details}</div>`;
     const m=v.voting_method||'';if(m==='early-voting')h+=`<div style="color:#2E7D32;font-size:11px;font-weight:600;">✓ Early Voter</div>`;else if(m==='mail-in')h+=`<div style="color:#6A1B9A;font-size:11px;font-weight:600;">📬 Mail-In</div>`;else if(m==='election-day')h+=`<div style="color:#E65100;font-size:11px;font-weight:600;">📍 Election Day</div>`;
+    // Voting history
     const hx=v.hist||[];if(hx.length){h+='<div style="font-size:10px;font-weight:600;color:#555;margin-top:4px;">Voting History</div><table style="border-collapse:collapse;margin-top:2px;width:100%;"><tr>';hx.forEach(e=>{h+=`<td style="padding:1px 2px;font-size:8px;color:#888;text-align:center;border:1px solid #e0e0e0;background:#f5f5f5;">${(e.y||'').slice(-2)}</td>`;});h+='</tr><tr>';hx.forEach(e=>{const bg=e.p==='D'?'#1E90FF':e.p==='R'?'#DC143C':'#888';h+=`<td style="padding:3px 2px;text-align:center;border:1px solid #e0e0e0;background:${bg};color:white;font-size:11px;font-weight:700;">${e.p}</td>`;});h+='</tr></table>';}
-    h+=`</div>`;return h;
+    // Yard sign field
+    const ys=(window.__yardSigns||{})[v.vuid];
+    const isHostile=ys&&isHostileSign(v.party_voted,ys.candidate);
+    h+=`<div style="margin-top:8px;padding:6px;border:1px solid ${isHostile?'#ff8a00':'#e0e0e0'};border-radius:4px;background:${isHostile?'#fff3e0':'#f9f9f9'};">`;
+    h+=`<div style="font-size:10px;font-weight:600;color:#555;margin-bottom:4px;">🪧 Yard Sign</div>`;
+    if(ys){
+        h+=`<div style="font-size:12px;font-weight:600;color:${isHostile?'#e65100':'#2e7d32'};">${isHostile?'⚠️ HOSTILE — ':'✓ '}${ys.candidate}</div>`;
+        h+=`<button onclick="removeYardSign('${v.vuid}')" style="margin-top:4px;padding:3px 8px;font-size:10px;background:#eee;border:1px solid #ccc;border-radius:3px;cursor:pointer;">Remove</button>`;
+    } else {
+        h+=`<select onchange="saveYardSign('${v.vuid}',this.value,${v.lat},${v.lng})" style="width:100%;padding:4px;font-size:12px;border:1px solid #ddd;border-radius:3px;">`;
+        h+=`<option value="">No yard sign</option>`;
+        h+=`<option value="Victor 'Seby' Haddad">Seby Haddad</option>`;
+        h+=`<option value="Julio Salinas">Julio Salinas</option>`;
+        h+=`<option value="Sergio Sanchez">Sergio Sanchez</option>`;
+        h+=`<option value="Gary Groves">Gary Groves</option>`;
+        h+=`</select>`;
+    }
+    h+=`</div>`;
+    h+=`</div>`;
+    return h;
 }
 
 function buildPartyPopup(p){
@@ -288,15 +317,38 @@ function updateBoundaries(mode){
 }
 
 // ═══ HELPERS ═══
+function isHostileSign(voterParty, signCandidate){
+    // Hostile = yard sign for the other party's candidate
+    const demCands=["Victor 'Seby' Haddad","Julio Salinas","Eric Holguín"];
+    const repCands=["Sergio Sanchez","Gary Groves","Sarah Sagredo-Hammond"];
+    if(voterParty==='Democratic'&&repCands.includes(signCandidate))return true;
+    if(voterParty==='Republican'&&demCands.includes(signCandidate))return true;
+    return false;
+}
+
+async function loadYardSigns(){
+    try{
+        const resp=await fetch('/api/hd41/yardsigns');
+        if(resp.ok){const data=await resp.json();window.__yardSigns={};for(const s of(data.signs||[]))window.__yardSigns[s.vuid]=s;}
+    }catch(e){}
+}
+
 function addVoterDotsForView(){
     if(!voterData||!voterData.voters||!window.__subscribed)return;
     markerClusterGroup.clearLayers();
     const bounds=map.getBounds();
+    const yardSignLookup=window.__yardSigns||{};
     for(const v of voterData.voters){
         if(!v.lat||!v.lng)continue;
         if(!bounds.contains([v.lat,v.lng]))continue;
-        const color=v.party_voted==='Democratic'?'#1E90FF':v.party_voted==='Republican'?'#DC143C':'#888';
-        const marker=L.circleMarker([v.lat,v.lng],{radius:6,fillColor:color,color:'#fff',weight:2,opacity:1,fillOpacity:0.8});
+        const ys=yardSignLookup[v.vuid];
+        const isHostile=ys&&isHostileSign(v.party_voted,ys.candidate);
+        const color=isHostile?'#FF8C00':v.party_voted==='Democratic'?'#1E90FF':v.party_voted==='Republican'?'#DC143C':'#888';
+        const marker=L.circleMarker([v.lat,v.lng],{radius:6,fillColor:color,color:isHostile?'#FF4500':'#fff',weight:2,opacity:1,fillOpacity:0.8});
+        if(isHostile){
+            const flag=L.marker([v.lat,v.lng],{icon:L.divIcon({html:'<div style="font-size:14px;transform:rotate(-15deg);text-shadow:0 1px 2px rgba(0,0,0,0.5);">⚠️</div>',className:'',iconSize:[16,16],iconAnchor:[8,20]})});
+            markerClusterGroup.addLayer(flag);
+        }
         marker.bindPopup(()=>buildVoterPopup(v),{maxWidth:380});
         markerClusterGroup.addLayer(marker);
     }
@@ -304,6 +356,24 @@ function addVoterDotsForView(){
 
 function clearLayers(){markerClusterGroup.clearLayers();if(heatLayer){map.removeLayer(heatLayer);heatLayer=null;}if(precinctLayer){map.removeLayer(precinctLayer);precinctLayer=null;}}
 function updateStrip(html){const s=document.querySelector('.info-strip');if(s)s.innerHTML=html;}
+
+// Yard sign save/remove (global for onclick handlers in popups)
+window.saveYardSign=async function(vuid,candidate,lat,lng){
+    if(!candidate){removeYardSign(vuid);return;}
+    try{
+        await fetch('/api/hd41/yardsign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vuid,candidate,lat,lng}),credentials:'include'});
+        if(!window.__yardSigns)window.__yardSigns={};
+        window.__yardSigns[vuid]={candidate,lat,lng};
+        map.closePopup();render();
+    }catch(e){console.error(e);}
+};
+window.removeYardSign=async function(vuid){
+    try{
+        await fetch(`/api/hd41/yardsign/${vuid}`,{method:'DELETE',credentials:'include'});
+        if(window.__yardSigns)delete window.__yardSigns[vuid];
+        map.closePopup();render();
+    }catch(e){console.error(e);}
+};
 
 // ═══ REPORT CARD ═══
 function toggleReportCard(){
