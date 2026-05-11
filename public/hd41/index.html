@@ -63,6 +63,7 @@
         .heatmap-toggle { padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; background: white; cursor: pointer; }
         .reportcard-btn { background: #6c5ce7; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 16px; line-height: 1; }
         .reportcard-btn:hover { background: #5a4bd1; }
+        .mode-btn.active { background: #e8eaf6 !important; }
 
         .desktop-only { display: inline-flex !important; }
         .mobile-only { display: none !important; }
@@ -173,17 +174,22 @@
                 <span class="btn-label">My Location</span>
             </button>
 
-            <select class="heatmap-toggle desktop-only" id="view-mode">
-                <option value="party">🗳️ Party Results</option>
-                <option value="planner">🎯 Priority Planner</option>
+            <div class="mode-switch desktop-only" style="display:inline-flex;border:1px solid #ddd;border-radius:4px;overflow:hidden;">
+                <button class="mode-btn" data-mode="dem" style="padding:6px 12px;border:none;background:white;cursor:pointer;font-size:12px;font-weight:600;color:#1565c0;">DEM</button>
+                <button class="mode-btn active" data-mode="combined" style="padding:6px 12px;border:none;border-left:1px solid #ddd;border-right:1px solid #ddd;background:#f0f0f0;cursor:pointer;font-size:12px;font-weight:600;">ALL</button>
+                <button class="mode-btn" data-mode="rep" style="padding:6px 12px;border:none;border-left:1px solid #ddd;border-right:1px solid #ddd;background:white;cursor:pointer;font-size:12px;font-weight:600;color:#c62828;">GOP</button>
+                <button class="mode-btn" data-mode="live" style="padding:6px 12px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:12px;font-weight:600;color:#d32f2f;">🔴 LIVE</button>
+            </div>
+
+            <select class="heatmap-toggle desktop-only" id="candidate-select" style="max-width:200px;">
+                <option value="">All Precincts</option>
             </select>
 
             <label class="desktop-only" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#666;white-space:nowrap;">
-                <input type="checkbox" id="boundary-toggle" checked> HD-41 Boundary
+                <input type="checkbox" id="boundary-toggle" checked> Boundary
             </label>
 
-            <button class="reportcard-btn desktop-only" id="reportcard-btn" title="Precinct Report Card">📊</button>
-            <button class="reportcard-btn desktop-only" id="gazette-btn" title="Politiquera Gazette" style="background:#2c3e50;">📰</button>
+            <button class="reportcard-btn desktop-only" id="reportcard-btn" title="Report Card">📊</button>
         </div>
     </div>
 
@@ -255,7 +261,7 @@
 
     <!-- Info Strip -->
     <div class="info-strip">
-        HD-41 March 3 Primary · Real data from Hidalgo County voter rolls · 48 precincts verified · 35 with boundary outlines
+        HD-41 March 3 Primary · Official Hidalgo County Canvass · 64 precincts · All data verified
     </div>
 
     <!-- Paywall -->
