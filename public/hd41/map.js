@@ -18,7 +18,21 @@ function initMap(){
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:18}).addTo(map);
     markerClusterGroup=L.markerClusterGroup({maxClusterRadius:25,spiderfyOnMaxZoom:true,showCoverageOnHover:false,zoomToBoundsOnClick:true,disableClusteringAtZoom:16,iconCreateFunction:()=>L.divIcon({html:'',className:'invisible-cluster',iconSize:L.point(1,1)})});
     map.addLayer(markerClusterGroup);
-    map.on('zoomend',()=>{if(heatLayer){if(map.getZoom()>=16&&map.hasLayer(heatLayer))map.removeLayer(heatLayer);else if(map.getZoom()<16&&!map.hasLayer(heatLayer)&&currentMain==='voters')heatLayer.addTo(map);}});
+    map.on('zoomend',()=>{
+        const z=map.getZoom();
+        // Heatmap: hide at street level
+        if(heatLayer){if(z>=16&&map.hasLayer(heatLayer))map.removeLayer(heatLayer);else if(z<16&&!map.hasLayer(heatLayer)&&currentMain==='voters')heatLayer.addTo(map);}
+        // Street-level transition: show voter dots when zoomed in on precinct views
+        if(currentMain!=='voters'){
+            if(z>=16&&!markerClusterGroup.getLayers().length){
+                // Add voter dots at street level
+                addVoterDotsForView();
+            } else if(z<16&&markerClusterGroup.getLayers().length&&precinctLayer){
+                // Remove dots, show precincts
+                markerClusterGroup.clearLayers();
+            }
+        }
+    });
     loadData();
 }
 
@@ -70,9 +84,13 @@ function setupListeners(){
     const mb=document.getElementById('mobile-menu-btn'),md=document.getElementById('mobile-drawer');
     if(mb&&md){mb.addEventListener('click',()=>md.classList.toggle('visible'));document.addEventListener('click',e=>{if(!md.contains(e.target)&&e.target!==mb)md.classList.remove('visible');});}
     const mms=document.getElementById('main-select-mobile');
-    if(mms)mms.addEventListener('change',e=>{mainSel.value=e.target.value;mainSel.dispatchEvent(new Event('change'));if(md)md.classList.remove('visible');});
+    if(mms)mms.addEventListener('change',e=>{
+        mainSel.value=e.target.value;mainSel.dispatchEvent(new Event('change'));
+        const mobileSubWrapper=document.getElementById('sub-select-mobile-wrapper');
+        if(mobileSubWrapper)mobileSubWrapper.style.display=e.target.value.startsWith('cand-')?'block':'none';
+    });
     const mss=document.getElementById('sub-select-mobile');
-    if(mss)mss.addEventListener('change',e=>{subSel.value=e.target.value;candidateSubView=e.target.value;render();if(md)md.classList.remove('visible');});
+    if(mss)mss.addEventListener('change',e=>{subSel.value=e.target.value;candidateSubView=e.target.value;render();});
     const mbs=document.getElementById('boundary-select-mobile');
     if(mbs)mbs.addEventListener('change',e=>{boundSel.value=e.target.value;updateBoundaries(e.target.value);});
     const mrc=document.getElementById('reportcard-btn-mobile');
@@ -270,6 +288,20 @@ function updateBoundaries(mode){
 }
 
 // ═══ HELPERS ═══
+function addVoterDotsForView(){
+    if(!voterData||!voterData.voters||!window.__subscribed)return;
+    markerClusterGroup.clearLayers();
+    const bounds=map.getBounds();
+    for(const v of voterData.voters){
+        if(!v.lat||!v.lng)continue;
+        if(!bounds.contains([v.lat,v.lng]))continue;
+        const color=v.party_voted==='Democratic'?'#1E90FF':v.party_voted==='Republican'?'#DC143C':'#888';
+        const marker=L.circleMarker([v.lat,v.lng],{radius:6,fillColor:color,color:'#fff',weight:2,opacity:1,fillOpacity:0.8});
+        marker.bindPopup(()=>buildVoterPopup(v),{maxWidth:380});
+        markerClusterGroup.addLayer(marker);
+    }
+}
+
 function clearLayers(){markerClusterGroup.clearLayers();if(heatLayer){map.removeLayer(heatLayer);heatLayer=null;}if(precinctLayer){map.removeLayer(precinctLayer);precinctLayer=null;}}
 function updateStrip(html){const s=document.querySelector('.info-strip');if(s)s.innerHTML=html;}
 
