@@ -160,8 +160,8 @@ function renderVoters(){
         }
         if(isFriendly){
             const isSeby=ys.candidate.includes('Haddad');
-            const signHtml=isSeby?'<img src="../assets/sebyhead.png" style="width:20px;height:20px;border-radius:50%;transform:rotate(5deg);box-shadow:0 1px 3px rgba(0,0,0,0.4);">':'<div style="font-size:14px;transform:rotate(5deg);text-shadow:0 1px 2px rgba(0,0,0,0.5);pointer-events:none;">🪧</div>';
-            const sign=L.marker([v.lat,v.lng],{interactive:false,icon:L.divIcon({html:signHtml,className:'',iconSize:[20,20],iconAnchor:[10,22]})});
+            const signHtml=isSeby?'<img src="../assets/sebyhead.png" style="width:28px;height:auto;border-radius:50%;transform:rotate(5deg);box-shadow:0 2px 4px rgba(0,0,0,0.4);">':'<div style="font-size:14px;transform:rotate(5deg);text-shadow:0 1px 2px rgba(0,0,0,0.5);pointer-events:none;">🪧</div>';
+            const sign=L.marker([v.lat,v.lng],{interactive:false,icon:L.divIcon({html:signHtml,className:'',iconSize:[28,28],iconAnchor:[14,30]})});
             markerClusterGroup.addLayer(sign);
         }
         if(window.__subscribed){
@@ -440,8 +440,8 @@ function addVoterDotsForView(){
         }
         if(isFriendly){
             const isSeby=ys.candidate.includes('Haddad');
-            const signHtml=isSeby?'<img src="../assets/sebyhead.png" style="width:20px;height:20px;border-radius:50%;transform:rotate(5deg);box-shadow:0 1px 3px rgba(0,0,0,0.4);">':'<div style="font-size:14px;transform:rotate(5deg);text-shadow:0 1px 2px rgba(0,0,0,0.5);pointer-events:none;">🪧</div>';
-            const sign=L.marker([v.lat,v.lng],{interactive:false,icon:L.divIcon({html:signHtml,className:'',iconSize:[20,20],iconAnchor:[10,22]})});
+            const signHtml=isSeby?'<img src="../assets/sebyhead.png" style="width:28px;height:auto;border-radius:50%;transform:rotate(5deg);box-shadow:0 2px 4px rgba(0,0,0,0.4);">':'<div style="font-size:14px;transform:rotate(5deg);text-shadow:0 1px 2px rgba(0,0,0,0.5);pointer-events:none;">🪧</div>';
+            const sign=L.marker([v.lat,v.lng],{interactive:false,icon:L.divIcon({html:signHtml,className:'',iconSize:[28,28],iconAnchor:[14,30]})});
             markerClusterGroup.addLayer(sign);
         }
         marker.bindPopup(()=>buildVoterPopup(v),{maxWidth:380});
