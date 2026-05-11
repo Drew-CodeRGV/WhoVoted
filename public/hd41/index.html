@@ -174,40 +174,46 @@
 
         <div class="controls-section">
             <div class="search-wrapper">
-                <input type="text" class="search-input" id="search-input" placeholder="Lookup Name or Address">
+                <input type="text" class="search-input" id="search-input" placeholder="Search voter...">
                 <div class="search-results" id="search-results"></div>
             </div>
 
-            <button class="location-btn" id="location-btn" title="Zoom to my location">
+            <button class="location-btn" id="location-btn" title="My Location">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
-                <span class="btn-label">My Location</span>
             </button>
 
-            <!-- Mobile menu button -->
+            <!-- Mobile menu -->
             <button class="mobile-menu-btn mobile-only" id="mobile-menu-btn">☰</button>
 
-            <div class="mode-switch desktop-only" style="display:inline-flex;border:1px solid #ddd;border-radius:4px;overflow:hidden;">
-                <button class="mode-btn" data-mode="dem" style="padding:6px 10px;border:none;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#1565c0;">DEM</button>
-                <button class="mode-btn active" data-mode="combined" style="padding:6px 10px;border:none;border-left:1px solid #ddd;background:#f0f0f0;cursor:pointer;font-size:11px;font-weight:600;">ALL</button>
-                <button class="mode-btn" data-mode="rep" style="padding:6px 10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#c62828;">GOP</button>
-                <button class="mode-btn" data-mode="swing-dem" style="padding:6px 10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#e65100;">🔥D</button>
-                <button class="mode-btn" data-mode="swing-rep" style="padding:6px 10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#e65100;">🔥R</button>
-                <button class="mode-btn" data-mode="live" style="padding:6px 10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#d32f2f;">🔴</button>
+            <!-- View selector -->
+            <select class="heatmap-toggle desktop-only" id="view-select">
+                <option value="voters">🗳️ Voter Map</option>
+                <option value="primary">📊 Primary Results</option>
+                <option value="mopup">💪 Mop-Up Targeting</option>
+            </select>
+
+            <!-- Primary mode buttons (shown when primary selected) -->
+            <div id="primary-controls" class="desktop-only" style="display:none;border:1px solid #ddd;border-radius:4px;overflow:hidden;">
+                <button class="mode-btn" data-mode="dem" style="padding:5px 8px;border:none;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#1565c0;">DEM</button>
+                <button class="mode-btn active" data-mode="combined" style="padding:5px 8px;border:none;border-left:1px solid #ddd;background:#f0f0f0;cursor:pointer;font-size:11px;font-weight:600;">ALL</button>
+                <button class="mode-btn" data-mode="rep" style="padding:5px 8px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#c62828;">GOP</button>
             </div>
 
-            <select class="heatmap-toggle desktop-only" id="mopup-select" style="max-width:160px;">
-                <option value="">💪 Mop-Up...</option>
+            <!-- Candidate select (shown when primary selected) -->
+            <select class="heatmap-toggle desktop-only" id="candidate-select" style="display:none;max-width:180px;">
+                <option value="">All Precincts</option>
+            </select>
+
+            <!-- Mop-up select (shown when mopup selected) -->
+            <select class="heatmap-toggle desktop-only" id="mopup-select" style="display:none;">
+                <option value="">Choose candidate...</option>
                 <option value="mopup-seby">💪 Seby Haddad</option>
                 <option value="mopup-julio">💪 Julio Salinas</option>
                 <option value="mopup-sergio">💪 Sergio Sanchez</option>
                 <option value="mopup-gary">💪 Gary Groves</option>
             </select>
 
-            <select class="heatmap-toggle desktop-only" id="candidate-select" style="max-width:200px;">
-                <option value="">All Precincts</option>
-            </select>
-
-            <label class="desktop-only" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#666;white-space:nowrap;">
+            <label class="desktop-only" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#666;">
                 <input type="checkbox" id="boundary-toggle" checked> Boundary
             </label>
 
@@ -217,35 +223,22 @@
 
     <!-- Mobile Menu Drawer -->
     <div class="mobile-drawer" id="mobile-drawer">
-        <div style="font-weight:700;font-size:14px;margin-bottom:10px;">View Mode</div>
-        <div class="mode-switch" style="display:flex;border:1px solid #ddd;border-radius:4px;overflow:hidden;margin-bottom:6px;">
-            <button class="mode-btn" data-mode="dem" style="flex:1;padding:10px;border:none;background:white;cursor:pointer;font-size:13px;font-weight:600;color:#1565c0;">DEM</button>
-            <button class="mode-btn active" data-mode="combined" style="flex:1;padding:10px;border:none;border-left:1px solid #ddd;background:#f0f0f0;cursor:pointer;font-size:13px;font-weight:600;">ALL</button>
-            <button class="mode-btn" data-mode="rep" style="flex:1;padding:10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:13px;font-weight:600;color:#c62828;">GOP</button>
-        </div>
-        <div style="font-weight:700;font-size:14px;margin-bottom:6px;">💪 Mop-Up Map</div>
+        <div style="font-weight:700;font-size:14px;margin-bottom:8px;">View</div>
+        <select id="view-select-mobile" style="width:100%;padding:10px;font-size:14px;border:1px solid #ddd;border-radius:4px;margin-bottom:12px;">
+            <option value="voters">🗳️ Voter Map</option>
+            <option value="primary">📊 Primary Results</option>
+            <option value="mopup">💪 Mop-Up Targeting</option>
+        </select>
+        <div style="font-weight:700;font-size:14px;margin-bottom:8px;">💪 Mop-Up Candidate</div>
         <select id="mopup-select-mobile" style="width:100%;padding:10px;font-size:14px;border:1px solid #ddd;border-radius:4px;margin-bottom:12px;">
-            <option value="">Select candidate...</option>
+            <option value="">Choose candidate...</option>
             <option value="mopup-seby">💪 Seby Haddad</option>
             <option value="mopup-julio">💪 Julio Salinas</option>
             <option value="mopup-sergio">💪 Sergio Sanchez</option>
             <option value="mopup-gary">💪 Gary Groves</option>
         </select>
-        <div class="mode-switch" style="display:flex;border:1px solid #ddd;border-radius:4px;overflow:hidden;margin-bottom:6px;">
-            <button class="mode-btn" data-mode="swing-dem" style="flex:1;padding:10px;border:none;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#e65100;">🔥 Eric's Voters</button>
-            <button class="mode-btn" data-mode="swing-rep" style="flex:1;padding:10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#e65100;">🔥 Sarah's Voters</button>
-        </div>
-        <div class="mode-switch" style="display:flex;border:1px solid #ddd;border-radius:4px;overflow:hidden;margin-bottom:12px;">
-            <button class="mode-btn" data-mode="avail-dem" style="flex:1;padding:10px;border:none;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#1565c0;">🎯 Avail Dem</button>
-            <button class="mode-btn" data-mode="avail-rep" style="flex:1;padding:10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#c62828;">🎯 Avail GOP</button>
-            <button class="mode-btn" data-mode="live" style="flex:1;padding:10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#d32f2f;">🔴 LIVE</button>
-        </div>
-        <div style="font-weight:700;font-size:14px;margin-bottom:6px;">Candidate</div>
-        <select id="candidate-select-mobile" style="width:100%;padding:10px;font-size:14px;border:1px solid #ddd;border-radius:4px;margin-bottom:12px;">
-            <option value="">All Precincts</option>
-        </select>
         <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:12px;cursor:pointer;">
-            <input type="checkbox" id="boundary-toggle-mobile" checked style="width:18px;height:18px;"> Show HD-41 Boundary
+            <input type="checkbox" id="boundary-toggle-mobile" checked style="width:18px;height:18px;"> Show Boundary
         </label>
         <button id="reportcard-btn-mobile" style="width:100%;padding:10px;background:#6c5ce7;color:white;border:none;border-radius:4px;font-size:14px;font-weight:600;cursor:pointer;">📊 Report Card</button>
     </div>
