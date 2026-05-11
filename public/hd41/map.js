@@ -3,7 +3,7 @@
 
 let map, boundaryLayer, precinctLayer;
 let precinctData = null, plannerData = null, shapesData = null, candidateData = null;
-let currentMode = 'combined'; // 'dem', 'rep', 'combined', 'live'
+let currentMode = 'combined'; // 'dem', 'rep', 'combined', 'live', 'avail-dem', 'avail-rep'
 let selectedCandidate = null;
 
 function showLoading() {
@@ -167,6 +167,29 @@ function getStyle(feature, pctLookup) {
 
     let fillColor, fillOpacity = 0.6;
 
+    if (currentMode === 'avail-dem') {
+        // Available Dem votes: total Dem primary voters minus those who already voted in runoff
+        const available = p.dem_votes - (p.runoff_dem || 0);
+        if (available <= 0) return { fillColor: '#e8f5e9', fillOpacity: 0.3, color: '#666', weight: 1 };
+        // Gradient: light blue (few) to dark blue (many)
+        const maxAvail = 400; // normalize against
+        const intensity = Math.min(1, available / maxAvail);
+        fillOpacity = 0.2 + intensity * 0.6;
+        fillColor = intensity >= 0.6 ? '#0d47a1' : intensity >= 0.3 ? '#1976d2' : '#64b5f6';
+        return { fillColor, fillOpacity, color: '#333', weight: 1.5 };
+    }
+
+    if (currentMode === 'avail-rep') {
+        // Available Rep votes: total Rep primary voters minus those who already voted in runoff
+        const available = p.rep_votes - (p.runoff_rep || 0);
+        if (available <= 0) return { fillColor: '#fce4ec', fillOpacity: 0.3, color: '#666', weight: 1 };
+        const maxAvail = 200;
+        const intensity = Math.min(1, available / maxAvail);
+        fillOpacity = 0.2 + intensity * 0.6;
+        fillColor = intensity >= 0.6 ? '#b71c1c' : intensity >= 0.3 ? '#e53935' : '#ef9a9a';
+        return { fillColor, fillOpacity, color: '#333', weight: 1.5 };
+    }
+
     if (currentMode === 'live') {
         // LIVE RUNOFF MODE: opacity = vote volume, color = party leading
         const runoffTotal = (p.runoff_dem || 0) + (p.runoff_rep || 0);
@@ -235,6 +258,54 @@ function getStyle(feature, pctLookup) {
 function buildPopup(p) {
     let html = `<div style="font-family:-apple-system,sans-serif;min-width:300px;max-width:360px">`;
     html += `<div style="font-weight:700;font-size:15px;margin-bottom:8px;border-bottom:2px solid #333;padding-bottom:4px;">Precinct ${p.precinct}</div>`;
+
+    // Available votes mode
+    if (currentMode === 'avail-dem' || currentMode === 'avail-rep') {
+        const isDem = currentMode === 'avail-dem';
+        const partyVotes = isDem ? p.dem_votes : p.rep_votes;
+        const runoffVotes = isDem ? (p.runoff_dem || 0) : (p.runoff_rep || 0);
+        const available = partyVotes - runoffVotes;
+        const partyLabel = isDem ? 'Democratic' : 'Republican';
+        const color = isDem ? '#1565c0' : '#c62828';
+        const candidates = isDem ? p.dem_candidates : p.rep_candidates;
+
+        html += `<div style="padding:10px;border-radius:6px;background:${isDem ? '#e3f2fd' : '#fce4ec'};margin-bottom:10px;">`;
+        html += `<div style="font-size:24px;font-weight:700;color:${color};">${available}</div>`;
+        html += `<div style="font-size:12px;color:#555;">available ${partyLabel} votes for runoff</div>`;
+        html += `</div>`;
+
+        html += `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px;">`;
+        html += `<tr style="border-bottom:1px solid #eee;"><td style="padding:4px;">March primary total</td><td style="padding:4px;text-align:right;font-weight:700;">${partyVotes}</td></tr>`;
+        html += `<tr style="border-bottom:1px solid #eee;"><td style="padding:4px;">Already voted in runoff</td><td style="padding:4px;text-align:right;">${runoffVotes}</td></tr>`;
+        html += `<tr style="border-top:2px solid #333;"><td style="padding:4px;font-weight:700;">Still available</td><td style="padding:4px;text-align:right;font-weight:700;color:${color};">${available}</td></tr>`;
+        html += `</table>`;
+
+        // Show March primary breakdown (who these voters chose)
+        if (candidates) {
+            html += `<div style="font-size:11px;font-weight:700;margin-bottom:4px;">March primary breakdown (who they voted for):</div>`;
+            const sorted = Object.entries(candidates).sort((a, b) => b[1] - a[1]);
+            for (const [c, v] of sorted) {
+                const pct = partyVotes > 0 ? Math.round(v / partyVotes * 100) : 0;
+                const barW = partyVotes > 0 ? Math.round(v / sorted[0][1] * 100) : 0;
+                html += `<div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:11px;">`;
+                html += `<span style="width:80px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${c.replace("Victor 'Seby' ","Seby ").split(' ').slice(0,2).join(' ')}</span>`;
+                html += `<span style="width:30px;text-align:right;font-weight:600;">${v}</span>`;
+                html += `<div style="flex:1;height:8px;background:#eee;border-radius:4px;"><div style="height:8px;background:${color};border-radius:4px;width:${barW}%;opacity:0.6;"></div></div>`;
+                html += `<span style="width:30px;text-align:right;color:#666;">${pct}%</span>`;
+                html += `</div>`;
+            }
+            // Note about eliminated candidate's voters
+            if (isDem) {
+                const ericVotes = candidates["Eric Holguín"] || 0;
+                if (ericVotes > 0) html += `<div style="margin-top:6px;padding:4px;background:#fff3e0;border-radius:4px;font-size:10px;">⚡ ${ericVotes} of these voted for Holguín (eliminated) — up for grabs in runoff</div>`;
+            } else {
+                const sarahVotes = candidates["Sarah Sagredo-Hammond"] || 0;
+                if (sarahVotes > 0) html += `<div style="margin-top:6px;padding:4px;background:#fff3e0;border-radius:4px;font-size:10px;">⚡ ${sarahVotes} of these voted for Sagredo-Hammond (eliminated) — up for grabs in runoff</div>`;
+            }
+        }
+        html += `</div>`;
+        return html;
+    }
 
     // Live runoff data (show if any runoff votes exist)
     if (currentMode === 'live') {
@@ -356,6 +427,12 @@ function updateInfoStrip() {
         const demRunoff = precinctData.precincts.reduce((s, p) => s + (p.runoff_dem || 0), 0);
         const repRunoff = precinctData.precincts.reduce((s, p) => s + (p.runoff_rep || 0), 0);
         strip.innerHTML = `<b>🔴 LIVE RUNOFF</b> · ${totalRunoff} votes so far (🔵${demRunoff} 🔴${repRunoff}) · Opacity = turnout volume · Color = party leading · Clear = no votes yet`;
+    } else if (currentMode === 'avail-dem') {
+        const totalAvail = precinctData.precincts.reduce((s, p) => s + p.dem_votes - (p.runoff_dem || 0), 0);
+        strip.innerHTML = `<b>🔵 Available Dem Votes</b> · ${totalAvail.toLocaleString()} Dem primary voters available for runoff · Darker = more votes to win · Click for breakdown (Seby vs Julio vs Eric voters)`;
+    } else if (currentMode === 'avail-rep') {
+        const totalAvail = precinctData.precincts.reduce((s, p) => s + p.rep_votes - (p.runoff_rep || 0), 0);
+        strip.innerHTML = `<b>🔴 Available GOP Votes</b> · ${totalAvail.toLocaleString()} Rep primary voters available for runoff · Darker = more votes to win · Click for breakdown (Sergio vs Gary vs Sarah voters)`;
     } else if (currentMode === 'combined') {
         strip.innerHTML = `Combined view · <span style="color:#0d47a1">■ Strong D</span> <span style="color:#7b1fa2">■ Lean D</span> <span style="color:#880e4f">■ Lean R</span> <span style="color:#b71c1c">■ Strong R</span> · Click precinct for side-by-side candidate breakdown`;
     } else if (currentMode === 'dem') {

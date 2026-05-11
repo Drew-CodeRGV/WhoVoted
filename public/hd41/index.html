@@ -187,10 +187,12 @@
             <button class="mobile-menu-btn mobile-only" id="mobile-menu-btn">☰</button>
 
             <div class="mode-switch desktop-only" style="display:inline-flex;border:1px solid #ddd;border-radius:4px;overflow:hidden;">
-                <button class="mode-btn" data-mode="dem" style="padding:6px 12px;border:none;background:white;cursor:pointer;font-size:12px;font-weight:600;color:#1565c0;">DEM</button>
-                <button class="mode-btn active" data-mode="combined" style="padding:6px 12px;border:none;border-left:1px solid #ddd;border-right:1px solid #ddd;background:#f0f0f0;cursor:pointer;font-size:12px;font-weight:600;">ALL</button>
-                <button class="mode-btn" data-mode="rep" style="padding:6px 12px;border:none;border-left:1px solid #ddd;border-right:1px solid #ddd;background:white;cursor:pointer;font-size:12px;font-weight:600;color:#c62828;">GOP</button>
-                <button class="mode-btn" data-mode="live" style="padding:6px 12px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:12px;font-weight:600;color:#d32f2f;">🔴 LIVE</button>
+                <button class="mode-btn" data-mode="dem" style="padding:6px 10px;border:none;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#1565c0;">DEM</button>
+                <button class="mode-btn active" data-mode="combined" style="padding:6px 10px;border:none;border-left:1px solid #ddd;background:#f0f0f0;cursor:pointer;font-size:11px;font-weight:600;">ALL</button>
+                <button class="mode-btn" data-mode="rep" style="padding:6px 10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#c62828;">GOP</button>
+                <button class="mode-btn" data-mode="avail-dem" style="padding:6px 10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#1565c0;">🎯D</button>
+                <button class="mode-btn" data-mode="avail-rep" style="padding:6px 10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#c62828;">🎯R</button>
+                <button class="mode-btn" data-mode="live" style="padding:6px 10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#d32f2f;">🔴</button>
             </div>
 
             <select class="heatmap-toggle desktop-only" id="candidate-select" style="max-width:200px;">
@@ -208,11 +210,15 @@
     <!-- Mobile Menu Drawer -->
     <div class="mobile-drawer" id="mobile-drawer">
         <div style="font-weight:700;font-size:14px;margin-bottom:10px;">View Mode</div>
-        <div class="mode-switch" style="display:flex;border:1px solid #ddd;border-radius:4px;overflow:hidden;margin-bottom:12px;">
+        <div class="mode-switch" style="display:flex;border:1px solid #ddd;border-radius:4px;overflow:hidden;margin-bottom:6px;">
             <button class="mode-btn" data-mode="dem" style="flex:1;padding:10px;border:none;background:white;cursor:pointer;font-size:13px;font-weight:600;color:#1565c0;">DEM</button>
-            <button class="mode-btn active" data-mode="combined" style="flex:1;padding:10px;border:none;border-left:1px solid #ddd;border-right:1px solid #ddd;background:#f0f0f0;cursor:pointer;font-size:13px;font-weight:600;">ALL</button>
-            <button class="mode-btn" data-mode="rep" style="flex:1;padding:10px;border:none;border-left:1px solid #ddd;border-right:1px solid #ddd;background:white;cursor:pointer;font-size:13px;font-weight:600;color:#c62828;">GOP</button>
-            <button class="mode-btn" data-mode="live" style="flex:1;padding:10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:13px;font-weight:600;color:#d32f2f;">🔴 LIVE</button>
+            <button class="mode-btn active" data-mode="combined" style="flex:1;padding:10px;border:none;border-left:1px solid #ddd;background:#f0f0f0;cursor:pointer;font-size:13px;font-weight:600;">ALL</button>
+            <button class="mode-btn" data-mode="rep" style="flex:1;padding:10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:13px;font-weight:600;color:#c62828;">GOP</button>
+        </div>
+        <div class="mode-switch" style="display:flex;border:1px solid #ddd;border-radius:4px;overflow:hidden;margin-bottom:12px;">
+            <button class="mode-btn" data-mode="avail-dem" style="flex:1;padding:10px;border:none;background:white;cursor:pointer;font-size:12px;font-weight:600;color:#1565c0;">🎯 Avail Dem</button>
+            <button class="mode-btn" data-mode="avail-rep" style="flex:1;padding:10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:12px;font-weight:600;color:#c62828;">🎯 Avail GOP</button>
+            <button class="mode-btn" data-mode="live" style="flex:1;padding:10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:12px;font-weight:600;color:#d32f2f;">🔴 LIVE</button>
         </div>
         <div style="font-weight:700;font-size:14px;margin-bottom:6px;">Candidate</div>
         <select id="candidate-select-mobile" style="width:100%;padding:10px;font-size:14px;border:1px solid #ddd;border-radius:4px;margin-bottom:12px;">
