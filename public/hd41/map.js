@@ -100,6 +100,7 @@ function setupListeners(){
 
 function render(){
     if(currentMain==='voters')renderVoters();
+    else if(currentMain==='yardsigns')renderYardSigns();
     else if(!window.__subscribed){showPaywall();return;}
     else if(currentMain==='party-all')renderParty('combined');
     else if(currentMain==='party-dem')renderParty('dem');
@@ -164,6 +165,67 @@ function renderVoters(){
         markerClusterGroup.addLayer(marker);}
     if(hp.length){heatLayer=L.heatLayer(hp,{radius:15,blur:20,maxZoom:15});heatLayer.addTo(map);}
     updateStrip(`${voterData.count.toLocaleString()} voters · Zoom in for detail · Click for voter info + history`);
+}
+
+// ═══ YARD SIGNS MAP ═══
+function renderYardSigns(){
+    clearLayers();
+    if(!voterData||!voterData.voters)return;
+    const ysl=window.__yardSigns||{};
+    const signVuids=Object.keys(ysl);
+    if(!signVuids.length){updateStrip('🪧 No yard signs recorded yet. Zoom in on the Voter Map and mark signs from voter popups.');return;}
+
+    const voterLookup={};
+    for(const v of voterData.voters)voterLookup[v.vuid]=v;
+
+    let friendly=0,hostile=0;
+    const candCounts={};
+
+    for(const vuid of signVuids){
+        const v=voterLookup[vuid];
+        if(!v||!v.lat||!v.lng)continue;
+        const ys=ysl[vuid];
+        const isH=isHostileSign(v.party_voted,ys.candidate);
+        if(isH)hostile++;else friendly++;
+        candCounts[ys.candidate]=(candCounts[ys.candidate]||0)+1;
+
+        // Color by candidate
+        let color;
+        if(ys.candidate.includes('Haddad'))color='#1565c0';
+        else if(ys.candidate.includes('Salinas'))color='#2e7d32';
+        else if(ys.candidate.includes('Sanchez'))color='#c62828';
+        else if(ys.candidate.includes('Groves'))color='#e65100';
+        else color='#666';
+
+        const marker=L.circleMarker([v.lat,v.lng],{
+            radius:8,fillColor:isH?'#FF8C00':color,color:isH?'#FF4500':'#fff',weight:3,opacity:1,fillOpacity:0.9
+        });
+
+        // Flag for hostile
+        if(isH){
+            const flag=L.marker([v.lat,v.lng],{icon:L.divIcon({html:'<div style="font-size:16px;transform:rotate(-15deg);text-shadow:0 1px 3px rgba(0,0,0,0.5);">⚠️</div>',className:'',iconSize:[18,18],iconAnchor:[9,22]})});
+            markerClusterGroup.addLayer(flag);
+        }
+
+        marker.bindPopup(()=>{
+            let h=`<div style="font-family:sans-serif;min-width:220px;">`;
+            h+=`<div style="font-size:11px;color:#888;">${v.address||''}, ${v.city||''}</div>`;
+            h+=`<div style="font-weight:700;font-size:13px;margin:4px 0;">${v.name}</div>`;
+            h+=`<div style="font-size:12px;margin-bottom:6px;">Voted: <b>${v.party_voted}</b> · Pct ${v.precinct||'—'}</div>`;
+            h+=`<div style="padding:8px;border-radius:6px;background:${isH?'#fff3e0':'#e8f5e9'};border:1px solid ${isH?'#ff8a00':'#4caf50'};">`;
+            h+=`<div style="font-size:14px;font-weight:700;color:${isH?'#e65100':'#2e7d32'};">${isH?'⚠️ HOSTILE':'🪧'} ${ys.candidate}</div>`;
+            if(isH)h+=`<div style="font-size:11px;color:#e65100;margin-top:2px;">This ${v.party_voted} voter has an opposing party sign!</div>`;
+            h+=`</div>`;
+            h+=`<button onclick="removeYardSign('${vuid}')" style="margin-top:8px;padding:4px 10px;font-size:11px;background:#eee;border:1px solid #ccc;border-radius:3px;cursor:pointer;">Remove sign</button>`;
+            h+=`</div>`;
+            return h;
+        },{maxWidth:300});
+        markerClusterGroup.addLayer(marker);
+    }
+
+    // Summary
+    const candList=Object.entries(candCounts).sort((a,b)=>b[1]-a[1]).map(([c,n])=>`${c.split(' ').pop()}:${n}`).join(' · ');
+    updateStrip(`🪧 <b>${signVuids.length} Yard Signs</b> · Friendly: ${friendly} · <span style="color:#e65100">Hostile: ${hostile}</span> · ${candList}`);
 }
 
 // ═══ PARTY VIEW ═══
