@@ -247,10 +247,53 @@ function updateStrip(html){const s=document.querySelector('.info-strip');if(s)s.
 
 // ═══ REPORT CARD ═══
 function toggleReportCard(){
-    const panel=document.getElementById('reportcard-panel');panel.classList.toggle('visible');if(!panel.classList.contains('visible'))return;
-    document.getElementById('reportcard-summary').innerHTML=`<div style="font-size:16px;font-weight:700;">HD-41 — ${precinctData.summary.total_votes.toLocaleString()} votes</div><div style="font-size:12px;color:#666;margin-top:4px;">🔵D:${precinctData.summary.total_dem_votes.toLocaleString()} 🔴R:${precinctData.summary.total_rep_votes.toLocaleString()} · ${precinctData.summary.total_precincts} pcts</div>`;
+    const panel=document.getElementById('reportcard-panel');
+    if(!panel)return;
+    panel.classList.toggle('visible');
+    if(!panel.classList.contains('visible'))return;
+    if(!precinctData||!precinctData.precincts)return;
+
+    const sumEl=document.getElementById('reportcard-summary');
+    const listEl=document.getElementById('reportcard-list');
+    if(!sumEl||!listEl)return;
+
+    const s=precinctData.summary;
+    sumEl.innerHTML=`<div style="font-size:16px;font-weight:700;">HD-41 Official Canvass</div><div style="font-size:13px;color:#333;margin-top:4px;">${s.total_votes.toLocaleString()} total votes · 🔵 D: ${s.total_dem_votes.toLocaleString()} · 🔴 R: ${s.total_rep_votes.toLocaleString()}</div><div style="font-size:11px;color:#888;margin-top:2px;">${s.total_precincts} precincts · Source: Hidalgo County</div>`;
+
     const sorted=[...precinctData.precincts].sort((a,b)=>b.total_votes-a.total_votes);
-    document.getElementById('reportcard-list').innerHTML=sorted.map(p=>{const wc=p.winner==='Democratic'?'#1565c0':'#c62828';let dl='',rl='';if(p.dem_candidates){dl=Object.entries(p.dem_candidates).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`${shortName(c).split(' ')[0]}:${v}`).join(' ');}if(p.rep_candidates){rl=Object.entries(p.rep_candidates).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`${c.split(' ')[0]}:${v}`).join(' ');}return`<div class="rc-row"><div class="rc-grade" style="background:${wc};font-size:11px;width:36px;height:36px;">${p.winner==='Democratic'?'D':'R'}</div><div class="rc-info"><div class="rc-pct" style="font-size:13px;">Pct ${p.precinct} <span style="font-size:10px;color:#888;">(+${p.margin_votes})</span></div><div class="rc-detail" style="font-size:10px;">🔵${dl} · 🔴${rl}</div></div><div style="width:50px;text-align:right;"><div style="font-weight:700;font-size:13px;">${p.total_votes}</div></div></div>`;}).join('');
+    let html='';
+    for(const p of sorted){
+        const wc=p.winner==='Democratic'?'#1565c0':'#c62828';
+        const wl=p.winner==='Democratic'?'D':'R';
+        // Dem candidates summary
+        let dl='';
+        if(p.dem_candidates){
+            const ds=Object.entries(p.dem_candidates).sort((a,b)=>b[1]-a[1]);
+            dl=ds.map(([c,v])=>{
+                const s=c.replace("Victor 'Seby' Haddad","Seby").replace("Julio Salinas","Julio").replace("Eric Holgu\u00EDn","Eric");
+                return s+':'+v;
+            }).join(' ');
+        }
+        // Rep candidates summary
+        let rl='';
+        if(p.rep_candidates){
+            const rs=Object.entries(p.rep_candidates).sort((a,b)=>b[1]-a[1]);
+            rl=rs.map(([c,v])=>{
+                const s=c.replace("Sergio Sanchez","Sergio").replace("Gary Groves","Gary").replace("Sarah Sagredo-Hammond","Sarah");
+                return s+':'+v;
+            }).join(' ');
+        }
+        html+=`<div class="rc-row">`;
+        html+=`<div class="rc-grade" style="background:${wc};font-size:11px;width:36px;height:36px;">${wl}</div>`;
+        html+=`<div class="rc-info">`;
+        html+=`<div class="rc-pct" style="font-size:13px;">Pct ${p.precinct} <span style="font-size:10px;color:#888;">(+${p.margin_votes} ${wl})</span></div>`;
+        html+=`<div class="rc-detail" style="font-size:10px;">🔵 ${dl}</div>`;
+        html+=`<div class="rc-detail" style="font-size:10px;">🔴 ${rl}</div>`;
+        html+=`</div>`;
+        html+=`<div style="width:50px;text-align:right;"><div style="font-weight:700;font-size:13px;">${p.total_votes}</div><div style="font-size:9px;color:#666;">${p.turnout_pct}%</div></div>`;
+        html+=`</div>`;
+    }
+    listEl.innerHTML=html;
 }
 
 document.addEventListener('DOMContentLoaded',initMap);
