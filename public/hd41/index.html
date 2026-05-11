@@ -181,38 +181,29 @@
             <button class="location-btn" id="location-btn" title="My Location">📍</button>
             <button class="mobile-menu-btn mobile-only" id="mobile-menu-btn">☰</button>
 
-            <!-- Main view -->
+            <!-- Main view selector -->
             <select class="heatmap-toggle desktop-only" id="view-select">
                 <option value="voters">🗳️ Voter Map</option>
-                <option value="primary">📊 Primary Results</option>
-                <option value="mopup">💪 Mop-Up</option>
+                <option value="party">📊 Party View</option>
+                <option value="candidate">👤 Candidate</option>
             </select>
 
-            <!-- Primary: DEM/ALL/GOP -->
-            <div id="primary-controls" class="desktop-only" style="display:none;border:1px solid #ddd;border-radius:4px;overflow:hidden;">
+            <!-- Party sub-controls (only visible in party view) -->
+            <div id="party-controls" class="desktop-only" style="display:none;border:1px solid #ddd;border-radius:4px;overflow:hidden;">
                 <button class="mode-btn" data-mode="dem" style="padding:5px 8px;border:none;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#1565c0;">DEM</button>
                 <button class="mode-btn active" data-mode="combined" style="padding:5px 8px;border:none;border-left:1px solid #ddd;background:#f0f0f0;cursor:pointer;font-size:11px;font-weight:600;">ALL</button>
                 <button class="mode-btn" data-mode="rep" style="padding:5px 8px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#c62828;">GOP</button>
             </div>
 
-            <!-- Candidate (primary mode) -->
-            <select class="heatmap-toggle desktop-only" id="candidate-select" style="display:none;max-width:170px;">
-                <option value="">All Precincts</option>
-            </select>
-
-            <!-- Mop-up candidate -->
-            <select class="heatmap-toggle desktop-only" id="mopup-select" style="display:none;">
+            <!-- Candidate selector (only visible in candidate view) -->
+            <select class="heatmap-toggle desktop-only" id="candidate-select" style="display:none;max-width:180px;">
                 <option value="">Choose candidate...</option>
-                <option value="mopup-seby">💪 Seby Haddad</option>
-                <option value="mopup-julio">💪 Julio Salinas</option>
-                <option value="mopup-sergio">💪 Sergio Sanchez</option>
-                <option value="mopup-gary">💪 Gary Groves</option>
             </select>
 
-            <!-- Boundaries -->
+            <!-- Boundary selector (always visible) -->
             <select class="heatmap-toggle desktop-only" id="boundary-select">
-                <option value="district">🔲 HD-41 Boundary</option>
-                <option value="precincts">🔲 Precinct Outlines</option>
+                <option value="district">🔲 District</option>
+                <option value="precincts">🔲 Precincts</option>
                 <option value="both">🔲 Both</option>
                 <option value="none">🔲 None</option>
             </select>
@@ -226,21 +217,17 @@
         <div style="font-weight:700;font-size:14px;margin-bottom:6px;">View</div>
         <select id="view-select-mobile" style="width:100%;padding:10px;font-size:14px;border:1px solid #ddd;border-radius:4px;margin-bottom:10px;">
             <option value="voters">🗳️ Voter Map</option>
-            <option value="primary">📊 Primary Results</option>
-            <option value="mopup">💪 Mop-Up</option>
+            <option value="party">📊 Party View</option>
+            <option value="candidate">👤 Candidate</option>
         </select>
-        <div style="font-weight:700;font-size:14px;margin-bottom:6px;">💪 Mop-Up</div>
-        <select id="mopup-select-mobile" style="width:100%;padding:10px;font-size:14px;border:1px solid #ddd;border-radius:4px;margin-bottom:10px;">
+        <div style="font-weight:700;font-size:14px;margin-bottom:6px;">👤 Candidate</div>
+        <select id="candidate-select-mobile" style="width:100%;padding:10px;font-size:14px;border:1px solid #ddd;border-radius:4px;margin-bottom:10px;">
             <option value="">Choose candidate...</option>
-            <option value="mopup-seby">Seby Haddad</option>
-            <option value="mopup-julio">Julio Salinas</option>
-            <option value="mopup-sergio">Sergio Sanchez</option>
-            <option value="mopup-gary">Gary Groves</option>
         </select>
         <div style="font-weight:700;font-size:14px;margin-bottom:6px;">Boundaries</div>
         <select id="boundary-select-mobile" style="width:100%;padding:10px;font-size:14px;border:1px solid #ddd;border-radius:4px;margin-bottom:10px;">
-            <option value="district">HD-41 Boundary</option>
-            <option value="precincts">Precinct Outlines</option>
+            <option value="district">District</option>
+            <option value="precincts">Precincts</option>
             <option value="both">Both</option>
             <option value="none">None</option>
         </select>
