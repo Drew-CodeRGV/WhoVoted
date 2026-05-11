@@ -153,7 +153,7 @@ function renderVoters(){
         const isHostile=ys&&(activeCand?isHostileToCandidate(ys.candidate,activeCand):isHostileSign(v.party_voted,ys.candidate));
         const isFriendly=ys&&activeCand&&ys.candidate===activeCand;
         const color=isHostile?'#FF8C00':v.party_voted==='Democratic'?'#1E90FF':v.party_voted==='Republican'?'#DC143C':'#888';
-        const marker=L.circleMarker([v.lat,v.lng],{radius:6,fillColor:color,color:isHostile?'#FF4500':isFriendly?'#4caf50':'#fff',weight:2,opacity:1,fillOpacity:0.8});
+        const marker=L.circleMarker([v.lat,v.lng],{radius:9,fillColor:color,color:isHostile?'#FF8C00':isFriendly?'#4caf50':'#fff',weight:isHostile?3:2,opacity:1,fillOpacity:0.8});
         if(isHostile){
             const flag=L.marker([v.lat,v.lng],{icon:L.divIcon({html:'<div style="font-size:14px;transform:rotate(-15deg);text-shadow:0 1px 2px rgba(0,0,0,0.5);">⚠️</div>',className:'',iconSize:[16,16],iconAnchor:[8,20]})});
             markerClusterGroup.addLayer(flag);
@@ -431,7 +431,7 @@ function addVoterDotsForView(){
         const isHostile=ys&&(activeCand?isHostileToCandidate(ys.candidate,activeCand):isHostileSign(v.party_voted,ys.candidate));
         const isFriendly=ys&&activeCand&&ys.candidate===activeCand;
         const color=isHostile?'#FF8C00':v.party_voted==='Democratic'?'#1E90FF':v.party_voted==='Republican'?'#DC143C':'#888';
-        const marker=L.circleMarker([v.lat,v.lng],{radius:6,fillColor:color,color:isHostile?'#FF4500':isFriendly?'#4caf50':'#fff',weight:2,opacity:1,fillOpacity:0.8});
+        const marker=L.circleMarker([v.lat,v.lng],{radius:9,fillColor:color,color:isHostile?'#FF8C00':isFriendly?'#4caf50':'#fff',weight:isHostile?3:2,opacity:1,fillOpacity:0.8});
         if(isHostile){
             const flag=L.marker([v.lat,v.lng],{icon:L.divIcon({html:'<div style="font-size:14px;transform:rotate(-15deg);text-shadow:0 1px 2px rgba(0,0,0,0.5);">⚠️</div>',className:'',iconSize:[16,16],iconAnchor:[8,20]})});
             markerClusterGroup.addLayer(flag);
