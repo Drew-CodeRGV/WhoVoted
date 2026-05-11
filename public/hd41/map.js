@@ -3,7 +3,7 @@
 
 let map, boundaryLayer, precinctLayer;
 let precinctData = null, plannerData = null, shapesData = null, candidateData = null;
-let currentMode = 'combined'; // 'dem', 'rep', 'combined', 'live', 'avail-dem', 'avail-rep'
+let currentMode = 'combined'; // 'dem', 'rep', 'combined', 'live', 'avail-dem', 'avail-rep', 'swing-dem', 'swing-rep', 'mopup-seby', 'mopup-sergio'
 let selectedCandidate = null;
 
 function showLoading() {
@@ -190,6 +190,74 @@ function getStyle(feature, pctLookup) {
         return { fillColor, fillOpacity, color: '#333', weight: 1.5 };
     }
 
+    if (currentMode === 'swing-dem') {
+        // Eric Holguín's voters — the swing votes in the Dem runoff
+        const ericVotes = (p.dem_candidates && p.dem_candidates["Eric Holguín"]) || 0;
+        if (ericVotes === 0) return { fillColor: '#f5f5f5', fillOpacity: 0.15, color: '#aaa', weight: 1 };
+        const maxSwing = 200;
+        const intensity = Math.min(1, ericVotes / maxSwing);
+        fillOpacity = 0.25 + intensity * 0.6;
+        // Hot gradient: yellow (few) → orange → deep orange (many)
+        if (intensity >= 0.6) fillColor = '#e65100';
+        else if (intensity >= 0.3) fillColor = '#ff9800';
+        else fillColor = '#ffcc02';
+        return { fillColor, fillOpacity, color: '#333', weight: 1.5 };
+    }
+
+    if (currentMode === 'swing-rep') {
+        // Sarah Sagredo-Hammond's voters — the swing votes in the Rep runoff
+        const sarahVotes = (p.rep_candidates && p.rep_candidates["Sarah Sagredo-Hammond"]) || 0;
+        if (sarahVotes === 0) return { fillColor: '#f5f5f5', fillOpacity: 0.15, color: '#aaa', weight: 1 };
+        const maxSwing = 80;
+        const intensity = Math.min(1, sarahVotes / maxSwing);
+        fillOpacity = 0.25 + intensity * 0.6;
+        if (intensity >= 0.6) fillColor = '#e65100';
+        else if (intensity >= 0.3) fillColor = '#ff9800';
+        else fillColor = '#ffcc02';
+        return { fillColor, fillOpacity, color: '#333', weight: 1.5 };
+    }
+
+    if (currentMode === 'mopup-seby') {
+        // Seby's mop-up map: precincts where Seby WON + Eric had voters to absorb
+        const sebyVotes = (p.dem_candidates && p.dem_candidates["Victor 'Seby' Haddad"]) || 0;
+        const julioVotes = (p.dem_candidates && p.dem_candidates["Julio Salinas"]) || 0;
+        const ericVotes = (p.dem_candidates && p.dem_candidates["Eric Holguín"]) || 0;
+        const sebyWon = sebyVotes > julioVotes;
+
+        if (!sebyWon || ericVotes === 0) {
+            // Not Seby's turf or no Eric voters — gray it out
+            return { fillColor: sebyWon ? '#e8f5e9' : '#f5f5f5', fillOpacity: 0.1, color: '#aaa', weight: 1 };
+        }
+        // Seby won AND Eric had voters here — this is mop-up territory
+        // Intensity = Eric's votes (more = bigger opportunity)
+        const maxMopup = 150;
+        const intensity = Math.min(1, ericVotes / maxMopup);
+        fillOpacity = 0.3 + intensity * 0.55;
+        if (intensity >= 0.6) fillColor = '#1b5e20'; // Deep green — high impact
+        else if (intensity >= 0.3) fillColor = '#43a047'; // Medium green
+        else fillColor = '#81c784'; // Light green
+        return { fillColor, fillOpacity, color: '#1b5e20', weight: 2 };
+    }
+
+    if (currentMode === 'mopup-sergio') {
+        // Sergio's mop-up map: precincts where Sergio WON + Sarah had voters
+        const sergioVotes = (p.rep_candidates && p.rep_candidates["Sergio Sanchez"]) || 0;
+        const garyVotes = (p.rep_candidates && p.rep_candidates["Gary Groves"]) || 0;
+        const sarahVotes = (p.rep_candidates && p.rep_candidates["Sarah Sagredo-Hammond"]) || 0;
+        const sergioWon = sergioVotes > garyVotes;
+
+        if (!sergioWon || sarahVotes === 0) {
+            return { fillColor: sergioWon ? '#fce4ec' : '#f5f5f5', fillOpacity: 0.1, color: '#aaa', weight: 1 };
+        }
+        const maxMopup = 50;
+        const intensity = Math.min(1, sarahVotes / maxMopup);
+        fillOpacity = 0.3 + intensity * 0.55;
+        if (intensity >= 0.6) fillColor = '#b71c1c';
+        else if (intensity >= 0.3) fillColor = '#e53935';
+        else fillColor = '#ef9a9a';
+        return { fillColor, fillOpacity, color: '#b71c1c', weight: 2 };
+    }
+
     if (currentMode === 'live') {
         // LIVE RUNOFF MODE: opacity = vote volume, color = party leading
         const runoffTotal = (p.runoff_dem || 0) + (p.runoff_rep || 0);
@@ -258,6 +326,84 @@ function getStyle(feature, pctLookup) {
 function buildPopup(p) {
     let html = `<div style="font-family:-apple-system,sans-serif;min-width:300px;max-width:360px">`;
     html += `<div style="font-weight:700;font-size:15px;margin-bottom:8px;border-bottom:2px solid #333;padding-bottom:4px;">Precinct ${p.precinct}</div>`;
+
+    // Mop-up mode (stronghold + available swing voters)
+    if (currentMode === 'mopup-seby' || currentMode === 'mopup-sergio') {
+        const isDem = currentMode === 'mopup-seby';
+        const candidates = isDem ? p.dem_candidates : p.rep_candidates;
+        const myName = isDem ? "Victor 'Seby' Haddad" : "Sergio Sanchez";
+        const opponentName = isDem ? "Julio Salinas" : "Gary Groves";
+        const eliminatedName = isDem ? "Eric Holguín" : "Sarah Sagredo-Hammond";
+        const myVotes = (candidates && candidates[myName]) || 0;
+        const oppVotes = (candidates && candidates[opponentName]) || 0;
+        const swingVotes = (candidates && candidates[eliminatedName]) || 0;
+        const iWon = myVotes > oppVotes;
+        const shortName = isDem ? 'Seby' : 'Sergio';
+        const oppShort = isDem ? 'Julio' : 'Gary';
+        const elimShort = isDem ? 'Eric' : 'Sarah';
+
+        if (iWon && swingVotes > 0) {
+            html += `<div style="padding:10px;border-radius:6px;background:#e8f5e9;margin-bottom:10px;border:2px solid #4caf50;">`;
+            html += `<div style="font-size:11px;color:#2e7d32;font-weight:700;">✓ ${shortName.toUpperCase()}'S TURF — MOP-UP OPPORTUNITY</div>`;
+            html += `<div style="font-size:28px;font-weight:700;color:#1b5e20;margin:4px 0;">${swingVotes}</div>`;
+            html += `<div style="font-size:12px;color:#555;">${elimShort}'s voters to absorb</div>`;
+            html += `</div>`;
+
+            html += `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px;">`;
+            html += `<tr style="background:#e8f5e9;font-weight:700;"><td style="padding:4px;">👑 ${shortName} (won)</td><td style="padding:4px;text-align:right;">${myVotes}</td></tr>`;
+            html += `<tr><td style="padding:4px;">${oppShort}</td><td style="padding:4px;text-align:right;">${oppVotes}</td></tr>`;
+            html += `<tr style="background:#fff3e0;"><td style="padding:4px;">🔥 ${elimShort} (eliminated)</td><td style="padding:4px;text-align:right;font-weight:700;color:#e65100;">${swingVotes}</td></tr>`;
+            html += `</table>`;
+
+            html += `<div style="padding:6px;background:#f1f8e9;border-radius:4px;font-size:11px;">`;
+            html += `<b>If ${shortName} wins all ${swingVotes} of ${elimShort}'s voters:</b> ${myVotes + swingVotes} total vs ${oppShort}'s ${oppVotes}`;
+            const newMargin = (myVotes + swingVotes) - oppVotes;
+            html += `<br><b>New margin: +${newMargin}</b> (was +${myVotes - oppVotes})`;
+            html += `</div>`;
+        } else if (!iWon) {
+            html += `<div style="padding:8px;background:#f5f5f5;border-radius:4px;font-size:12px;color:#666;">Not ${shortName}'s turf — ${oppShort} won here (${oppVotes} vs ${myVotes})</div>`;
+        } else {
+            html += `<div style="padding:8px;background:#f5f5f5;border-radius:4px;font-size:12px;color:#666;">${shortName} won but no ${elimShort} voters here to absorb</div>`;
+        }
+        html += `</div>`;
+        return html;
+    }
+
+    // Swing votes mode (eliminated candidates' voters)
+    if (currentMode === 'swing-dem' || currentMode === 'swing-rep') {
+        const isDem = currentMode === 'swing-dem';
+        const candidates = isDem ? p.dem_candidates : p.rep_candidates;
+        const eliminatedName = isDem ? "Eric Holguín" : "Sarah Sagredo-Hammond";
+        const runoffCands = isDem ? ["Victor 'Seby' Haddad", "Julio Salinas"] : ["Sergio Sanchez", "Gary Groves"];
+        const color = isDem ? '#e65100' : '#e65100';
+        const swingVotes = (candidates && candidates[eliminatedName]) || 0;
+        const totalParty = isDem ? p.dem_votes : p.rep_votes;
+
+        html += `<div style="padding:10px;border-radius:6px;background:#fff3e0;margin-bottom:10px;border:2px solid #ff9800;">`;
+        html += `<div style="font-size:24px;font-weight:700;color:#e65100;">${swingVotes}</div>`;
+        html += `<div style="font-size:12px;color:#555;">${eliminatedName} voters — <b>up for grabs</b></div>`;
+        html += `</div>`;
+
+        if (swingVotes > 0) {
+            html += `<div style="font-size:12px;margin-bottom:8px;">These ${swingVotes} voters must now choose between:</div>`;
+            for (const cand of runoffCands) {
+                const candVotes = (candidates && candidates[cand]) || 0;
+                const candPct = totalParty > 0 ? Math.round(candVotes / totalParty * 100) : 0;
+                html += `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;">`;
+                html += `<span style="font-weight:600;width:100px;">${cand.replace("Victor 'Seby' ","Seby ")}</span>`;
+                html += `<span>${candVotes} (${candPct}%)</span>`;
+                html += `</div>`;
+            }
+            html += `<div style="margin-top:8px;padding:6px;background:#e8f5e9;border-radius:4px;font-size:11px;">`;
+            html += `<b>If you win all ${swingVotes} swing voters here</b>, you'd have ${swingVotes + ((candidates && candidates[runoffCands[0]]) || 0)} total (vs opponent's ${(candidates && candidates[runoffCands[1]]) || 0})`;
+            html += `</div>`;
+        } else {
+            html += `<div style="font-size:12px;color:#999;">No ${eliminatedName} voters in this precinct</div>`;
+        }
+        html += `<div style="font-size:10px;color:#888;margin-top:6px;border-top:1px solid #eee;padding-top:4px;">Total ${isDem ? 'Dem' : 'Rep'} ballots in March: ${totalParty}</div>`;
+        html += `</div>`;
+        return html;
+    }
 
     // Available votes mode
     if (currentMode === 'avail-dem' || currentMode === 'avail-rep') {
@@ -433,6 +579,30 @@ function updateInfoStrip() {
     } else if (currentMode === 'avail-rep') {
         const totalAvail = precinctData.precincts.reduce((s, p) => s + p.rep_votes - (p.runoff_rep || 0), 0);
         strip.innerHTML = `<b>🔴 Available GOP Votes</b> · ${totalAvail.toLocaleString()} Rep primary voters available for runoff · Darker = more votes to win · Click for breakdown (Sergio vs Gary vs Sarah voters)`;
+    } else if (currentMode === 'swing-dem') {
+        const totalSwing = precinctData.precincts.reduce((s, p) => s + ((p.dem_candidates && p.dem_candidates["Eric Holguín"]) || 0), 0);
+        strip.innerHTML = `<b>🔥 Holguín's Voters (${totalSwing.toLocaleString()})</b> — eliminated, now choosing between Seby & Julio · Darker = more swing votes · THE runoff battleground`;
+    } else if (currentMode === 'swing-rep') {
+        const totalSwing = precinctData.precincts.reduce((s, p) => s + ((p.rep_candidates && p.rep_candidates["Sarah Sagredo-Hammond"]) || 0), 0);
+        strip.innerHTML = `<b>🔥 Sagredo-Hammond's Voters (${totalSwing.toLocaleString()})</b> — eliminated, now choosing between Sergio & Gary · Darker = more swing votes`;
+    } else if (currentMode === 'mopup-seby') {
+        const mopupPcts = precinctData.precincts.filter(p => {
+            const s = (p.dem_candidates && p.dem_candidates["Victor 'Seby' Haddad"]) || 0;
+            const j = (p.dem_candidates && p.dem_candidates["Julio Salinas"]) || 0;
+            const e = (p.dem_candidates && p.dem_candidates["Eric Holguín"]) || 0;
+            return s > j && e > 0;
+        });
+        const totalMopup = mopupPcts.reduce((s, p) => s + ((p.dem_candidates && p.dem_candidates["Eric Holguín"]) || 0), 0);
+        strip.innerHTML = `<b>💪 Seby's Mop-Up Map</b> · ${mopupPcts.length} precincts where Seby won + ${totalMopup} Eric voters to absorb · Green = high-impact stronghold territory`;
+    } else if (currentMode === 'mopup-sergio') {
+        const mopupPcts = precinctData.precincts.filter(p => {
+            const s = (p.rep_candidates && p.rep_candidates["Sergio Sanchez"]) || 0;
+            const g = (p.rep_candidates && p.rep_candidates["Gary Groves"]) || 0;
+            const sa = (p.rep_candidates && p.rep_candidates["Sarah Sagredo-Hammond"]) || 0;
+            return s > g && sa > 0;
+        });
+        const totalMopup = mopupPcts.reduce((s, p) => s + ((p.rep_candidates && p.rep_candidates["Sarah Sagredo-Hammond"]) || 0), 0);
+        strip.innerHTML = `<b>💪 Sergio's Mop-Up Map</b> · ${mopupPcts.length} precincts where Sergio won + ${totalMopup} Sarah voters to absorb · Red = high-impact stronghold territory`;
     } else if (currentMode === 'combined') {
         strip.innerHTML = `Combined view · <span style="color:#0d47a1">■ Strong D</span> <span style="color:#7b1fa2">■ Lean D</span> <span style="color:#880e4f">■ Lean R</span> <span style="color:#b71c1c">■ Strong R</span> · Click precinct for side-by-side candidate breakdown`;
     } else if (currentMode === 'dem') {
