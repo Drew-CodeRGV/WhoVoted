@@ -5,7 +5,10 @@
 let map,boundaryLayer,precinctLayer,precinctOutlineLayer,markerClusterGroup,heatLayer;
 let voterData=null,precinctData=null,shapesData=null,candidateData=null;
 let currentMain='voters'; // from main dropdown
-let candidateSubView='won'; // 'won','lost','myvotes','partyvotes','mopup'
+let candidateSubView='won'; // 'won','lost','myvotes','partyvotes','mopup','otherparty'
+
+// Subscription — default false, set by paywall script before this loads
+if(typeof window.__subscribed==='undefined')window.__subscribed=false;
 
 function showLoading(){const d=document.createElement('div');d.id='loading-screen';d.innerHTML=`<div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.95);z-index:10000;display:flex;align-items:center;justify-content:center;"><div style="text-align:center;font-size:18px;font-weight:600;color:#333;">Loading HD-41...</div></div>`;document.body.appendChild(d);}
 function hideLoading(){const e=document.getElementById('loading-screen');if(e)e.remove();}
@@ -60,7 +63,7 @@ function setupListeners(){
     boundSel.addEventListener('change',e=>updateBoundaries(e.target.value));
 
     document.getElementById('location-btn').addEventListener('click',()=>{if(navigator.geolocation)navigator.geolocation.getCurrentPosition(p=>map.setView([p.coords.latitude,p.coords.longitude],15));});
-    document.getElementById('reportcard-btn').addEventListener('click',toggleReportCard);
+    document.getElementById('reportcard-btn').addEventListener('click',()=>{if(!window.__subscribed){showPaywall();return;}toggleReportCard();});
     document.getElementById('reportcard-close').addEventListener('click',()=>document.getElementById('reportcard-panel').classList.remove('visible'));
 
     // Mobile
@@ -78,10 +81,30 @@ function setupListeners(){
 
 function render(){
     if(currentMain==='voters')renderVoters();
+    else if(!window.__subscribed){showPaywall();return;}
     else if(currentMain==='party-all')renderParty('combined');
     else if(currentMain==='party-dem')renderParty('dem');
     else if(currentMain==='party-rep')renderParty('rep');
     else if(currentMain.startsWith('cand-'))renderCandidate();
+}
+
+function showPaywall(){
+    clearLayers();
+    // Show paywall modal
+    let modal=document.getElementById('paywall-modal');
+    if(!modal){
+        modal=document.createElement('div');modal.id='paywall-modal';
+        modal.innerHTML=`<div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:5000;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;">
+            <div style="background:white;border-radius:12px;padding:32px;max-width:420px;width:100%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.3);">
+                <div style="font-size:40px;margin-bottom:12px;">🔒</div>
+                <h2 style="margin:0 0 8px;font-size:22px;color:#1a1a1a;">Subscribers Only</h2>
+                <p style="color:#666;font-size:14px;line-height:1.5;margin:0 0 20px;">Precinct analysis, candidate maps, voter details, and report cards require a subscription. The heatmap view is free.</p>
+                <a href="/hd41/subscribe" style="display:inline-block;background:#0066cc;color:white;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;font-size:15px;">Subscribe — $10</a>
+                <div style="margin-top:12px;"><button onclick="document.getElementById('paywall-modal').remove();document.getElementById('main-select').value='voters';currentMain='voters';render();" style="background:none;border:none;color:#888;cursor:pointer;font-size:13px;">← Back to free heatmap</button></div>
+            </div>
+        </div>`;
+        document.body.appendChild(modal);
+    }
 }
 
 function getSelectedCandidate(){
@@ -106,7 +129,12 @@ function renderVoters(){
     for(const v of voterData.voters){if(!v.lat||!v.lng)continue;hp.push([v.lat,v.lng,0.5]);
         const color=v.party_voted==='Democratic'?'#1E90FF':v.party_voted==='Republican'?'#DC143C':'#888';
         const marker=L.circleMarker([v.lat,v.lng],{radius:6,fillColor:color,color:'#fff',weight:2,opacity:1,fillOpacity:0.8});
-        marker.bindPopup(()=>buildVoterPopup(v),{maxWidth:380});markerClusterGroup.addLayer(marker);}
+        if(window.__subscribed){
+            marker.bindPopup(()=>buildVoterPopup(v),{maxWidth:380});
+        } else {
+            marker.on('click',()=>showPaywall());
+        }
+        markerClusterGroup.addLayer(marker);}
     if(hp.length){heatLayer=L.heatLayer(hp,{radius:15,blur:20,maxZoom:15});heatLayer.addTo(map);}
     updateStrip(`${voterData.count.toLocaleString()} voters · Zoom in for detail · Click for voter info + history`);
 }
