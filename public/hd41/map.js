@@ -3,7 +3,7 @@
 
 let map, boundaryLayer, precinctLayer;
 let precinctData = null, plannerData = null, shapesData = null, candidateData = null;
-let currentMode = 'combined'; // 'dem', 'rep', 'combined', 'live', 'avail-dem', 'avail-rep', 'swing-dem', 'swing-rep', 'mopup-seby', 'mopup-sergio'
+let currentMode = 'combined'; // 'dem', 'rep', 'combined', 'live', 'avail-dem', 'avail-rep', 'swing-dem', 'swing-rep', 'mopup-seby', 'mopup-julio', 'mopup-sergio', 'mopup-gary'
 let selectedCandidate = null;
 
 function showLoading() {
@@ -139,6 +139,40 @@ function setupListeners() {
     if (mRC) {
         mRC.addEventListener('click', () => { mobileDrawer.classList.remove('visible'); toggleReportCard(); });
     }
+
+    // Mop-up dropdown (desktop)
+    const mopupSel = document.getElementById('mopup-select');
+    if (mopupSel) {
+        mopupSel.addEventListener('change', e => {
+            if (e.target.value) {
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                currentMode = e.target.value;
+                selectedCandidate = null;
+                document.getElementById('candidate-select').value = '';
+                renderMap();
+            } else {
+                // Reset to combined
+                currentMode = 'combined';
+                document.querySelectorAll('.mode-btn[data-mode="combined"]').forEach(b => b.classList.add('active'));
+                renderMap();
+            }
+        });
+    }
+    // Mop-up dropdown (mobile)
+    const mopupSelM = document.getElementById('mopup-select-mobile');
+    if (mopupSelM) {
+        mopupSelM.addEventListener('change', e => {
+            if (e.target.value) {
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                currentMode = e.target.value;
+                selectedCandidate = null;
+                renderMap();
+                if (mobileDrawer) mobileDrawer.classList.remove('visible');
+            }
+            // Sync desktop
+            if (mopupSel) mopupSel.value = e.target.value;
+        });
+    }
 }
 
 function renderMap() {
@@ -258,6 +292,44 @@ function getStyle(feature, pctLookup) {
         return { fillColor, fillOpacity, color: '#b71c1c', weight: 2 };
     }
 
+    if (currentMode === 'mopup-julio') {
+        // Julio's mop-up: precincts where Julio WON + Eric had voters
+        const julioVotes = (p.dem_candidates && p.dem_candidates["Julio Salinas"]) || 0;
+        const sebyVotes = (p.dem_candidates && p.dem_candidates["Victor 'Seby' Haddad"]) || 0;
+        const ericVotes = (p.dem_candidates && p.dem_candidates["Eric Holguín"]) || 0;
+        const julioWon = julioVotes > sebyVotes;
+
+        if (!julioWon || ericVotes === 0) {
+            return { fillColor: julioWon ? '#e8f5e9' : '#f5f5f5', fillOpacity: 0.1, color: '#aaa', weight: 1 };
+        }
+        const maxMopup = 150;
+        const intensity = Math.min(1, ericVotes / maxMopup);
+        fillOpacity = 0.3 + intensity * 0.55;
+        if (intensity >= 0.6) fillColor = '#1b5e20';
+        else if (intensity >= 0.3) fillColor = '#43a047';
+        else fillColor = '#81c784';
+        return { fillColor, fillOpacity, color: '#1b5e20', weight: 2 };
+    }
+
+    if (currentMode === 'mopup-gary') {
+        // Gary's mop-up: precincts where Gary WON + Sarah had voters
+        const garyVotes = (p.rep_candidates && p.rep_candidates["Gary Groves"]) || 0;
+        const sergioVotes = (p.rep_candidates && p.rep_candidates["Sergio Sanchez"]) || 0;
+        const sarahVotes = (p.rep_candidates && p.rep_candidates["Sarah Sagredo-Hammond"]) || 0;
+        const garyWon = garyVotes > sergioVotes;
+
+        if (!garyWon || sarahVotes === 0) {
+            return { fillColor: garyWon ? '#fce4ec' : '#f5f5f5', fillOpacity: 0.1, color: '#aaa', weight: 1 };
+        }
+        const maxMopup = 50;
+        const intensity = Math.min(1, sarahVotes / maxMopup);
+        fillOpacity = 0.3 + intensity * 0.55;
+        if (intensity >= 0.6) fillColor = '#e65100';
+        else if (intensity >= 0.3) fillColor = '#ff9800';
+        else fillColor = '#ffcc80';
+        return { fillColor, fillOpacity, color: '#e65100', weight: 2 };
+    }
+
     if (currentMode === 'live') {
         // LIVE RUNOFF MODE: opacity = vote volume, color = party leading
         const runoffTotal = (p.runoff_dem || 0) + (p.runoff_rep || 0);
@@ -328,42 +400,43 @@ function buildPopup(p) {
     html += `<div style="font-weight:700;font-size:15px;margin-bottom:8px;border-bottom:2px solid #333;padding-bottom:4px;">Precinct ${p.precinct}</div>`;
 
     // Mop-up mode (stronghold + available swing voters)
-    if (currentMode === 'mopup-seby' || currentMode === 'mopup-sergio') {
-        const isDem = currentMode === 'mopup-seby';
-        const candidates = isDem ? p.dem_candidates : p.rep_candidates;
-        const myName = isDem ? "Victor 'Seby' Haddad" : "Sergio Sanchez";
-        const opponentName = isDem ? "Julio Salinas" : "Gary Groves";
-        const eliminatedName = isDem ? "Eric Holguín" : "Sarah Sagredo-Hammond";
-        const myVotes = (candidates && candidates[myName]) || 0;
-        const oppVotes = (candidates && candidates[opponentName]) || 0;
-        const swingVotes = (candidates && candidates[eliminatedName]) || 0;
-        const iWon = myVotes > oppVotes;
-        const shortName = isDem ? 'Seby' : 'Sergio';
-        const oppShort = isDem ? 'Julio' : 'Gary';
-        const elimShort = isDem ? 'Eric' : 'Sarah';
+    if (currentMode.startsWith('mopup-')) {
+        const configs = {
+            'mopup-seby': { myName: "Victor 'Seby' Haddad", oppName: "Julio Salinas", elimName: "Eric Holguín", short: 'Seby', oppShort: 'Julio', elimShort: 'Eric', partyKey: 'dem_candidates' },
+            'mopup-julio': { myName: "Julio Salinas", oppName: "Victor 'Seby' Haddad", elimName: "Eric Holguín", short: 'Julio', oppShort: 'Seby', elimShort: 'Eric', partyKey: 'dem_candidates' },
+            'mopup-sergio': { myName: "Sergio Sanchez", oppName: "Gary Groves", elimName: "Sarah Sagredo-Hammond", short: 'Sergio', oppShort: 'Gary', elimShort: 'Sarah', partyKey: 'rep_candidates' },
+            'mopup-gary': { myName: "Gary Groves", oppName: "Sergio Sanchez", elimName: "Sarah Sagredo-Hammond", short: 'Gary', oppShort: 'Sergio', elimShort: 'Sarah', partyKey: 'rep_candidates' },
+        };
+        const cfg = configs[currentMode];
+        if (cfg) {
+            const candidates = p[cfg.partyKey] || {};
+            const myVotes = candidates[cfg.myName] || 0;
+            const oppVotes = candidates[cfg.oppName] || 0;
+            const swingVotes = candidates[cfg.elimName] || 0;
+            const iWon = myVotes > oppVotes;
+            const totalParty = Object.values(candidates).reduce((s, v) => s + v, 0);
 
-        if (iWon && swingVotes > 0) {
-            html += `<div style="padding:10px;border-radius:6px;background:#e8f5e9;margin-bottom:10px;border:2px solid #4caf50;">`;
-            html += `<div style="font-size:11px;color:#2e7d32;font-weight:700;">✓ ${shortName.toUpperCase()}'S TURF — MOP-UP OPPORTUNITY</div>`;
-            html += `<div style="font-size:28px;font-weight:700;color:#1b5e20;margin:4px 0;">${swingVotes}</div>`;
-            html += `<div style="font-size:12px;color:#555;">${elimShort}'s voters to absorb</div>`;
-            html += `</div>`;
-
-            html += `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px;">`;
-            html += `<tr style="background:#e8f5e9;font-weight:700;"><td style="padding:4px;">👑 ${shortName} (won)</td><td style="padding:4px;text-align:right;">${myVotes}</td></tr>`;
-            html += `<tr><td style="padding:4px;">${oppShort}</td><td style="padding:4px;text-align:right;">${oppVotes}</td></tr>`;
-            html += `<tr style="background:#fff3e0;"><td style="padding:4px;">🔥 ${elimShort} (eliminated)</td><td style="padding:4px;text-align:right;font-weight:700;color:#e65100;">${swingVotes}</td></tr>`;
-            html += `</table>`;
-
-            html += `<div style="padding:6px;background:#f1f8e9;border-radius:4px;font-size:11px;">`;
-            html += `<b>If ${shortName} wins all ${swingVotes} of ${elimShort}'s voters:</b> ${myVotes + swingVotes} total vs ${oppShort}'s ${oppVotes}`;
-            const newMargin = (myVotes + swingVotes) - oppVotes;
-            html += `<br><b>New margin: +${newMargin}</b> (was +${myVotes - oppVotes})`;
-            html += `</div>`;
-        } else if (!iWon) {
-            html += `<div style="padding:8px;background:#f5f5f5;border-radius:4px;font-size:12px;color:#666;">Not ${shortName}'s turf — ${oppShort} won here (${oppVotes} vs ${myVotes})</div>`;
-        } else {
-            html += `<div style="padding:8px;background:#f5f5f5;border-radius:4px;font-size:12px;color:#666;">${shortName} won but no ${elimShort} voters here to absorb</div>`;
+            if (iWon && swingVotes > 0) {
+                html += `<div style="padding:10px;border-radius:6px;background:#e8f5e9;margin-bottom:10px;border:2px solid #4caf50;">`;
+                html += `<div style="font-size:11px;color:#2e7d32;font-weight:700;">✓ ${cfg.short.toUpperCase()}'S TURF — MOP-UP OPPORTUNITY</div>`;
+                html += `<div style="font-size:28px;font-weight:700;color:#1b5e20;margin:4px 0;">${swingVotes}</div>`;
+                html += `<div style="font-size:12px;color:#555;">${cfg.elimShort}'s voters to absorb</div>`;
+                html += `</div>`;
+                html += `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px;">`;
+                html += `<tr style="background:#e8f5e9;font-weight:700;"><td style="padding:4px;">👑 ${cfg.short} (won)</td><td style="padding:4px;text-align:right;">${myVotes}</td></tr>`;
+                html += `<tr><td style="padding:4px;">${cfg.oppShort}</td><td style="padding:4px;text-align:right;">${oppVotes}</td></tr>`;
+                html += `<tr style="background:#fff3e0;"><td style="padding:4px;">🔥 ${cfg.elimShort} (eliminated)</td><td style="padding:4px;text-align:right;font-weight:700;color:#e65100;">${swingVotes}</td></tr>`;
+                html += `</table>`;
+                html += `<div style="padding:6px;background:#f1f8e9;border-radius:4px;font-size:11px;">`;
+                html += `<b>If ${cfg.short} wins all ${swingVotes}:</b> ${myVotes + swingVotes} total vs ${cfg.oppShort}'s ${oppVotes}`;
+                html += `<br><b>New margin: +${(myVotes + swingVotes) - oppVotes}</b> (was +${myVotes - oppVotes})`;
+                html += `</div>`;
+            } else if (!iWon) {
+                html += `<div style="padding:8px;background:#f5f5f5;border-radius:4px;font-size:12px;color:#666;">Not ${cfg.short}'s turf — ${cfg.oppShort} won here (${oppVotes} vs ${myVotes})</div>`;
+            } else {
+                html += `<div style="padding:8px;background:#f5f5f5;border-radius:4px;font-size:12px;color:#666;">${cfg.short} won but no ${cfg.elimShort} voters here</div>`;
+            }
+            html += `<div style="font-size:10px;color:#888;margin-top:6px;border-top:1px solid #eee;padding-top:4px;">Total party ballots: ${totalParty}</div>`;
         }
         html += `</div>`;
         return html;
@@ -593,7 +666,16 @@ function updateInfoStrip() {
             return s > j && e > 0;
         });
         const totalMopup = mopupPcts.reduce((s, p) => s + ((p.dem_candidates && p.dem_candidates["Eric Holguín"]) || 0), 0);
-        strip.innerHTML = `<b>💪 Seby's Mop-Up Map</b> · ${mopupPcts.length} precincts where Seby won + ${totalMopup} Eric voters to absorb · Green = high-impact stronghold territory`;
+        strip.innerHTML = `<b>💪 Seby's Mop-Up</b> · ${mopupPcts.length} precincts where Seby won + ${totalMopup} Eric voters to absorb · Darker = higher impact`;
+    } else if (currentMode === 'mopup-julio') {
+        const mopupPcts = precinctData.precincts.filter(p => {
+            const j = (p.dem_candidates && p.dem_candidates["Julio Salinas"]) || 0;
+            const s = (p.dem_candidates && p.dem_candidates["Victor 'Seby' Haddad"]) || 0;
+            const e = (p.dem_candidates && p.dem_candidates["Eric Holguín"]) || 0;
+            return j > s && e > 0;
+        });
+        const totalMopup = mopupPcts.reduce((s, p) => s + ((p.dem_candidates && p.dem_candidates["Eric Holguín"]) || 0), 0);
+        strip.innerHTML = `<b>💪 Julio's Mop-Up</b> · ${mopupPcts.length} precincts where Julio won + ${totalMopup} Eric voters to absorb · Darker = higher impact`;
     } else if (currentMode === 'mopup-sergio') {
         const mopupPcts = precinctData.precincts.filter(p => {
             const s = (p.rep_candidates && p.rep_candidates["Sergio Sanchez"]) || 0;
@@ -602,7 +684,16 @@ function updateInfoStrip() {
             return s > g && sa > 0;
         });
         const totalMopup = mopupPcts.reduce((s, p) => s + ((p.rep_candidates && p.rep_candidates["Sarah Sagredo-Hammond"]) || 0), 0);
-        strip.innerHTML = `<b>💪 Sergio's Mop-Up Map</b> · ${mopupPcts.length} precincts where Sergio won + ${totalMopup} Sarah voters to absorb · Red = high-impact stronghold territory`;
+        strip.innerHTML = `<b>💪 Sergio's Mop-Up</b> · ${mopupPcts.length} precincts where Sergio won + ${totalMopup} Sarah voters to absorb · Darker = higher impact`;
+    } else if (currentMode === 'mopup-gary') {
+        const mopupPcts = precinctData.precincts.filter(p => {
+            const g = (p.rep_candidates && p.rep_candidates["Gary Groves"]) || 0;
+            const s = (p.rep_candidates && p.rep_candidates["Sergio Sanchez"]) || 0;
+            const sa = (p.rep_candidates && p.rep_candidates["Sarah Sagredo-Hammond"]) || 0;
+            return g > s && sa > 0;
+        });
+        const totalMopup = mopupPcts.reduce((s, p) => s + ((p.rep_candidates && p.rep_candidates["Sarah Sagredo-Hammond"]) || 0), 0);
+        strip.innerHTML = `<b>💪 Gary's Mop-Up</b> · ${mopupPcts.length} precincts where Gary won + ${totalMopup} Sarah voters to absorb · Darker = higher impact`;
     } else if (currentMode === 'combined') {
         strip.innerHTML = `Combined view · <span style="color:#0d47a1">■ Strong D</span> <span style="color:#7b1fa2">■ Lean D</span> <span style="color:#880e4f">■ Lean R</span> <span style="color:#b71c1c">■ Strong R</span> · Click precinct for side-by-side candidate breakdown`;
     } else if (currentMode === 'dem') {
