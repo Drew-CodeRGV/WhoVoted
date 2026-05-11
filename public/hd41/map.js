@@ -39,13 +39,15 @@ function setupListeners(){
     const subSel=document.getElementById('sub-select');
     const boundSel=document.getElementById('boundary-select');
 
+    // Ensure sub-select is hidden on load
+    subSel.style.display='none';
+
     mainSel.addEventListener('change',e=>{
         currentMain=e.target.value;
-        // Show sub-dropdown only for candidate selections
+        // Show sub-dropdown ONLY for candidate selections
         if(currentMain.startsWith('cand-')){
             subSel.style.display='inline-block';
-            candidateSubView='won';
-            subSel.value='won';
+            candidateSubView=subSel.value||'won';
             // Update sub-select label based on party
             const isDem=currentMain.includes('seby')||currentMain.includes('julio');
             subSel.querySelector('[value="partyvotes"]').textContent=isDem?'🔵 All Dem Votes':'🔴 All GOP Votes';
