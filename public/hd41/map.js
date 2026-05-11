@@ -2,7 +2,7 @@
 // Default: voter dots + heatmap. Dropdown: Primary Results, Mop-Up targeting.
 // All data from official Hidalgo County canvass + voter rolls.
 
-let map, boundaryLayer, precinctLayer, markerClusterGroup, heatLayer;
+let map, boundaryLayer, precinctLayer, precinctOutlineLayer, markerClusterGroup, heatLayer;
 let voterData = null, precinctData = null, shapesData = null, candidateData = null;
 let currentView = 'voters'; // 'voters', 'primary', 'mopup'
 let primaryMode = 'combined'; // 'dem', 'combined', 'rep'
@@ -80,11 +80,10 @@ function setupListeners() {
         mopupCandidate = e.target.value;
         render();
     });
-    // Boundary toggle
-    document.getElementById('boundary-toggle').addEventListener('change', e => {
-        if(e.target.checked&&boundaryLayer)boundaryLayer.addTo(map);
-        else if(boundaryLayer&&map.hasLayer(boundaryLayer))map.removeLayer(boundaryLayer);
-    });
+    // Boundary dropdown
+    document.getElementById('boundary-select').addEventListener('change', e => updateBoundaries(e.target.value));
+    const bsm = document.getElementById('boundary-select-mobile');
+    if(bsm) bsm.addEventListener('change', e => { document.getElementById('boundary-select').value=e.target.value; updateBoundaries(e.target.value); });
     // Location
     document.getElementById('location-btn').addEventListener('click',()=>{
         if(navigator.geolocation)navigator.geolocation.getCurrentPosition(p=>map.setView([p.coords.latitude,p.coords.longitude],15));
@@ -277,6 +276,20 @@ function buildVoterPopup(voter) {
     }
     html += `</div>`;
     return html;
+}
+
+function updateBoundaries(mode) {
+    // Remove existing
+    if(boundaryLayer&&map.hasLayer(boundaryLayer)) map.removeLayer(boundaryLayer);
+    if(precinctOutlineLayer&&map.hasLayer(precinctOutlineLayer)) map.removeLayer(precinctOutlineLayer);
+    // Add based on selection
+    if(mode==='district'||mode==='both') { if(boundaryLayer) boundaryLayer.addTo(map); }
+    if(mode==='precincts'||mode==='both') {
+        if(!precinctOutlineLayer&&shapesData) {
+            precinctOutlineLayer = L.geoJSON(shapesData,{style:{color:'#555',weight:1.5,fillOpacity:0,dashArray:'3,3'},onEachFeature:(f,l)=>{l.bindTooltip('Pct '+f.properties.db_precinct,{permanent:false,direction:'center',className:'pct-tooltip'});}});
+        }
+        if(precinctOutlineLayer) precinctOutlineLayer.addTo(map);
+    }
 }
 
 function clearLayers(){

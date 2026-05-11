@@ -20,6 +20,7 @@ def main():
         INNER JOIN voter_elections ve ON v.vuid = ve.vuid
         WHERE ve.election_date = ? AND v.state_house_district = 'HD-41'
         AND v.lat IS NOT NULL AND v.lng IS NOT NULL
+        AND v.precinct IN (SELECT DISTINCT precinct FROM hd41_candidate_results WHERE election_date = '2026-03-03')
         ORDER BY v.precinct
     """, (ELECTION_DATE,)).fetchall()
 
