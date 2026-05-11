@@ -189,7 +189,15 @@ function renderYardSigns(){
         if(isH)hostile++;else friendly++;
         candCounts[ys.candidate]=(candCounts[ys.candidate]||0)+1;
 
-        // Color by candidate
+        if(!window.__subscribed){
+            // Non-subscriber: gray dot, paywall on click
+            const marker=L.circleMarker([v.lat,v.lng],{radius:8,fillColor:'#999',color:'#666',weight:2,opacity:1,fillOpacity:0.7});
+            marker.on('click',()=>showPaywall());
+            markerClusterGroup.addLayer(marker);
+            continue;
+        }
+
+        // Subscriber: full color + hostile flags
         let color;
         if(ys.candidate.includes('Haddad'))color='#1565c0';
         else if(ys.candidate.includes('Salinas'))color='#2e7d32';
@@ -201,7 +209,6 @@ function renderYardSigns(){
             radius:8,fillColor:isH?'#FF8C00':color,color:isH?'#FF4500':'#fff',weight:3,opacity:1,fillOpacity:0.9
         });
 
-        // Flag for hostile
         if(isH){
             const flag=L.marker([v.lat,v.lng],{icon:L.divIcon({html:'<div style="font-size:16px;transform:rotate(-15deg);text-shadow:0 1px 3px rgba(0,0,0,0.5);">⚠️</div>',className:'',iconSize:[18,18],iconAnchor:[9,22]})});
             markerClusterGroup.addLayer(flag);
@@ -224,8 +231,12 @@ function renderYardSigns(){
     }
 
     // Summary
-    const candList=Object.entries(candCounts).sort((a,b)=>b[1]-a[1]).map(([c,n])=>`${c.split(' ').pop()}:${n}`).join(' · ');
-    updateStrip(`🪧 <b>${signVuids.length} Yard Signs</b> · Friendly: ${friendly} · <span style="color:#e65100">Hostile: ${hostile}</span> · ${candList}`);
+    if(window.__subscribed){
+        const candList=Object.entries(candCounts).sort((a,b)=>b[1]-a[1]).map(([c,n])=>`${c.split(' ').pop()}:${n}`).join(' · ');
+        updateStrip(`🪧 <b>${signVuids.length} Yard Signs</b> · Friendly: ${friendly} · <span style="color:#e65100">Hostile: ${hostile}</span> · ${candList}`);
+    } else {
+        updateStrip(`🪧 <b>${signVuids.length} Yard Signs</b> spotted in HD-41 · Subscribe to see which candidates`);
+    }
 }
 
 // ═══ PARTY VIEW ═══
