@@ -181,26 +181,30 @@
             <button class="location-btn" id="location-btn" title="My Location">📍</button>
             <button class="mobile-menu-btn mobile-only" id="mobile-menu-btn">☰</button>
 
-            <!-- Main view selector -->
-            <select class="heatmap-toggle desktop-only" id="view-select">
-                <option value="voters">🗳️ Voter Map</option>
-                <option value="party">📊 Party View</option>
-                <option value="candidate">👤 Candidate</option>
+            <!-- Single main dropdown -->
+            <select class="heatmap-toggle desktop-only" id="main-select">
+                <option value="voters">🗳️ All Voters</option>
+                <option value="party-all">📊 DEM vs GOP</option>
+                <option value="party-dem">🔵 Democratic Primary</option>
+                <option value="party-rep">🔴 Republican Primary</option>
+                <optgroup label="──────────────">
+                <option value="cand-seby">👤 Seby Haddad</option>
+                <option value="cand-julio">👤 Julio Salinas</option>
+                <option value="cand-sergio">👤 Sergio Sanchez</option>
+                <option value="cand-gary">👤 Gary Groves</option>
+                </optgroup>
             </select>
 
-            <!-- Party sub-controls (only visible in party view) -->
-            <div id="party-controls" class="desktop-only" style="display:none;border:1px solid #ddd;border-radius:4px;overflow:hidden;">
-                <button class="mode-btn" data-mode="dem" style="padding:5px 8px;border:none;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#1565c0;">DEM</button>
-                <button class="mode-btn active" data-mode="combined" style="padding:5px 8px;border:none;border-left:1px solid #ddd;background:#f0f0f0;cursor:pointer;font-size:11px;font-weight:600;">ALL</button>
-                <button class="mode-btn" data-mode="rep" style="padding:5px 8px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:11px;font-weight:600;color:#c62828;">GOP</button>
-            </div>
-
-            <!-- Candidate selector (only visible in candidate view) -->
-            <select class="heatmap-toggle desktop-only" id="candidate-select" style="display:none;max-width:180px;">
-                <option value="">Choose candidate...</option>
+            <!-- Sub-view (only shows when candidate selected) -->
+            <select class="heatmap-toggle desktop-only" id="sub-select" style="display:none;">
+                <option value="won">🏆 Where I Won</option>
+                <option value="lost">❌ Where I Lost</option>
+                <option value="myvotes">🗳️ My Votes</option>
+                <option value="partyvotes">🔵 All Dem Votes</option>
+                <option value="mopup">💪 Mop-Up</option>
             </select>
 
-            <!-- Boundary selector (always visible) -->
+            <!-- Boundary -->
             <select class="heatmap-toggle desktop-only" id="boundary-select">
                 <option value="district">🔲 District</option>
                 <option value="precincts">🔲 Precincts</option>
@@ -215,14 +219,23 @@
     <!-- Mobile Menu Drawer -->
     <div class="mobile-drawer" id="mobile-drawer">
         <div style="font-weight:700;font-size:14px;margin-bottom:6px;">View</div>
-        <select id="view-select-mobile" style="width:100%;padding:10px;font-size:14px;border:1px solid #ddd;border-radius:4px;margin-bottom:10px;">
-            <option value="voters">🗳️ Voter Map</option>
-            <option value="party">📊 Party View</option>
-            <option value="candidate">👤 Candidate</option>
+        <select id="main-select-mobile" style="width:100%;padding:10px;font-size:14px;border:1px solid #ddd;border-radius:4px;margin-bottom:10px;">
+            <option value="voters">🗳️ All Voters</option>
+            <option value="party-all">📊 DEM vs GOP</option>
+            <option value="party-dem">🔵 Democratic Primary</option>
+            <option value="party-rep">🔴 Republican Primary</option>
+            <option value="cand-seby">👤 Seby Haddad</option>
+            <option value="cand-julio">👤 Julio Salinas</option>
+            <option value="cand-sergio">👤 Sergio Sanchez</option>
+            <option value="cand-gary">👤 Gary Groves</option>
         </select>
-        <div style="font-weight:700;font-size:14px;margin-bottom:6px;">👤 Candidate</div>
-        <select id="candidate-select-mobile" style="width:100%;padding:10px;font-size:14px;border:1px solid #ddd;border-radius:4px;margin-bottom:10px;">
-            <option value="">Choose candidate...</option>
+        <div style="font-weight:700;font-size:14px;margin-bottom:6px;">Candidate Sub-View</div>
+        <select id="sub-select-mobile" style="width:100%;padding:10px;font-size:14px;border:1px solid #ddd;border-radius:4px;margin-bottom:10px;">
+            <option value="won">🏆 Where I Won</option>
+            <option value="lost">❌ Where I Lost</option>
+            <option value="myvotes">🗳️ My Votes</option>
+            <option value="partyvotes">🔵 All Party Votes</option>
+            <option value="mopup">💪 Mop-Up</option>
         </select>
         <div style="font-weight:700;font-size:14px;margin-bottom:6px;">Boundaries</div>
         <select id="boundary-select-mobile" style="width:100%;padding:10px;font-size:14px;border:1px solid #ddd;border-radius:4px;margin-bottom:10px;">
