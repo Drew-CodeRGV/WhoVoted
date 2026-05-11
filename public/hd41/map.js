@@ -51,26 +51,29 @@ async function loadData() {
 }
 
 function populateCandidates() {
-    const sel = document.getElementById('candidate-select');
-    sel.innerHTML = '<option value="">All Precincts</option>';
-    if (!candidateData) return;
-    if (currentMode === 'dem' || currentMode === 'combined') {
-        const grp = document.createElement('optgroup');
-        grp.label = '🔵 Democratic';
-        for (const c of (candidateData.dem_candidates || [])) {
-            const d = candidateData.candidates[c];
-            if (d) { const o = document.createElement('option'); o.value = c; o.textContent = `${c} (${d.district_share}%)`; grp.appendChild(o); }
+    const selectors = [document.getElementById('candidate-select'), document.getElementById('candidate-select-mobile')];
+    for (const sel of selectors) {
+        if (!sel) continue;
+        sel.innerHTML = '<option value="">All Precincts</option>';
+        if (!candidateData) continue;
+        if (currentMode === 'dem' || currentMode === 'combined') {
+            const grp = document.createElement('optgroup');
+            grp.label = '🔵 Democratic';
+            for (const c of (candidateData.dem_candidates || [])) {
+                const d = candidateData.candidates[c];
+                if (d) { const o = document.createElement('option'); o.value = c; o.textContent = `${c.replace("Victor 'Seby' ","Seby ")} (${d.district_share}%)`; grp.appendChild(o); }
+            }
+            sel.appendChild(grp);
         }
-        sel.appendChild(grp);
-    }
-    if (currentMode === 'rep' || currentMode === 'combined') {
-        const grp = document.createElement('optgroup');
-        grp.label = '🔴 Republican';
-        for (const c of (candidateData.rep_candidates || [])) {
-            const d = candidateData.candidates[c];
-            if (d) { const o = document.createElement('option'); o.value = c; o.textContent = `${c} (${d.district_share}%)`; grp.appendChild(o); }
+        if (currentMode === 'rep' || currentMode === 'combined') {
+            const grp = document.createElement('optgroup');
+            grp.label = '🔴 Republican';
+            for (const c of (candidateData.rep_candidates || [])) {
+                const d = candidateData.candidates[c];
+                if (d) { const o = document.createElement('option'); o.value = c; o.textContent = `${c} (${d.district_share}%)`; grp.appendChild(o); }
+            }
+            sel.appendChild(grp);
         }
-        sel.appendChild(grp);
     }
 }
 
@@ -83,20 +86,59 @@ function setupListeners() {
     document.getElementById('location-btn').addEventListener('click', () => {
         if (navigator.geolocation) navigator.geolocation.getCurrentPosition(p => map.setView([p.coords.latitude, p.coords.longitude], 14));
     });
-    // Mode switch
+    // Mode switch (both desktop and mobile)
     document.querySelectorAll('.mode-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+            // Activate all buttons with same mode (desktop + mobile)
+            document.querySelectorAll(`.mode-btn[data-mode="${btn.dataset.mode}"]`).forEach(b => b.classList.add('active'));
             currentMode = btn.dataset.mode;
             selectedCandidate = null;
             document.getElementById('candidate-select').value = '';
+            const mSel = document.getElementById('candidate-select-mobile');
+            if (mSel) mSel.value = '';
             populateCandidates();
             renderMap();
         });
     });
+    // Report card
     document.getElementById('reportcard-btn').addEventListener('click', toggleReportCard);
     document.getElementById('reportcard-close').addEventListener('click', () => document.getElementById('reportcard-panel').classList.remove('visible'));
+
+    // Mobile menu
+    const mobileBtn = document.getElementById('mobile-menu-btn');
+    const mobileDrawer = document.getElementById('mobile-drawer');
+    if (mobileBtn && mobileDrawer) {
+        mobileBtn.addEventListener('click', () => mobileDrawer.classList.toggle('visible'));
+        // Close drawer when clicking outside
+        document.addEventListener('click', e => {
+            if (!mobileDrawer.contains(e.target) && e.target !== mobileBtn) mobileDrawer.classList.remove('visible');
+        });
+    }
+    // Mobile candidate select
+    const mSel = document.getElementById('candidate-select-mobile');
+    if (mSel) {
+        mSel.addEventListener('change', e => {
+            selectedCandidate = e.target.value || null;
+            document.getElementById('candidate-select').value = selectedCandidate || '';
+            renderMap();
+            mobileDrawer.classList.remove('visible');
+        });
+    }
+    // Mobile boundary toggle
+    const mBound = document.getElementById('boundary-toggle-mobile');
+    if (mBound) {
+        mBound.addEventListener('change', e => {
+            document.getElementById('boundary-toggle').checked = e.target.checked;
+            if (e.target.checked && boundaryLayer) boundaryLayer.addTo(map);
+            else if (boundaryLayer && map.hasLayer(boundaryLayer)) map.removeLayer(boundaryLayer);
+        });
+    }
+    // Mobile report card button
+    const mRC = document.getElementById('reportcard-btn-mobile');
+    if (mRC) {
+        mRC.addEventListener('click', () => { mobileDrawer.classList.remove('visible'); toggleReportCard(); });
+    }
 }
 
 function renderMap() {
@@ -331,11 +373,34 @@ function toggleReportCard() {
     const summary = document.getElementById('reportcard-summary');
     const list = document.getElementById('reportcard-list');
     const s = precinctData.summary;
-    summary.innerHTML = `<div style="font-size:16px;font-weight:700;">HD-41 — ${s.total_votes.toLocaleString()} votes (${s.total_precincts} precincts)</div><div style="font-size:12px;color:#666;margin-top:4px;">🔵 D: ${s.total_dem_votes.toLocaleString()} · 🔴 R: ${s.total_rep_votes.toLocaleString()} · Source: Official Canvass</div>`;
+
+    summary.innerHTML = `<div style="font-size:16px;font-weight:700;">HD-41 Official Canvass — ${s.total_votes.toLocaleString()} votes</div><div style="font-size:12px;color:#666;margin-top:4px;">🔵 D: ${s.total_dem_votes.toLocaleString()} · 🔴 R: ${s.total_rep_votes.toLocaleString()} · ${s.total_precincts} precincts · Source: Hidalgo County</div>`;
+
     const sorted = [...precinctData.precincts].sort((a, b) => b.total_votes - a.total_votes);
     list.innerHTML = sorted.map(p => {
         const winColor = p.winner === 'Democratic' ? '#1565c0' : '#c62828';
-        return `<div class="rc-row"><div class="rc-grade" style="background:${winColor};font-size:11px;width:36px;height:36px;">${p.winner === 'Democratic' ? 'D' : 'R'}</div><div class="rc-info"><div class="rc-pct">Pct ${p.precinct}</div><div class="rc-detail">🔵${p.dem_votes} (${p.dem_share}%) · 🔴${p.rep_votes} (${p.rep_share}%) · Margin: +${p.margin_votes} · Turnout: ${p.turnout_pct}%</div></div><div style="width:50px;text-align:right;font-weight:700;font-size:13px;">${p.total_votes}</div></div>`;
+        // Dem winner in this precinct
+        let demLine = '', repLine = '';
+        if (p.dem_candidates) {
+            const ds = Object.entries(p.dem_candidates).sort((a,b) => b[1]-a[1]);
+            demLine = ds.map(([c,v]) => `${c.replace("Victor 'Seby' ","Seby ").split(' ')[0]}:${v}`).join(' ');
+        }
+        if (p.rep_candidates) {
+            const rs = Object.entries(p.rep_candidates).sort((a,b) => b[1]-a[1]);
+            repLine = rs.map(([c,v]) => `${c.split(' ')[0]}:${v}`).join(' ');
+        }
+        return `<div class="rc-row" style="cursor:pointer;" onclick="map.eachLayer(l=>{if(l.feature&&l.feature.properties&&l.feature.properties.db_precinct==='${p.precinct}'){l.openPopup();}});">
+            <div class="rc-grade" style="background:${winColor};font-size:11px;width:36px;height:36px;">${p.winner==='Democratic'?'D':'R'}</div>
+            <div class="rc-info">
+                <div class="rc-pct" style="font-size:13px;">Pct ${p.precinct} <span style="font-size:10px;color:#888;">(+${p.margin_votes} ${p.winner.charAt(0)})</span></div>
+                <div class="rc-detail" style="font-size:10px;">🔵 ${demLine}</div>
+                <div class="rc-detail" style="font-size:10px;">🔴 ${repLine}</div>
+            </div>
+            <div style="width:50px;text-align:right;">
+                <div style="font-weight:700;font-size:13px;">${p.total_votes}</div>
+                <div style="font-size:9px;color:#666;">${p.turnout_pct}%</div>
+            </div>
+        </div>`;
     }).join('');
 }
 

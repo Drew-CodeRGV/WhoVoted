@@ -69,6 +69,14 @@
         .mobile-only { display: none !important; }
         .btn-label { }
 
+        /* Mobile menu */
+        .mobile-menu-btn { display:none; background:#333; color:white; border:none; border-radius:4px; padding:6px 10px; cursor:pointer; font-size:16px; }
+        .mobile-drawer { display:none; position:fixed; top:60px; left:0; right:0; background:white; z-index:1500; box-shadow:0 4px 16px rgba(0,0,0,0.2); padding:12px 16px; max-height:70vh; overflow-y:auto; }
+        .mobile-drawer.visible { display:block; }
+        .mobile-drawer label, .mobile-drawer select, .mobile-drawer .mode-switch { display:block; width:100%; margin-bottom:10px; }
+        .mobile-drawer .mode-switch { display:flex; }
+        .mobile-drawer select { padding:10px; font-size:14px; border:1px solid #ddd; border-radius:4px; }
+
         /* Report Card Panel — same as bond */
         .reportcard-panel {
             display:none;position:fixed;top:0;right:0;width:420px;max-width:95vw;height:100vh;
@@ -135,12 +143,13 @@
         .invisible-cluster,.marker-cluster,.marker-cluster div,.marker-cluster-small,.marker-cluster-medium,.marker-cluster-large,.marker-cluster-small div,.marker-cluster-medium div,.marker-cluster-large div { background:transparent !important;border:none !important;box-shadow:none !important; }
 
         @media (max-width:768px) {
-            .header-bar { flex-wrap:wrap;padding:8px 10px;gap:10px; }
+            .header-bar { flex-wrap:wrap;padding:8px 10px;gap:8px; }
             .controls-section { order:3;width:100%;flex-wrap:wrap; }
             .search-wrapper { flex:1;max-width:none; }
             .stat-value { font-size:20px; }
             .desktop-only { display:none !important; }
             .mobile-only { display:inline-flex !important; }
+            .mobile-menu-btn { display:inline-flex !important; }
             .btn-label { display:none; }
             .reportcard-panel { width:100vw;max-width:100vw; }
         }
@@ -174,6 +183,9 @@
                 <span class="btn-label">My Location</span>
             </button>
 
+            <!-- Mobile menu button -->
+            <button class="mobile-menu-btn mobile-only" id="mobile-menu-btn">☰</button>
+
             <div class="mode-switch desktop-only" style="display:inline-flex;border:1px solid #ddd;border-radius:4px;overflow:hidden;">
                 <button class="mode-btn" data-mode="dem" style="padding:6px 12px;border:none;background:white;cursor:pointer;font-size:12px;font-weight:600;color:#1565c0;">DEM</button>
                 <button class="mode-btn active" data-mode="combined" style="padding:6px 12px;border:none;border-left:1px solid #ddd;border-right:1px solid #ddd;background:#f0f0f0;cursor:pointer;font-size:12px;font-weight:600;">ALL</button>
@@ -191,6 +203,25 @@
 
             <button class="reportcard-btn desktop-only" id="reportcard-btn" title="Report Card">📊</button>
         </div>
+    </div>
+
+    <!-- Mobile Menu Drawer -->
+    <div class="mobile-drawer" id="mobile-drawer">
+        <div style="font-weight:700;font-size:14px;margin-bottom:10px;">View Mode</div>
+        <div class="mode-switch" style="display:flex;border:1px solid #ddd;border-radius:4px;overflow:hidden;margin-bottom:12px;">
+            <button class="mode-btn" data-mode="dem" style="flex:1;padding:10px;border:none;background:white;cursor:pointer;font-size:13px;font-weight:600;color:#1565c0;">DEM</button>
+            <button class="mode-btn active" data-mode="combined" style="flex:1;padding:10px;border:none;border-left:1px solid #ddd;border-right:1px solid #ddd;background:#f0f0f0;cursor:pointer;font-size:13px;font-weight:600;">ALL</button>
+            <button class="mode-btn" data-mode="rep" style="flex:1;padding:10px;border:none;border-left:1px solid #ddd;border-right:1px solid #ddd;background:white;cursor:pointer;font-size:13px;font-weight:600;color:#c62828;">GOP</button>
+            <button class="mode-btn" data-mode="live" style="flex:1;padding:10px;border:none;border-left:1px solid #ddd;background:white;cursor:pointer;font-size:13px;font-weight:600;color:#d32f2f;">🔴 LIVE</button>
+        </div>
+        <div style="font-weight:700;font-size:14px;margin-bottom:6px;">Candidate</div>
+        <select id="candidate-select-mobile" style="width:100%;padding:10px;font-size:14px;border:1px solid #ddd;border-radius:4px;margin-bottom:12px;">
+            <option value="">All Precincts</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:12px;cursor:pointer;">
+            <input type="checkbox" id="boundary-toggle-mobile" checked style="width:18px;height:18px;"> Show HD-41 Boundary
+        </label>
+        <button id="reportcard-btn-mobile" style="width:100%;padding:10px;background:#6c5ce7;color:white;border:none;border-radius:4px;font-size:14px;font-weight:600;cursor:pointer;">📊 Report Card</button>
     </div>
 
     <!-- Disclaimer Notice -->
