@@ -130,11 +130,9 @@ function renderVoters() {
     for(const v of voterData.voters){
         if(!v.lat||!v.lng)continue;
         hp.push([v.lat,v.lng,0.5]);
-        const color = v.party_voted==='Democratic'?'#1565c0':v.party_voted==='Republican'?'#c62828':'#666';
-        const marker = L.circleMarker([v.lat,v.lng],{radius:4,fillColor:color,color,weight:1,opacity:0.8,fillOpacity:0.6});
-        const age = v.birth_year?(2026-v.birth_year):'?';
-        const hist = (v.hist||[]).map(h=>`<span style="color:${h.p==='D'?'#1565c0':h.p==='R'?'#c62828':'#666'}">${h.y}${h.p}</span>`).join(' ');
-        marker.bindPopup(`<div style="font-family:sans-serif;min-width:200px"><div style="font-weight:700;font-size:13px">${v.name}</div><div style="font-size:11px;color:#666">${v.address||''}, ${v.city||''} ${v.zip||''}</div><div style="font-size:11px;margin-top:4px"><b>Party:</b> ${v.party_voted||'—'} · <b>Age:</b> ${age} · <b>Sex:</b> ${v.sex||'—'}</div><div style="font-size:11px"><b>Method:</b> ${v.voting_method||'—'} · <b>Pct:</b> ${v.precinct||'—'}</div>${hist?`<div style="font-size:10px;margin-top:4px;color:#888">History: ${hist}</div>`:''}</div>`,{maxWidth:280});
+        const color = v.party_voted==='Democratic'?'#1E90FF':v.party_voted==='Republican'?'#DC143C':'#888';
+        const marker = L.circleMarker([v.lat,v.lng],{radius:6,fillColor:color,color:'#ffffff',weight:2,opacity:1,fillOpacity:0.8});
+        marker.bindPopup(()=>buildVoterPopup(v),{maxWidth:380});
         markerClusterGroup.addLayer(marker);
     }
     if(hp.length){heatLayer=L.heatLayer(hp,{radius:15,blur:20,maxZoom:15,max:1.0});heatLayer.addTo(map);}
@@ -232,6 +230,55 @@ function renderMopup() {
 }
 
 // ── Helpers ──
+function buildVoterPopup(voter) {
+    const name = voter.name || 'Unknown';
+    const party = voter.party_voted || '';
+    const pColor = party.includes('Democrat') ? '#1E90FF' : party.includes('Republican') ? '#DC143C' : '#888';
+    const gender = voter.sex === 'F' ? 'Female' : voter.sex === 'M' ? 'Male' : '';
+    const age = voter.birth_year && voter.birth_year > 1900 ? (2026 - voter.birth_year) : '';
+    const ageStr = age ? `Age ${age}` : '';
+
+    let html = `<div style="max-width:380px;font-family:-apple-system,sans-serif;">`;
+    // Address
+    html += `<div style="font-size:11px;color:#888;margin-bottom:2px;">${voter.address || ''}, ${voter.city || ''} ${voter.zip || ''}</div>`;
+    // Name with party dot
+    html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">`;
+    html += `<span style="width:10px;height:10px;border-radius:50%;background:${pColor};flex-shrink:0;"></span>`;
+    html += `<span style="font-weight:600;font-size:13px;">${name}</span>`;
+    html += `</div>`;
+    // Details line
+    const details = [party, gender, ageStr, voter.precinct ? 'Pct ' + voter.precinct : ''].filter(Boolean).join(' · ');
+    if (details) html += `<div style="font-size:11px;color:#666;margin-bottom:3px;">${details}</div>`;
+    // Voting method badge
+    const method = voter.voting_method || '';
+    if (method === 'early-voting') html += `<div style="color:#2E7D32;font-size:11px;font-weight:600;margin-bottom:2px;">✓ Early Voter</div>`;
+    else if (method === 'mail-in') html += `<div style="color:#6A1B9A;font-size:11px;font-weight:600;margin-bottom:2px;">📬 Mail-In Voter</div>`;
+    else if (method === 'election-day') html += `<div style="color:#E65100;font-size:11px;font-weight:600;margin-bottom:2px;">📍 Election Day Voter</div>`;
+
+    // Voting History table (matching politiquera.com style)
+    const hx = voter.hist || [];
+    if (hx.length > 0) {
+        html += '<div style="font-size:10px;font-weight:600;color:#555;margin-top:4px;">Voting History</div>';
+        html += '<table style="border-collapse:collapse;margin-top:2px;width:100%;">';
+        // Top row: year labels
+        html += '<tr>';
+        hx.forEach(e => {
+            const yr = (e.y || '').slice(-2);
+            html += `<td style="padding:1px 2px;font-size:8px;color:#888;text-align:center;border:1px solid #e0e0e0;background:#f5f5f5;">${yr}</td>`;
+        });
+        html += '</tr>';
+        // Bottom row: party color cells
+        html += '<tr>';
+        hx.forEach(e => {
+            const bg = e.p === 'D' ? '#1E90FF' : e.p === 'R' ? '#DC143C' : '#888';
+            html += `<td style="padding:3px 2px;text-align:center;border:1px solid #e0e0e0;background:${bg};color:white;font-size:11px;font-weight:700;">${e.p}</td>`;
+        });
+        html += '</tr></table>';
+    }
+    html += `</div>`;
+    return html;
+}
+
 function clearLayers(){
     markerClusterGroup.clearLayers();
     if(heatLayer){map.removeLayer(heatLayer);heatLayer=null;}
