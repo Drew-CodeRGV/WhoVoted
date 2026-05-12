@@ -631,10 +631,12 @@ async function generateReport(){
     const wantD5=document.getElementById('rpt-d5').checked;
     const wantLivesD5=document.getElementById('rpt-lives-d5').checked;
     const wantNotPrimary=document.getElementById('rpt-not-primary').checked;
+    const wantNotBond=document.getElementById('rpt-not-bond').checked;
+    const wantNotD5=document.getElementById('rpt-not-d5').checked;
     const wantDem=document.getElementById('rpt-dem').checked;
     const wantRep=document.getElementById('rpt-rep').checked;
 
-    if(!wantPrimary&&!wantBond&&!wantD5&&!wantLivesD5&&!wantNotPrimary&&!wantDem&&!wantRep){
+    if(!wantPrimary&&!wantBond&&!wantD5&&!wantLivesD5&&!wantNotPrimary&&!wantNotBond&&!wantNotD5&&!wantDem&&!wantRep){
         el.innerHTML='<div style="color:#c62828;font-size:13px;">Select at least one filter.</div>';return;
     }
 
@@ -653,7 +655,7 @@ async function generateReport(){
     // We need to check which of them also voted in the bond
     // Load from the voter_elections via the bond targets + d5 voters who voted_bond
     let allBondVuids=new Set();
-    if(wantBond){
+    if(wantBond||wantNotBond){
         // Bond targets = voted bond, NOT primary
         try{const r=await fetch('/cache/hd41_bond_targets.json');const d=await r.json();d.voters.forEach(v=>allBondVuids.add(v.vuid));}catch(e){}
         // D5 voters who voted_bond = voted bond AND may have voted primary
@@ -667,8 +669,10 @@ async function generateReport(){
         if(wantPrimary&&!v.party_voted)return false;
         if(wantNotPrimary&&v.party_voted)return false;
         if(wantD5&&d5Vuids&&!d5Vuids.has(v.vuid))return false;
+        if(wantNotD5&&d5Vuids&&d5Vuids.has(v.vuid))return false;
         if(wantLivesD5&&d5Precincts&&!d5Precincts.has(v.precinct))return false;
         if(wantBond&&!allBondVuids.has(v.vuid))return false;
+        if(wantNotBond&&allBondVuids.has(v.vuid))return false;
         return true;
     });
 
