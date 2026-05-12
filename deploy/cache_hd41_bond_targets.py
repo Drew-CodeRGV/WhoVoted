@@ -50,9 +50,11 @@ def main():
 
     # Geometric filter
     voters = []
+    vuids = []
     for row in rows:
         if not point_in_geom(row['lng'], row['lat'], hd41_geom):
             continue
+        vuids.append(row['vuid'])
         voters.append({
             'vuid': row['vuid'],
             'lat': row['lat'], 'lng': row['lng'],
@@ -61,7 +63,26 @@ def main():
             'name': f"{row['firstname'] or ''} {row['lastname'] or ''}".strip(),
             'birth_year': row['birth_year'], 'sex': row['sex'],
             'current_party': row['current_party'] or 'None',
+            'hist': [],
         })
+
+    # Voting history
+    if vuids:
+        vuid_to_idx = {v['vuid']: i for i, v in enumerate(voters)}
+        chunk_size = 500
+        for start in range(0, len(vuids), chunk_size):
+            chunk = vuids[start:start+chunk_size]
+            ph = ','.join('?' * len(chunk))
+            hist_rows = conn.execute(f"""
+                SELECT vuid, election_date, party_voted
+                FROM voter_elections WHERE vuid IN ({ph})
+                ORDER BY election_date
+            """, chunk).fetchall()
+            for hr in hist_rows:
+                idx = vuid_to_idx.get(hr['vuid'])
+                if idx is not None and hr['party_voted']:
+                    letter = 'D' if 'democrat' in hr['party_voted'].lower() else 'R' if 'republican' in hr['party_voted'].lower() else 'O'
+                    voters[idx]['hist'].append({'y': (hr['election_date'] or '')[:4], 'p': letter})
 
     conn.close()
 

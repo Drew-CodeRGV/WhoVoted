@@ -260,25 +260,40 @@ async function renderBondTargets(){
         for(const v of data.voters){
             if(!v.lat||!v.lng)continue;
             hp.push([v.lat,v.lng,0.5]);
-            // Color by party history
-            const color=v.current_party==='Democratic'?'#1E90FF':v.current_party==='Republican'?'#DC143C':'#9c27b0';
+            // Yellow for unaffiliated, blue for Dem, red for Rep
+            const color=v.current_party==='Democratic'?'#1E90FF':v.current_party==='Republican'?'#DC143C':'#FFD600';
             const marker=L.circleMarker([v.lat,v.lng],{radius:9,fillColor:color,color:'#fff',weight:2,opacity:1,fillOpacity:0.8});
             marker.bindPopup(()=>{
                 const age=v.birth_year&&v.birth_year>1900?(2026-v.birth_year):'';
-                let h=`<div style="font-family:sans-serif;max-width:300px;">`;
+                const pColor=v.current_party==='Democratic'?'#1E90FF':v.current_party==='Republican'?'#DC143C':'#FFD600';
+                let h=`<div style="font-family:sans-serif;max-width:380px;">`;
                 h+=`<div style="font-size:11px;color:#888;">${v.address||''}, ${v.city||''} ${v.zip||''}</div>`;
-                h+=`<div style="font-weight:700;font-size:13px;margin:4px 0;">${v.name}</div>`;
-                h+=`<div style="font-size:11px;color:#666;margin-bottom:6px;">${v.current_party==='None'?'No party history':v.current_party} · ${v.sex==='F'?'Female':v.sex==='M'?'Male':''} ${age?'· Age '+age:''} · Pct ${v.precinct||'—'}</div>`;
-                h+=`<div style="padding:8px;border-radius:6px;background:#fff3e0;border:1px solid #ff9800;">`;
-                h+=`<div style="font-size:12px;font-weight:700;color:#e65100;">🎯 BOND VOTER — Skipped Primary</div>`;
-                h+=`<div style="font-size:11px;color:#555;margin-top:2px;">Voted in McAllen ISD Bond (May 10) but did NOT vote in the March 3 primary. Proven voter — mobilization target for runoff.</div>`;
-                h+=`</div></div>`;
+                h+=`<div style="display:flex;align-items:center;gap:6px;margin:4px 0;"><span style="width:10px;height:10px;border-radius:50%;background:${pColor};"></span><span style="font-weight:700;font-size:13px;">${v.name}</span></div>`;
+                const partyLabel=v.current_party==='None'?'Unaffiliated':v.current_party;
+                h+=`<div style="font-size:11px;color:#666;margin-bottom:4px;">${partyLabel} · ${v.sex==='F'?'Female':v.sex==='M'?'Male':''} ${age?'· Age '+age:''} · Pct ${v.precinct||'—'}</div>`;
+                h+=`<div style="padding:6px;border-radius:6px;background:#fff3e0;border:1px solid #ff9800;margin-bottom:6px;">`;
+                h+=`<div style="font-size:11px;font-weight:700;color:#e65100;">🎯 BOND VOTER — Skipped Primary</div>`;
+                h+=`<div style="font-size:10px;color:#555;">Voted in MISD Bond (May 10) · Did NOT vote March 3</div>`;
+                h+=`</div>`;
+                // Voting history table
+                const hx=v.hist||[];
+                if(hx.length){
+                    h+='<div style="font-size:10px;font-weight:600;color:#555;margin-top:4px;">Voting History</div>';
+                    h+='<table style="border-collapse:collapse;margin-top:2px;width:100%;"><tr>';
+                    hx.forEach(e=>{h+=`<td style="padding:1px 2px;font-size:8px;color:#888;text-align:center;border:1px solid #e0e0e0;background:#f5f5f5;">${(e.y||'').slice(-2)}</td>`;});
+                    h+='</tr><tr>';
+                    hx.forEach(e=>{const bg=e.p==='D'?'#1E90FF':e.p==='R'?'#DC143C':'#888';h+=`<td style="padding:3px 2px;text-align:center;border:1px solid #e0e0e0;background:${bg};color:white;font-size:11px;font-weight:700;">${e.p}</td>`;});
+                    h+='</tr></table>';
+                } else {
+                    h+='<div style="font-size:10px;color:#999;margin-top:4px;">No prior primary history</div>';
+                }
+                h+=`</div>`;
                 return h;
-            },{maxWidth:320});
+            },{maxWidth:380});
             markerClusterGroup.addLayer(marker);
         }
         if(hp.length){heatLayer=L.heatLayer(hp,{radius:15,blur:20,maxZoom:15,gradient:{0.4:'#ff9800',0.65:'#f57c00',1:'#e65100'}});heatLayer.addTo(map);}
-        updateStrip(`🎯 <b>${data.count} Bond Voters Who Skipped Primary</b> · <span style="color:#1E90FF">●Dem history: ${data.dem_history}</span> · <span style="color:#DC143C">●Rep history: ${data.rep_history}</span> · <span style="color:#9c27b0">●No history: ${data.no_history}</span> · Proven voters — mobilize for runoff`);
+        updateStrip(`🎯 <b>${data.count} Bond Voters Who Skipped Primary</b> · <span style="color:#1E90FF">●Dem: ${data.dem_history}</span> · <span style="color:#DC143C">●Rep: ${data.rep_history}</span> · <span style="color:#FFD600">●Unaffiliated: ${data.no_history}</span> · Proven voters — mobilize for runoff`);
     }catch(e){updateStrip('Failed to load bond targets');console.error(e);}
 }
 
