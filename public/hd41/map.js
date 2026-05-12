@@ -698,7 +698,10 @@ async function generateReport(){
     if(!results.length){el.innerHTML='<div style="color:#888;font-size:13px;">No voters match these criteria.</div>';return;}
 
     let h=`<div style="font-weight:700;font-size:14px;margin-bottom:8px;">${results.length} voters found</div>`;
-    h+=`<button onclick="exportReport()" style="margin-bottom:10px;padding:6px 12px;background:#1565c0;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">📥 Export CSV</button>`;
+    h+=`<div style="display:flex;gap:8px;margin-bottom:10px;">`;
+    h+=`<button onclick="exportReport()" style="padding:6px 12px;background:#1565c0;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">📥 Export CSV</button>`;
+    h+=`<button onclick="mapReport()" style="padding:6px 12px;background:#2e7d32;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">🗺️ Map Them</button>`;
+    h+=`</div>`;
     h+=`<div style="max-height:400px;overflow-y:auto;border:1px solid #ddd;border-radius:4px;">`;
     h+=`<table style="width:100%;border-collapse:collapse;font-size:11px;">`;
     h+=`<tr style="background:#f5f5f5;position:sticky;top:0;"><th style="padding:4px;text-align:left;">Name</th><th style="padding:4px;text-align:left;">Address</th><th style="padding:4px;">Party</th><th style="padding:4px;">Pct</th></tr>`;
@@ -723,6 +726,27 @@ window.exportReport=function(){
     const blob=new Blob([csv],{type:'text/csv'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');a.href=url;a.download=`hd41_report_${results.length}_voters.csv`;a.click();
+};
+
+window.mapReport=function(){
+    const results=window.__reportResults;
+    if(!results||!results.length)return;
+    // Close the report panel
+    document.getElementById('report-panel').classList.remove('visible');
+    // Clear map and plot these voters
+    clearLayers();
+    const hp=[];
+    for(const v of results){
+        if(!v.lat||!v.lng)continue;
+        hp.push([v.lat,v.lng,0.5]);
+        const party=v.party_voted||v.current_party||'';
+        const color=party.includes('Democrat')?'#1E90FF':party.includes('Republican')?'#DC143C':'#FFD600';
+        const marker=L.circleMarker([v.lat,v.lng],{radius:9,fillColor:color,color:'#fff',weight:2,opacity:1,fillOpacity:0.8});
+        marker.bindPopup(()=>buildVoterPopup(v),{maxWidth:380});
+        markerClusterGroup.addLayer(marker);
+    }
+    if(hp.length){heatLayer=L.heatLayer(hp,{radius:15,blur:20,maxZoom:15});heatLayer.addTo(map);}
+    updateStrip(`🗺️ <b>Report: ${results.length} voters mapped</b> · Blue=Dem · Red=Rep · Yellow=Unaffiliated · Click for details`);
 };
 
 document.addEventListener('DOMContentLoaded',initMap);
