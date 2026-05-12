@@ -629,11 +629,12 @@ async function generateReport(){
     const wantPrimary=document.getElementById('rpt-primary').checked;
     const wantBond=document.getElementById('rpt-bond').checked;
     const wantD5=document.getElementById('rpt-d5').checked;
+    const wantLivesD5=document.getElementById('rpt-lives-d5').checked;
     const wantNotPrimary=document.getElementById('rpt-not-primary').checked;
     const wantDem=document.getElementById('rpt-dem').checked;
     const wantRep=document.getElementById('rpt-rep').checked;
 
-    if(!wantPrimary&&!wantBond&&!wantD5&&!wantNotPrimary&&!wantDem&&!wantRep){
+    if(!wantPrimary&&!wantBond&&!wantD5&&!wantLivesD5&&!wantNotPrimary&&!wantDem&&!wantRep){
         el.innerHTML='<div style="color:#c62828;font-size:13px;">Select at least one filter.</div>';return;
     }
 
@@ -642,38 +643,50 @@ async function generateReport(){
     if(!voterData){el.innerHTML='<div style="color:#c62828;">Voter data not loaded</div>';return;}
 
     // Build a set of VUIDs for each election from the DB caches
-    let d5Vuids=null, bondVuids=null;
-    if(wantD5||wantNotPrimary){
-        try{const r=await fetch('/cache/hd41_d5_voters.json');const d=await r.json();d5Vuids=new Set(d.voters.map(v=>v.vuid));}catch(e){}
-    }
+    let d5Vuids=null, bondVuids=null, d5Precincts=null, d5VoterData=null;
+
+    // Load D5 voters (has voted_primary and voted_bond flags)
+    try{const r=await fetch('/cache/hd41_d5_voters.json');d5VoterData=await r.json();d5Vuids=new Set(d5VoterData.voters.map(v=>v.vuid));d5Precincts=new Set(d5VoterData.voters.map(v=>v.precinct));}catch(e){}
+
+    // For bond, we need ALL bond voters in HD-41 (not just the "skipped primary" subset)
+    // The primary voter list (voterData) has everyone who voted in March
+    // We need to check which of them also voted in the bond
+    // Load from the voter_elections via the bond targets + d5 voters who voted_bond
+    let allBondVuids=new Set();
     if(wantBond){
-        try{const r=await fetch('/cache/hd41_bond_targets.json');const d=await r.json();bondVuids=new Set(d.voters.map(v=>v.vuid));}catch(e){}
+        // Bond targets = voted bond, NOT primary
+        try{const r=await fetch('/cache/hd41_bond_targets.json');const d=await r.json();d.voters.forEach(v=>allBondVuids.add(v.vuid));}catch(e){}
+        // D5 voters who voted_bond = voted bond AND may have voted primary
+        if(d5VoterData){d5VoterData.voters.filter(v=>v.voted_bond).forEach(v=>allBondVuids.add(v.vuid));}
     }
 
     // Filter the main voter list
     let results=voterData.voters.filter(v=>{
         if(wantDem&&v.party_voted!=='Democratic')return false;
         if(wantRep&&v.party_voted!=='Republican')return false;
-        if(wantPrimary&&!v.party_voted)return false; // they're in the primary voter list so they voted
-        if(wantNotPrimary&&v.party_voted)return false; // exclude primary voters
+        if(wantPrimary&&!v.party_voted)return false;
+        if(wantNotPrimary&&v.party_voted)return false;
         if(wantD5&&d5Vuids&&!d5Vuids.has(v.vuid))return false;
-        if(wantBond&&bondVuids&&!bondVuids.has(v.vuid))return false;
+        if(wantLivesD5&&d5Precincts&&!d5Precincts.has(v.precinct))return false;
+        if(wantBond&&!allBondVuids.has(v.vuid))return false;
         return true;
     });
 
     // For "not primary" + bond/d5, we need to check the bond/d5 caches directly
-    if(wantNotPrimary&&(wantBond||wantD5)){
+    if(wantNotPrimary&&(wantBond||wantD5||wantLivesD5)){
         // These voters aren't in voterData (which is primary voters only)
-        // Load from bond targets or d5 cache
         let pool=[];
         if(wantBond){
             try{const r=await fetch('/cache/hd41_bond_targets.json');const d=await r.json();pool=d.voters;}catch(e){}
-        } else if(wantD5){
-            try{const r=await fetch('/cache/hd41_d5_voters.json');const d=await r.json();pool=d.voters.filter(v=>!v.voted_primary);}catch(e){}
+        } else if(wantD5&&d5VoterData){
+            pool=d5VoterData.voters.filter(v=>!v.voted_primary);
+        } else if(wantLivesD5&&d5VoterData){
+            pool=d5VoterData.voters.filter(v=>!v.voted_primary);
         }
         if(wantDem)pool=pool.filter(v=>v.current_party==='Democratic');
         if(wantRep)pool=pool.filter(v=>v.current_party==='Republican');
         if(wantD5&&d5Vuids)pool=pool.filter(v=>d5Vuids.has(v.vuid));
+        if(wantLivesD5&&d5Precincts)pool=pool.filter(v=>d5Precincts.has(v.precinct));
         results=pool;
     }
 
