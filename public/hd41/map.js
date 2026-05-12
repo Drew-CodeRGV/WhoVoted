@@ -102,6 +102,7 @@ function render(){
     if(currentMain==='voters')renderVoters();
     else if(currentMain==='yardsigns')renderYardSigns();
     else if(currentMain==='bond-targets')renderBondTargets();
+    else if(currentMain==='d5-voters')renderD5Voters();
     else if(!window.__subscribed){showPaywall();return;}
     else if(currentMain==='party-all')renderParty('combined');
     else if(currentMain==='party-dem')renderParty('dem');
@@ -295,6 +296,50 @@ async function renderBondTargets(){
         if(hp.length){heatLayer=L.heatLayer(hp,{radius:15,blur:20,maxZoom:15,gradient:{0.4:'#ff9800',0.65:'#f57c00',1:'#e65100'}});heatLayer.addTo(map);}
         updateStrip(`🎯 <b>${data.count} Bond Voters Who Skipped Primary</b> · <span style="color:#1E90FF">●Dem: ${data.dem_history}</span> · <span style="color:#DC143C">●Rep: ${data.rep_history}</span> · <span style="color:#FFD600">●Unaffiliated: ${data.no_history}</span> · Proven voters — mobilize for runoff`);
     }catch(e){updateStrip('Failed to load bond targets');console.error(e);}
+}
+
+// ═══ D5 VOTERS MAP ═══
+async function renderD5Voters(){
+    clearLayers();
+    if(!window.__subscribed){showPaywall();return;}
+    try{
+        const resp=await fetch('/cache/hd41_d5_voters.json');
+        const data=await resp.json();
+        if(!data.voters||!data.voters.length){updateStrip('No D5 voter data available');return;}
+        const hp=[];
+        for(const v of data.voters){
+            if(!v.lat||!v.lng)continue;
+            hp.push([v.lat,v.lng,0.5]);
+            // Green if voted in both, orange if D5 only (skipped primary)
+            const color=v.voted_primary?(v.current_party==='Democratic'?'#1E90FF':v.current_party==='Republican'?'#DC143C':'#4caf50'):'#FF9800';
+            const marker=L.circleMarker([v.lat,v.lng],{radius:9,fillColor:color,color:v.voted_primary?'#fff':'#e65100',weight:v.voted_primary?2:3,opacity:1,fillOpacity:0.8});
+            marker.bindPopup(()=>{
+                const age=v.birth_year&&v.birth_year>1900?(2026-v.birth_year):'';
+                const pColor=v.current_party==='Democratic'?'#1E90FF':v.current_party==='Republican'?'#DC143C':'#FFD600';
+                let h=`<div style="font-family:sans-serif;max-width:380px;">`;
+                h+=`<div style="font-size:11px;color:#888;">${v.address||''}, ${v.city||''} ${v.zip||''}</div>`;
+                h+=`<div style="display:flex;align-items:center;gap:6px;margin:4px 0;"><span style="width:10px;height:10px;border-radius:50%;background:${pColor};"></span><span style="font-weight:700;font-size:13px;">${v.name}</span></div>`;
+                const partyLabel=v.current_party==='None'?'Unaffiliated':v.current_party;
+                h+=`<div style="font-size:11px;color:#666;margin-bottom:4px;">${partyLabel} · ${v.sex==='F'?'Female':v.sex==='M'?'Male':''} ${age?'· Age '+age:''} · Pct ${v.precinct||'—'}</div>`;
+                h+=`<div style="padding:6px;border-radius:6px;background:${v.voted_primary?'#e8f5e9':'#fff3e0'};border:1px solid ${v.voted_primary?'#4caf50':'#ff9800'};margin-bottom:6px;">`;
+                h+=`<div style="font-size:11px;font-weight:700;color:${v.voted_primary?'#2e7d32':'#e65100'};">🏛️ City D5 Voter (${v.voting_method||'voted'})</div>`;
+                h+=`<div style="font-size:10px;margin-top:4px;">`;
+                h+=`<span style="margin-right:8px;">${v.voted_d5?'✅':'❌'} D5 Election</span>`;
+                h+=`<span style="margin-right:8px;">${v.voted_primary?'✅':'❌'} March Primary</span>`;
+                h+=`<span>${v.voted_bond?'✅':'❌'} MISD Bond</span>`;
+                h+=`</div>`;
+                h+=v.voted_primary?``:`<div style="font-size:10px;color:#e65100;font-weight:600;margin-top:2px;">⚡ Skipped March primary — mobilization target</div>`;
+                h+=`</div>`;
+                const hx=v.hist||[];
+                if(hx.length){h+='<div style="font-size:10px;font-weight:600;color:#555;margin-top:4px;">Voting History</div><table style="border-collapse:collapse;margin-top:2px;width:100%;"><tr>';hx.forEach(e=>{h+=`<td style="padding:1px 2px;font-size:8px;color:#888;text-align:center;border:1px solid #e0e0e0;background:#f5f5f5;">${(e.y||'').slice(-2)}</td>`;});h+='</tr><tr>';hx.forEach(e=>{const bg=e.p==='D'?'#1E90FF':e.p==='R'?'#DC143C':'#888';h+=`<td style="padding:3px 2px;text-align:center;border:1px solid #e0e0e0;background:${bg};color:white;font-size:11px;font-weight:700;">${e.p}</td>`;});h+='</tr></table>';}
+                else{h+='<div style="font-size:10px;color:#999;margin-top:4px;">No prior primary history</div>';}
+                h+=`</div>`;return h;
+            },{maxWidth:380});
+            markerClusterGroup.addLayer(marker);
+        }
+        if(hp.length){heatLayer=L.heatLayer(hp,{radius:15,blur:20,maxZoom:15,gradient:{0.4:'#66bb6a',0.65:'#388e3c',1:'#1b5e20'}});heatLayer.addTo(map);}
+        updateStrip(`🏛️ <b>${data.count} City D5 Voters in HD-41</b> · Voted both: ${data.voted_both_d5_and_primary} · <span style="color:#e65100;font-weight:700;">Skipped primary: ${data.d5_only_not_primary} targets</span> · Orange = didn't vote in primary`);
+    }catch(e){updateStrip('Failed to load D5 data');console.error(e);}
 }
 
 // ═══ PARTY VIEW ═══
