@@ -101,6 +101,7 @@ function setupListeners(){
 function render(){
     if(currentMain==='voters')renderVoters();
     else if(currentMain==='yardsigns')renderYardSigns();
+    else if(currentMain==='bond-targets')renderBondTargets();
     else if(!window.__subscribed){showPaywall();return;}
     else if(currentMain==='party-all')renderParty('combined');
     else if(currentMain==='party-dem')renderParty('dem');
@@ -244,6 +245,41 @@ function renderYardSigns(){
     } else {
         updateStrip(`🪧 <b>${signVuids.length} Yard Signs</b> spotted in HD-41 · Subscribe to see which candidates`);
     }
+}
+
+// ═══ BOND TARGETS MAP ═══
+async function renderBondTargets(){
+    clearLayers();
+    if(!window.__subscribed){showPaywall();return;}
+    try{
+        const resp=await fetch('/cache/hd41_bond_targets.json');
+        const data=await resp.json();
+        if(!data.voters||!data.voters.length){updateStrip('No bond target data available');return;}
+
+        const hp=[];
+        for(const v of data.voters){
+            if(!v.lat||!v.lng)continue;
+            hp.push([v.lat,v.lng,0.5]);
+            // Color by party history
+            const color=v.current_party==='Democratic'?'#1E90FF':v.current_party==='Republican'?'#DC143C':'#9c27b0';
+            const marker=L.circleMarker([v.lat,v.lng],{radius:9,fillColor:color,color:'#fff',weight:2,opacity:1,fillOpacity:0.8});
+            marker.bindPopup(()=>{
+                const age=v.birth_year&&v.birth_year>1900?(2026-v.birth_year):'';
+                let h=`<div style="font-family:sans-serif;max-width:300px;">`;
+                h+=`<div style="font-size:11px;color:#888;">${v.address||''}, ${v.city||''} ${v.zip||''}</div>`;
+                h+=`<div style="font-weight:700;font-size:13px;margin:4px 0;">${v.name}</div>`;
+                h+=`<div style="font-size:11px;color:#666;margin-bottom:6px;">${v.current_party==='None'?'No party history':v.current_party} · ${v.sex==='F'?'Female':v.sex==='M'?'Male':''} ${age?'· Age '+age:''} · Pct ${v.precinct||'—'}</div>`;
+                h+=`<div style="padding:8px;border-radius:6px;background:#fff3e0;border:1px solid #ff9800;">`;
+                h+=`<div style="font-size:12px;font-weight:700;color:#e65100;">🎯 BOND VOTER — Skipped Primary</div>`;
+                h+=`<div style="font-size:11px;color:#555;margin-top:2px;">Voted in McAllen ISD Bond (May 10) but did NOT vote in the March 3 primary. Proven voter — mobilization target for runoff.</div>`;
+                h+=`</div></div>`;
+                return h;
+            },{maxWidth:320});
+            markerClusterGroup.addLayer(marker);
+        }
+        if(hp.length){heatLayer=L.heatLayer(hp,{radius:15,blur:20,maxZoom:15,gradient:{0.4:'#ff9800',0.65:'#f57c00',1:'#e65100'}});heatLayer.addTo(map);}
+        updateStrip(`🎯 <b>${data.count} Bond Voters Who Skipped Primary</b> · <span style="color:#1E90FF">●Dem history: ${data.dem_history}</span> · <span style="color:#DC143C">●Rep history: ${data.rep_history}</span> · <span style="color:#9c27b0">●No history: ${data.no_history}</span> · Proven voters — mobilize for runoff`);
+    }catch(e){updateStrip('Failed to load bond targets');console.error(e);}
 }
 
 // ═══ PARTY VIEW ═══
