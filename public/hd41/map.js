@@ -80,6 +80,10 @@ function setupListeners(){
     document.getElementById('location-btn').addEventListener('click',()=>{if(navigator.geolocation)navigator.geolocation.getCurrentPosition(p=>map.setView([p.coords.latitude,p.coords.longitude],15));});
     document.getElementById('reportcard-btn').addEventListener('click',()=>{if(!window.__subscribed){showPaywall();return;}toggleReportCard();});
     document.getElementById('reportcard-close').addEventListener('click',()=>document.getElementById('reportcard-panel').classList.remove('visible'));
+    // Report builder
+    document.getElementById('report-btn').addEventListener('click',()=>{if(!window.__subscribed){showPaywall();return;}document.getElementById('report-panel').classList.toggle('visible');});
+    document.getElementById('report-close').addEventListener('click',()=>document.getElementById('report-panel').classList.remove('visible'));
+    document.getElementById('rpt-generate').addEventListener('click',generateReport);
 
     // Mobile
     const mb=document.getElementById('mobile-menu-btn'),md=document.getElementById('mobile-drawer');
@@ -616,5 +620,92 @@ function toggleReportCard(){
     }
     listEl.innerHTML=html;
 }
+
+// ═══ REPORT BUILDER ═══
+async function generateReport(){
+    const el=document.getElementById('rpt-results');
+    el.innerHTML='<div style="text-align:center;color:#666;padding:12px;">Loading...</div>';
+
+    const wantPrimary=document.getElementById('rpt-primary').checked;
+    const wantBond=document.getElementById('rpt-bond').checked;
+    const wantD5=document.getElementById('rpt-d5').checked;
+    const wantNotPrimary=document.getElementById('rpt-not-primary').checked;
+    const wantDem=document.getElementById('rpt-dem').checked;
+    const wantRep=document.getElementById('rpt-rep').checked;
+
+    if(!wantPrimary&&!wantBond&&!wantD5&&!wantNotPrimary&&!wantDem&&!wantRep){
+        el.innerHTML='<div style="color:#c62828;font-size:13px;">Select at least one filter.</div>';return;
+    }
+
+    // Load all data sources we need
+    const sources=[];
+    if(!voterData){el.innerHTML='<div style="color:#c62828;">Voter data not loaded</div>';return;}
+
+    // Build a set of VUIDs for each election from the DB caches
+    let d5Vuids=null, bondVuids=null;
+    if(wantD5||wantNotPrimary){
+        try{const r=await fetch('/cache/hd41_d5_voters.json');const d=await r.json();d5Vuids=new Set(d.voters.map(v=>v.vuid));}catch(e){}
+    }
+    if(wantBond){
+        try{const r=await fetch('/cache/hd41_bond_targets.json');const d=await r.json();bondVuids=new Set(d.voters.map(v=>v.vuid));}catch(e){}
+    }
+
+    // Filter the main voter list
+    let results=voterData.voters.filter(v=>{
+        if(wantDem&&v.party_voted!=='Democratic')return false;
+        if(wantRep&&v.party_voted!=='Republican')return false;
+        if(wantPrimary&&!v.party_voted)return false; // they're in the primary voter list so they voted
+        if(wantNotPrimary&&v.party_voted)return false; // exclude primary voters
+        if(wantD5&&d5Vuids&&!d5Vuids.has(v.vuid))return false;
+        if(wantBond&&bondVuids&&!bondVuids.has(v.vuid))return false;
+        return true;
+    });
+
+    // For "not primary" + bond/d5, we need to check the bond/d5 caches directly
+    if(wantNotPrimary&&(wantBond||wantD5)){
+        // These voters aren't in voterData (which is primary voters only)
+        // Load from bond targets or d5 cache
+        let pool=[];
+        if(wantBond){
+            try{const r=await fetch('/cache/hd41_bond_targets.json');const d=await r.json();pool=d.voters;}catch(e){}
+        } else if(wantD5){
+            try{const r=await fetch('/cache/hd41_d5_voters.json');const d=await r.json();pool=d.voters.filter(v=>!v.voted_primary);}catch(e){}
+        }
+        if(wantDem)pool=pool.filter(v=>v.current_party==='Democratic');
+        if(wantRep)pool=pool.filter(v=>v.current_party==='Republican');
+        if(wantD5&&d5Vuids)pool=pool.filter(v=>d5Vuids.has(v.vuid));
+        results=pool;
+    }
+
+    // Display results
+    if(!results.length){el.innerHTML='<div style="color:#888;font-size:13px;">No voters match these criteria.</div>';return;}
+
+    let h=`<div style="font-weight:700;font-size:14px;margin-bottom:8px;">${results.length} voters found</div>`;
+    h+=`<button onclick="exportReport()" style="margin-bottom:10px;padding:6px 12px;background:#1565c0;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">📥 Export CSV</button>`;
+    h+=`<div style="max-height:400px;overflow-y:auto;border:1px solid #ddd;border-radius:4px;">`;
+    h+=`<table style="width:100%;border-collapse:collapse;font-size:11px;">`;
+    h+=`<tr style="background:#f5f5f5;position:sticky;top:0;"><th style="padding:4px;text-align:left;">Name</th><th style="padding:4px;text-align:left;">Address</th><th style="padding:4px;">Party</th><th style="padding:4px;">Pct</th></tr>`;
+    results.slice(0,500).forEach(v=>{
+        h+=`<tr style="border-bottom:1px solid #eee;"><td style="padding:4px;">${v.name}</td><td style="padding:4px;font-size:10px;">${v.address||''}, ${v.city||''}</td><td style="padding:4px;text-align:center;">${(v.party_voted||v.current_party||'').charAt(0)}</td><td style="padding:4px;text-align:center;">${v.precinct||''}</td></tr>`;
+    });
+    h+=`</table></div>`;
+    if(results.length>500)h+=`<div style="font-size:11px;color:#888;margin-top:4px;">Showing first 500 of ${results.length}. Export CSV for full list.</div>`;
+    el.innerHTML=h;
+
+    // Store for export
+    window.__reportResults=results;
+}
+
+window.exportReport=function(){
+    const results=window.__reportResults;
+    if(!results||!results.length)return;
+    let csv='Name,Address,City,Zip,Precinct,Party,VUID\n';
+    results.forEach(v=>{
+        csv+=`"${v.name}","${v.address||''}","${v.city||''}","${v.zip||''}","${v.precinct||''}","${v.party_voted||v.current_party||''}","${v.vuid}"\n`;
+    });
+    const blob=new Blob([csv],{type:'text/csv'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=`hd41_report_${results.length}_voters.csv`;a.click();
+};
 
 document.addEventListener('DOMContentLoaded',initMap);

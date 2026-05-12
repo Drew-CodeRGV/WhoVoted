@@ -223,6 +223,7 @@
             </select>
 
             <button class="reportcard-btn desktop-only" id="reportcard-btn" title="Report Card">📊</button>
+            <button class="reportcard-btn desktop-only" id="report-btn" title="Build Report" style="background:#2e7d32;">📋</button>
         </div>
     </div>
 
@@ -261,6 +262,44 @@
             <option value="none">None</option>
         </select>
         <button id="reportcard-btn-mobile" style="width:100%;padding:10px;background:#6c5ce7;color:white;border:none;border-radius:4px;font-size:14px;font-weight:600;cursor:pointer;">📊 Report Card</button>
+    </div>
+
+    <!-- Report Builder Panel -->
+    <div class="reportcard-panel" id="report-panel" style="background:white;background-image:none;">
+        <div class="reportcard-header" style="background:#2e7d32;">
+            <div style="display:flex;align-items:flex-end;width:100%;padding-right:12px;">
+                <div class="rc-file-tab" style="background:white;">
+                    <span style="font-size:16px;font-weight:700;color:#2e7d32;">📋 Report Builder</span>
+                </div>
+                <div style="flex:1;"></div>
+                <button class="reportcard-close" id="report-close" style="align-self:center;margin-left:10px;color:white;">✕</button>
+            </div>
+        </div>
+        <div style="padding:16px;overflow-y:auto;flex:1;">
+            <div style="font-size:13px;color:#666;margin-bottom:12px;">Select elections to cross-reference. Results show voters matching ALL selected criteria.</div>
+            <div style="margin-bottom:16px;">
+                <label style="display:flex;align-items:center;gap:8px;padding:8px 0;font-size:14px;cursor:pointer;border-bottom:1px solid #eee;">
+                    <input type="checkbox" id="rpt-primary" style="width:18px;height:18px;"> Voted in March 3 Primary
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;padding:8px 0;font-size:14px;cursor:pointer;border-bottom:1px solid #eee;">
+                    <input type="checkbox" id="rpt-bond" style="width:18px;height:18px;"> Voted in MISD Bond (May 10)
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;padding:8px 0;font-size:14px;cursor:pointer;border-bottom:1px solid #eee;">
+                    <input type="checkbox" id="rpt-d5" style="width:18px;height:18px;"> Voted in D5 City Election (May 2)
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;padding:8px 0;font-size:14px;cursor:pointer;border-bottom:1px solid #eee;">
+                    <input type="checkbox" id="rpt-not-primary" style="width:18px;height:18px;"> Did NOT vote in March Primary
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;padding:8px 0;font-size:14px;cursor:pointer;border-bottom:1px solid #eee;">
+                    <input type="checkbox" id="rpt-dem" style="width:18px;height:18px;"> Democratic history only
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;padding:8px 0;font-size:14px;cursor:pointer;">
+                    <input type="checkbox" id="rpt-rep" style="width:18px;height:18px;"> Republican history only
+                </label>
+            </div>
+            <button id="rpt-generate" style="width:100%;padding:12px;background:#2e7d32;color:white;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">Generate Report</button>
+            <div id="rpt-results" style="margin-top:16px;"></div>
+        </div>
     </div>
 
     <!-- Disclaimer Notice -->
