@@ -73,6 +73,14 @@ A standalone Progressive Web App at `yards.politiquera.com` where anyone with a 
 5. AI confidence must be > 70% for auto-approval
 6. Low-confidence submissions go to manual review queue
 
+### Sign Lifecycle
+1. All yard signs are assumed REMOVED after the election/runoff date passes
+2. On election day + 1: all signs for that election are auto-expired (status → 'expired')
+3. Expired signs no longer appear on maps or in targeting layers
+4. Historical sign data is retained in the DB for analytics but not displayed as active
+5. If a new election cycle starts, the same address can be submitted again
+6. Signs for a runoff expire after the runoff date, not the original primary date
+
 ## Technical Architecture
 
 ### Frontend (PWA)
