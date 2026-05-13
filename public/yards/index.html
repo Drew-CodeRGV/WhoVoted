@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Yard Signs — Politiquera</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1b5e20">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#f5f5f5; min-height:100vh; }
+        .header { background:#1b5e20; color:white; padding:16px 20px; text-align:center; position:sticky; top:0; z-index:100; }
+        .header h1 { font-size:20px; margin-bottom:2px; }
+        .header p { font-size:12px; opacity:0.8; }
+        .progress-bar { margin:12px 20px; background:#e0e0e0; border-radius:10px; height:20px; overflow:hidden; position:relative; }
+        .progress-fill { height:100%; background:linear-gradient(90deg,#4caf50,#2e7d32); border-radius:10px; transition:width 0.3s; }
+        .progress-text { position:absolute; top:0; left:0; right:0; height:100%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#333; }
+        .main { padding:20px; max-width:500px; margin:0 auto; }
+        .snap-btn { width:100%; padding:20px; background:#1b5e20; color:white; border:none; border-radius:12px; font-size:18px; font-weight:700; cursor:pointer; margin-bottom:16px; box-shadow:0 4px 12px rgba(0,0,0,0.2); }
+        .snap-btn:active { transform:scale(0.98); }
+        .snap-btn:disabled { background:#999; }
+        .status { padding:16px; background:white; border-radius:8px; margin-bottom:12px; box-shadow:0 1px 4px rgba(0,0,0,0.1); }
+        .status-title { font-weight:700; font-size:14px; margin-bottom:4px; }
+        .status-detail { font-size:12px; color:#666; }
+        .history { margin-top:16px; }
+        .history-item { display:flex; align-items:center; gap:12px; padding:12px; background:white; border-radius:8px; margin-bottom:8px; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+        .history-thumb { width:50px; height:50px; border-radius:6px; object-fit:cover; background:#eee; }
+        .history-info { flex:1; }
+        .history-candidate { font-weight:700; font-size:13px; }
+        .history-address { font-size:11px; color:#666; }
+        .history-status { font-size:10px; padding:2px 6px; border-radius:4px; font-weight:600; }
+        .history-status.verified { background:#e8f5e9; color:#2e7d32; }
+        .history-status.pending { background:#fff3e0; color:#e65100; }
+        .history-status.rejected { background:#fce4ec; color:#c62828; }
+        /* Camera overlay */
+        .camera-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:black; z-index:1000; flex-direction:column; }
+        .camera-overlay.active { display:flex; }
+        .camera-video { flex:1; object-fit:cover; }
+        .camera-controls { padding:20px; display:flex; justify-content:center; align-items:center; gap:20px; background:rgba(0,0,0,0.8); }
+        .camera-snap { width:70px; height:70px; border-radius:50%; background:white; border:4px solid #4caf50; cursor:pointer; }
+        .camera-snap:active { transform:scale(0.9); }
+        .camera-cancel { color:white; font-size:16px; background:none; border:none; cursor:pointer; }
+        .camera-gps { position:absolute; top:16px; left:16px; background:rgba(0,0,0,0.6); color:#4caf50; padding:6px 10px; border-radius:4px; font-size:11px; }
+        /* Preview */
+        .preview-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:1001; flex-direction:column; align-items:center; justify-content:center; padding:20px; }
+        .preview-overlay.active { display:flex; }
+        .preview-img { max-width:100%; max-height:60vh; border-radius:8px; }
+        .preview-actions { margin-top:16px; display:flex; gap:12px; }
+        .preview-actions button { padding:12px 24px; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
+        .btn-submit { background:#4caf50; color:white; }
+        .btn-retake { background:#666; color:white; }
+        /* Result */
+        .result-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1002; flex-direction:column; align-items:center; justify-content:center; padding:20px; }
+        .result-overlay.active { display:flex; }
+        .result-card { background:white; border-radius:12px; padding:24px; max-width:350px; width:100%; text-align:center; }
+        .result-icon { font-size:48px; margin-bottom:12px; }
+        .result-title { font-size:18px; font-weight:700; margin-bottom:8px; }
+        .result-detail { font-size:13px; color:#666; margin-bottom:16px; }
+        .result-btn { padding:12px 24px; background:#1b5e20; color:white; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
+        .login-form { padding:20px; max-width:400px; margin:40px auto; background:white; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
+        .login-form input { width:100%; padding:12px; margin-bottom:12px; border:1px solid #ddd; border-radius:6px; font-size:14px; }
+        .login-form button { width:100%; padding:12px; background:#1b5e20; color:white; border:none; border-radius:6px; font-size:14px; font-weight:600; cursor:pointer; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🪧 Yard Signs</h1>
+        <p>Snap signs. Earn free access.</p>
+    </div>
+
+    <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+        <div class="progress-text" id="progress-text">0 / 20 toward free month</div>
+    </div>
+
+    <div class="main" id="main-content">
+        <button class="snap-btn" id="snap-btn" onclick="openCamera()">📸 Snap a Sign</button>
+
+        <div class="status" id="gps-status">
+            <div class="status-title">📍 GPS Status</div>
+            <div class="status-detail" id="gps-detail">Waiting for location...</div>
+        </div>
+
+        <div class="history" id="history">
+            <div style="font-weight:700;font-size:14px;margin-bottom:8px;">Recent Submissions</div>
+            <div id="history-list" style="color:#888;font-size:13px;">No submissions yet. Snap your first sign!</div>
+        </div>
+    </div>
+
+    <!-- Camera -->
+    <div class="camera-overlay" id="camera-overlay">
+        <div class="camera-gps" id="camera-gps">📍 Getting GPS...</div>
+        <video class="camera-video" id="camera-video" autoplay playsinline></video>
+        <div class="camera-controls">
+            <button class="camera-cancel" onclick="closeCamera()">✕ Cancel</button>
+            <button class="camera-snap" id="camera-snap-btn" onclick="takePhoto()"></button>
+        </div>
+    </div>
+
+    <!-- Preview -->
+    <div class="preview-overlay" id="preview-overlay">
+        <img class="preview-img" id="preview-img">
+        <div class="preview-actions">
+            <button class="btn-retake" onclick="retakePhoto()">↩ Retake</button>
+            <button class="btn-submit" onclick="submitPhoto()">✓ Submit</button>
+        </div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-overlay" id="result-overlay">
+        <div class="result-card">
+            <div class="result-icon" id="result-icon">✓</div>
+            <div class="result-title" id="result-title">Processing...</div>
+            <div class="result-detail" id="result-detail"></div>
+            <button class="result-btn" onclick="closeResult()">Next Sign →</button>
+        </div>
+    </div>
+
+    <canvas id="photo-canvas" style="display:none;"></canvas>
+
+    <script>
+    // Register service worker
+    if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js');}
+
+    let currentStream = null;
+    let currentPhotoBlob = null;
+    let currentGPS = null;
+
+    // Get GPS on load
+    function initGPS() {
+        if (!navigator.geolocation) {
+            document.getElementById('gps-detail').textContent = '❌ GPS not available';
+            return;
+        }
+        navigator.geolocation.watchPosition(
+            pos => {
+                currentGPS = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+                document.getElementById('gps-detail').textContent = `✓ ${currentGPS.lat.toFixed(5)}, ${currentGPS.lng.toFixed(5)} (±${Math.round(currentGPS.accuracy)}m)`;
+                document.getElementById('camera-gps').textContent = `📍 ${currentGPS.lat.toFixed(4)}, ${currentGPS.lng.toFixed(4)}`;
+            },
+            err => { document.getElementById('gps-detail').textContent = '❌ ' + err.message; },
+            { enableHighAccuracy: true, maximumAge: 10000 }
+        );
+    }
+
+    async function openCamera() {
+        if (!currentGPS) { alert('Waiting for GPS. Please allow location access.'); return; }
+        try {
+            currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } });
+            document.getElementById('camera-video').srcObject = currentStream;
+            document.getElementById('camera-overlay').classList.add('active');
+        } catch (e) { alert('Camera access denied: ' + e.message); }
+    }
+
+    function closeCamera() {
+        if (currentStream) { currentStream.getTracks().forEach(t => t.stop()); currentStream = null; }
+        document.getElementById('camera-overlay').classList.remove('active');
+    }
+
+    function takePhoto() {
+        const video = document.getElementById('camera-video');
+        const canvas = document.getElementById('photo-canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        canvas.toBlob(blob => {
+            currentPhotoBlob = blob;
+            document.getElementById('preview-img').src = URL.createObjectURL(blob);
+            closeCamera();
+            document.getElementById('preview-overlay').classList.add('active');
+        }, 'image/jpeg', 0.85);
+    }
+
+    function retakePhoto() {
+        document.getElementById('preview-overlay').classList.remove('active');
+        openCamera();
+    }
+
+    async function submitPhoto() {
+        document.getElementById('preview-overlay').classList.remove('active');
+        document.getElementById('result-overlay').classList.add('active');
+        document.getElementById('result-icon').textContent = '⏳';
+        document.getElementById('result-title').textContent = 'Analyzing sign...';
+        document.getElementById('result-detail').textContent = 'AI is identifying the candidate...';
+
+        const formData = new FormData();
+        formData.append('photo', currentPhotoBlob, 'yardsign.jpg');
+        formData.append('lat', currentGPS.lat);
+        formData.append('lng', currentGPS.lng);
+        formData.append('accuracy', currentGPS.accuracy);
+        formData.append('timestamp', new Date().toISOString());
+
+        try {
+            const resp = await fetch('/api/yards/submit', { method: 'POST', body: formData, credentials: 'include' });
+            const data = await resp.json();
+            if (data.success) {
+                document.getElementById('result-icon').textContent = '✓';
+                document.getElementById('result-title').textContent = data.candidate ? `${data.candidate} sign identified!` : 'Photo submitted!';
+                document.getElementById('result-detail').textContent = data.address ? `📍 ${data.address}` : (data.message || 'Pending verification');
+                updateProgress(data.progress);
+                loadHistory();
+            } else {
+                document.getElementById('result-icon').textContent = '⚠️';
+                document.getElementById('result-title').textContent = 'Submission issue';
+                document.getElementById('result-detail').textContent = data.error || 'Please try again';
+            }
+        } catch (e) {
+            document.getElementById('result-icon').textContent = '❌';
+            document.getElementById('result-title').textContent = 'Upload failed';
+            document.getElementById('result-detail').textContent = 'Check your connection and try again';
+        }
+    }
+
+    function closeResult() {
+        document.getElementById('result-overlay').classList.remove('active');
+    }
+
+    function updateProgress(progress) {
+        if (!progress) return;
+        const pct = Math.min(100, (progress.verified / 20) * 100);
+        document.getElementById('progress-fill').style.width = pct + '%';
+        document.getElementById('progress-text').textContent = `${progress.verified} / 20 toward free month`;
+    }
+
+    async function loadHistory() {
+        try {
+            const resp = await fetch('/api/yards/my-progress', { credentials: 'include' });
+            const data = await resp.json();
+            if (data.progress) updateProgress(data.progress);
+            if (data.recent && data.recent.length) {
+                document.getElementById('history-list').innerHTML = data.recent.map(s => `
+                    <div class="history-item">
+                        <div class="history-thumb" style="background-image:url(${s.photo_url});background-size:cover;"></div>
+                        <div class="history-info">
+                            <div class="history-candidate">${s.candidate || 'Pending...'}</div>
+                            <div class="history-address">${s.address || 'Matching address...'}</div>
+                        </div>
+                        <span class="history-status ${s.status}">${s.status}</span>
+                    </div>
+                `).join('');
+            }
+        } catch (e) {}
+    }
+
+    // Init
+    initGPS();
+    loadHistory();
+    </script>
+</body>
+</html>

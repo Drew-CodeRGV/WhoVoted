@@ -52,6 +52,10 @@ app.register_blueprint(stripe_bp)
 from hd41_api import bp as hd41_bp
 app.register_blueprint(hd41_bp)
 
+# Register Yard Sign Tracker blueprint
+from yards_api import bp as yards_bp
+app.register_blueprint(yards_bp)
+
 # ── Simple in-memory cache for expensive queries ──
 import time as _time
 
@@ -305,6 +309,18 @@ def account_page():
 def hd41_index():
     """Serve the HD-41 runoff election tracker."""
     return send_from_directory(Config.PUBLIC_DIR, 'hd41/index.html')
+
+# Yard Sign Tracker PWA
+@app.route('/yards/')
+def yards_index():
+    """Serve the yard sign tracker PWA."""
+    return send_from_directory(Config.PUBLIC_DIR, 'yards/index.html')
+
+# Serve uploaded yard sign photos
+@app.route('/uploads/yards/<path:filename>')
+def yards_uploads(filename):
+    """Serve uploaded yard sign photos."""
+    return send_from_directory('/opt/whovoted/uploads/yards', filename)
 
 @app.route('/<path:path>')
 def static_files(path):

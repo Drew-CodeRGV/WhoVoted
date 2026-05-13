@@ -1,0 +1,17 @@
+{
+  "name": "Politiquera Yard Signs",
+  "short_name": "Yard Signs",
+  "description": "Snap yard signs, earn free access",
+  "start_url": "/yards/",
+  "display": "standalone",
+  "background_color": "#1b5e20",
+  "theme_color": "#1b5e20",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/assets/politiquera.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
